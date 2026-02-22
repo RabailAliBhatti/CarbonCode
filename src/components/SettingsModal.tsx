@@ -91,6 +91,16 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                                 <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${settings.autoSave ? 'left-6' : 'left-1'}`} />
                             </div>
                         </div>
+
+                        <div className="flex items-center justify-between group cursor-pointer" onClick={() => onUpdateSetting('formatOnSave', !settings.formatOnSave)}>
+                            <div className="flex flex-col">
+                                <label className="text-sm text-text-primary cursor-pointer">Format on Save</label>
+                                <span className="text-xs text-text-secondary">Format code when saving</span>
+                            </div>
+                            <div className={`w-10 h-5 rounded-full transition-colors relative ${settings.formatOnSave ? 'bg-accent' : 'bg-editor-border group-hover:bg-editor-border/80'}`}>
+                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${settings.formatOnSave ? 'left-6' : 'left-1'}`} />
+                            </div>
+                        </div>
                     </section>
 
                     <div className="h-px bg-editor-border" />
@@ -116,15 +126,93 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
 
                         <div className="space-y-1">
                             <label className="text-sm text-text-primary">Custom Compiler Path (Optional)</label>
-                            <input
-                                type="text"
-                                value={settings.compilerPath}
-                                placeholder="Auto-detected if empty"
-                                onChange={(e) => onUpdateSetting('compilerPath', e.target.value)}
-                                className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
-                            />
-                            <p className="text-xs text-text-secondary">Leave empty to use bundled MinGW or system compiler.</p>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={settings.compilerPath}
+                                    placeholder="Leave blank to use built-in MinGW"
+                                    onChange={(e) => {
+                                        onUpdateSetting('compilerPath', e.target.value)
+                                        window.electronAPI?.setCustomCompilerPath(e.target.value)
+                                    }}
+                                    className="flex-1 bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const path = await window.electronAPI?.browseCompiler()
+                                        if (path) {
+                                            onUpdateSetting('compilerPath', path)
+                                            window.electronAPI?.setCustomCompilerPath(path)
+                                        }
+                                    }}
+                                    className="px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30 rounded text-sm transition-colors whitespace-nowrap"
+                                >
+                                    Browse...
+                                </button>
+                            </div>
+                            <p className="text-xs text-text-secondary">Leave blank to use the built-in MinGW compiler. Specify a path to use a different compiler (e.g., C:\msys64\mingw64\bin\g++.exe).</p>
                         </div>
+                    </section>
+
+                    <div className="h-px bg-editor-border" />
+
+                    {/* Output Settings */}
+                    <section className="space-y-4">
+                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Output Panel</h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">Output Font Size</label>
+                                <input
+                                    type="number"
+                                    value={settings.outputFontSize}
+                                    onChange={(e) => onUpdateSetting('outputFontSize', parseInt(e.target.value) || 13)}
+                                    min={10}
+                                    max={24}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">Output Position</label>
+                                <select
+                                    value={settings.outputPosition}
+                                    onChange={(e) => onUpdateSetting('outputPosition', e.target.value as 'bottom' | 'right')}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                >
+                                    <option value="bottom">Bottom</option>
+                                    <option value="right">Right Side</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div className="h-px bg-editor-border" />
+
+                    {/* Privacy & Data */}
+                    <section className="space-y-4">
+                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Privacy & Data</h3>
+
+                        <div className="flex items-center justify-between group cursor-pointer" onClick={() => {
+                            const newValue = settings.analyticsConsent === true ? false : true
+                            onUpdateSetting('analyticsConsent', newValue)
+                            window.electronAPI?.setAnalyticsConsent(newValue)
+                        }}>
+                            <div className="flex flex-col">
+                                <label className="text-sm text-text-primary cursor-pointer">Share Anonymous Usage Data</label>
+                                <span className="text-xs text-text-secondary">Help improve CarbonCode by sharing anonymous feature usage</span>
+                            </div>
+                            <div className={`w-10 h-5 rounded-full transition-colors relative ${settings.analyticsConsent === true ? 'bg-accent' : 'bg-editor-border group-hover:bg-editor-border/80'}`}>
+                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${settings.analyticsConsent === true ? 'left-6' : 'left-1'}`} />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => window.electronAPI?.openExternal('https://github.com/rabailalibhatti/carboncode/blob/main/PRIVACY.md')}
+                            className="text-accent hover:text-accent-hover text-sm underline underline-offset-2"
+                        >
+                            View Privacy Policy →
+                        </button>
                     </section>
                 </div>
 
@@ -137,8 +225,8 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                         Done
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }
 

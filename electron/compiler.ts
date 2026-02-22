@@ -19,49 +19,137 @@ let currentProcess: ChildProcess | null = null
 // Store the detected compiler path
 let detectedCompilerPath: string | null = null
 
-/**
- * Get the bundled MinGW path (for Full version)
- */
-function getBundledMinGWPath(): string | null {
-    // In production, MinGW is in resources/mingw
-    const resourcesPath = process.resourcesPath || app.getAppPath()
-    const mingwPath = join(resourcesPath, 'mingw', 'bin', 'g++.exe')
+// Whether the detected compiler is the bundled one
+let isBundledCompiler = false
 
-    if (existsSync(mingwPath)) {
-        return mingwPath
+/**
+ * Get the path to the bundled MinGW compiler (shipped with the app)
+ */
+function getBundledCompilerPath(): string | null {
+    try {
+        const resourcesPath = process.resourcesPath
+        const gppPath = join(resourcesPath, 'mingw64', 'bin', 'g++.exe')
+        if (existsSync(gppPath)) {
+            return gppPath
+        }
+    } catch {
+        // process.resourcesPath may not exist in dev mode
     }
 
-    // In development, check project directory
-    const devPath = join(process.cwd(), 'mingw', 'bin', 'g++.exe')
-    if (existsSync(devPath)) {
-        return devPath
+    // Also check vendor/ for development mode
+    try {
+        const devPath = join(app.getAppPath(), 'vendor', 'mingw64', 'bin', 'g++.exe')
+        if (existsSync(devPath)) {
+            return devPath
+        }
+    } catch {
+        // Ignore
     }
 
     return null
 }
 
 /**
- * Detect available C++ compiler on the system
- * First checks for bundled MinGW, then system compilers
+ * Get the MinGW bin directory path (for PATH injection)
  */
-export async function detectCompiler(): Promise<string | null> {
-    // First, check for bundled MinGW
-    const bundledPath = getBundledMinGWPath()
-    if (bundledPath) {
-        try {
-            execSync(`"${bundledPath}" --version`, {
-                stdio: 'pipe',
-                timeout: 5000,
-                windowsHide: true
-            })
-            detectedCompilerPath = bundledPath
-            return 'g++ (bundled)'
-        } catch {
-            // Continue to system compilers
+function getBundledMingwBinDir(): string | null {
+    try {
+        const resourcesPath = process.resourcesPath
+        const binDir = join(resourcesPath, 'mingw64', 'bin')
+        if (existsSync(binDir)) {
+            return binDir
         }
+    } catch { }
+
+    try {
+        const devBinDir = join(app.getAppPath(), 'vendor', 'mingw64', 'bin')
+        if (existsSync(devBinDir)) {
+            return devBinDir
+        }
+    } catch { }
+
+    return null
+}
+
+/**
+ * Build an env object with the bundled MinGW bin dir prepended to PATH
+ */
+export function getBundledMingwEnv(): NodeJS.ProcessEnv {
+    const env = { ...process.env }
+    const mingwBinDir = getBundledMingwBinDir()
+    if (mingwBinDir) {
+        env.PATH = `${mingwBinDir};${env.PATH || ''}`
+    }
+    return env
+}
+
+/**
+ * Check if the current compiler is bundled
+ */
+export function isUsingBundledCompiler(): boolean {
+    return isBundledCompiler
+}
+
+// Track the source type for UI display
+let compilerSource: 'custom' | 'bundled' | 'system' | 'none' = 'none'
+
+/**
+ * Set a custom compiler path from user settings.
+ * Resets the cached detection so the next compile uses the new path.
+ */
+export function setCustomCompilerPath(customPath: string): void {
+    // Reset cache to force re-detection
+    detectedCompilerPath = null
+    isBundledCompiler = false
+    compilerSource = 'none'
+
+    if (customPath && existsSync(customPath)) {
+        console.log('Custom compiler path set:', customPath)
+        detectedCompilerPath = customPath
+        isBundledCompiler = false
+        compilerSource = 'custom'
+    }
+}
+
+/**
+ * Get information about the active compiler for UI display
+ */
+export function getCompilerInfo(): { path: string | null, source: string } {
+    return {
+        path: detectedCompilerPath,
+        source: compilerSource
+    }
+}
+
+/**
+ * Detect available C++ compiler
+ * Priority: Custom user path > Bundled MinGW > System PATH
+ */
+export async function detectCompiler(customPath?: string): Promise<string | null> {
+    // Return cached result if available
+    if (detectedCompilerPath) return detectedCompilerPath
+
+    // 1. Check custom user-defined path FIRST
+    if (customPath && existsSync(customPath)) {
+        console.log('Using custom compiler from settings:', customPath)
+        detectedCompilerPath = customPath
+        isBundledCompiler = false
+        compilerSource = 'custom'
+        return customPath
     }
 
-    // Check system compilers
+    // 2. Check for bundled compiler
+    const bundledPath = getBundledCompilerPath()
+    if (bundledPath) {
+        console.log('Using bundled MinGW compiler:', bundledPath)
+        detectedCompilerPath = bundledPath
+        isBundledCompiler = true
+        compilerSource = 'bundled'
+        return bundledPath
+    }
+
+    // 3. Fall back to system PATH compilers
+    console.log('No custom or bundled compiler found. Searching system PATH...')
     const compilers = [
         { cmd: 'g++', args: ['--version'] },
         { cmd: 'clang++', args: ['--version'] },
@@ -75,13 +163,17 @@ export async function detectCompiler(): Promise<string | null> {
                 timeout: 5000,
                 windowsHide: true
             })
+            console.log('Found system compiler:', compiler.cmd)
             detectedCompilerPath = compiler.cmd
+            isBundledCompiler = false
+            compilerSource = 'system'
             return compiler.cmd
         } catch {
             // Try next compiler
         }
     }
 
+    compilerSource = 'none'
     return null
 }
 
@@ -110,7 +202,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
     if (!compiler) {
         return {
             success: false,
-            error: '❌ No C++ compiler found!\n\nPlease install a C++ compiler:\n• Windows: Install MinGW-w64 or Visual Studio Build Tools\n• macOS: Install Xcode Command Line Tools (xcode-select --install)\n• Linux: Install g++ (sudo apt install g++ or equivalent)\n\nMake sure the compiler is in your system PATH.'
+            error: '❌ No C++ compiler found!\n\nThe bundled compiler was not detected. Please reinstall CarbonCode or install MinGW-w64 / Visual Studio Build Tools manually.'
         }
     }
 
@@ -157,9 +249,12 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
             compileCmd = compilerPath.includes(' ') ? `"${compilerPath}"` : compilerPath
         }
 
+        // Build env with bundled MinGW path if applicable
+        const compileEnv = isBundledCompiler ? getBundledMingwEnv() : undefined
+
         // Compile
         const compileStart = Date.now()
-        const compileResult = await runCompilationProcess(compileCmd, compileArgs, tempDir, 30000)
+        const compileResult = await runCompilationProcess(compileCmd, compileArgs, tempDir, 30000, compileEnv)
         const compileTime = Date.now() - compileStart
 
         if (!compileResult.success) {
@@ -227,10 +322,16 @@ export function startInteractiveProcess(
     // Quote the path to handle spaces
     const cmd = process.platform === 'win32' ? `"${executablePath}"` : `./"${executablePath.split('/').pop()}"`
 
-    const options = {
+    // Use bundled MinGW env so runtime DLLs can be found
+    const env = isBundledCompiler ? getBundledMingwEnv() : undefined
+
+    const options: any = {
         cwd,
         shell: true,
         windowsHide: true
+    }
+    if (env) {
+        options.env = env
     }
 
     currentProcess = spawn(cmd, [], options)
@@ -345,7 +446,8 @@ function runCompilationProcess(
     cmd: string,
     args: string[],
     cwd: string,
-    timeout: number
+    timeout: number,
+    env?: NodeJS.ProcessEnv
 ): Promise<{
     success: boolean
     stdout: string
@@ -356,10 +458,13 @@ function runCompilationProcess(
         let stdout = ''
         let stderr = ''
 
-        const options = {
+        const options: any = {
             cwd,
             shell: true,
             windowsHide: true
+        }
+        if (env) {
+            options.env = env
         }
 
         const proc = spawn(cmd, args, options)

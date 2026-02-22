@@ -9,8 +9,18 @@ import TabBar from './components/TabBar'
 import FileExplorer from './components/FileExplorer'
 import FindReplace from './components/FindReplace'
 import SettingsModal from './components/SettingsModal'
+import DebugPanel from './components/DebugPanel'
+import AnalyticsConsentDialog from './components/AnalyticsConsentDialog'
 import { useFileManager } from './hooks/useFileManager'
 import { useSettings } from './hooks/useSettings'
+
+interface DebugState {
+    status: 'idle' | 'running' | 'stopped' | 'exited'
+    currentFile?: string
+    currentLine?: number
+    breakpoints: { id: number; file: string; line: number }[]
+    locals: { name: string; value: string; type: string }[]
+}
 
 interface CompilationResult {
     success: boolean
@@ -24,6 +34,15 @@ function App() {
     // Settings
     const { settings, updateSetting } = useSettings()
     const [showSettings, setShowSettings] = useState(false)
+    const [showAnalyticsConsent, setShowAnalyticsConsent] = useState(false)
+
+    // Check if we need to show analytics consent on first launch
+    useEffect(() => {
+        if (settings.analyticsConsent === null) {
+            // Show consent dialog on first launch
+            setShowAnalyticsConsent(true)
+        }
+    }, [])
 
     // File management with tabs
     const fileManager = useFileManager()
@@ -53,6 +72,12 @@ function App() {
         }
     }, [tabs.length])
 
+    // Author name for new file templates
+    const [authorName, setAuthorName] = useState<string>('')
+
+    // Toast notification state
+    const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
+
     // Compiler state
     const [compilerInfo, setCompilerInfo] = useState<string | null>(null)
     const [isCompiling, setIsCompiling] = useState<boolean>(false)
@@ -66,6 +91,9 @@ function App() {
 
     // UI state
     const [outputHeight, setOutputHeight] = useState<number>(200)
+    const [outputWidth, setOutputWidth] = useState<number>(400)
+    const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 })
+    const [rootPath, setRootPath] = useState<string | null>(null)
 
     // Apply theme
     useEffect(() => {
@@ -74,6 +102,14 @@ function App() {
 
     // Interactive Process State
     const [isRunning, setIsRunning] = useState<boolean>(false)
+
+    // Debug state
+    const [debugState, setDebugState] = useState<DebugState>({
+        status: 'idle',
+        breakpoints: [],
+        locals: []
+    })
+    const [breakpoints, setBreakpoints] = useState<number[]>([])
 
     // Listeners for process output
     useEffect(() => {
@@ -147,13 +183,18 @@ function App() {
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
 
-    // Check for compiler on mount
+    // Check for compiler and fetch author name on mount
     useEffect(() => {
         const checkCompiler = async () => {
-            const compiler = await window.electronAPI.detectCompiler()
+            const compiler = await window.electronAPI.detectCompiler(settings.compilerPath || undefined)
             setCompilerInfo(compiler)
         }
+        const fetchAuthorName = async () => {
+            const name = await window.electronAPI.getAuthorName()
+            setAuthorName(name)
+        }
         checkCompiler()
+        fetchAuthorName()
     }, [])
 
     // Update dirty state in main process
@@ -169,42 +210,143 @@ function App() {
         }
     }, [activeTabId, updateTabContent])
 
+    // Show toast notification
+    const showToast = useCallback((message: string) => {
+        setToast({ message, visible: true })
+        setTimeout(() => setToast({ message: '', visible: false }), 3000)
+    }, [])
+
+    // Callback for when copy/paste is blocked in editor
+    const handleCopyPasteBlocked = useCallback((message: string) => {
+        showToast(message)
+    }, [showToast])
+
     // New file handler
     const handleNewFile = useCallback(() => {
-        // Just create the tab, the effect will handle hiding welcome screen
-        const newTab = createNewTab()
-        // Ensure explorer is hidden if preferred, or keep as is
-    }, [createNewTab])
+        // Create the tab with author name for template
+        const newTab = createNewTab(authorName || undefined)
+        // Track analytics
+        window.electronAPI?.trackEvent?.('file_created')
+        // Effect will handle hiding welcome screen
+    }, [createNewTab, authorName])
 
     // Open file handler
     const handleOpenFile = useCallback(async () => {
         const file = await window.electronAPI.openFile()
         if (file) {
             openFile(file.filePath, file.content)
+            // Track analytics
+            window.electronAPI?.trackEvent?.('file_opened')
             // Effect sends welcome screen away
 
             // Add to recent files (local storage logic could go here)
         }
     }, [openFile])
 
+    // Open folder handler
+    const handleOpenFolder = useCallback(async () => {
+        const path = await window.electronAPI.openFolder()
+        if (path) {
+            setRootPath(path)
+            setShowExplorer(true)
+            setShowWelcome(false)
+        }
+    }, [])
+
+    // Close folder handler
+    const handleCloseFolder = useCallback(() => {
+        setRootPath(null)
+        setShowExplorer(false)
+        if (tabs.length === 0) {
+            setShowWelcome(true)
+        }
+    }, [tabs.length])
+
+    // Debug handlers
+    const handleDebugStart = useCallback(async () => {
+        if (!activeTab) return
+        const code = editorRef.current?.getValue() || activeTab.content
+        const bpArray = breakpoints.map(line => ({ line }))
+        const result = await window.electronAPI.debugStart(code, bpArray)
+        if (result.success) {
+            // Track analytics - debug started
+            window.electronAPI?.trackEvent?.('debug_started')
+        } else {
+            setCompilationResult({
+                success: false,
+                output: '',
+                error: result.error || 'Failed to start debugging'
+            })
+        }
+    }, [activeTab, breakpoints])
+
+    const handleDebugStop = useCallback(async () => {
+        await window.electronAPI.debugStop()
+    }, [])
+
+    const handleDebugStepOver = useCallback(async () => {
+        await window.electronAPI.debugStepOver()
+    }, [])
+
+    const handleDebugStepInto = useCallback(async () => {
+        await window.electronAPI.debugStepInto()
+    }, [])
+
+    const handleDebugStepOut = useCallback(async () => {
+        await window.electronAPI.debugStepOut()
+    }, [])
+
+    const handleDebugContinue = useCallback(async () => {
+        await window.electronAPI.debugContinue()
+    }, [])
+
+    const handleToggleBreakpoint = useCallback(() => {
+        if (!editorRef.current) return
+        const position = editorRef.current.getPosition()
+        if (!position) return
+        const line = position.lineNumber
+        setBreakpoints(prev => {
+            if (prev.includes(line)) {
+                return prev.filter(l => l !== line)
+            }
+            return [...prev, line]
+        })
+    }, [])
+
+    // Listen for debug state changes
+    useEffect(() => {
+        const cleanup = window.electronAPI.onDebugStateChanged((state) => {
+            setDebugState(state)
+        })
+        return cleanup
+    }, [])
+
     // Save file handler
     const handleSave = useCallback(async () => {
         if (!activeTab) return
 
+        let contentToSave = editorRef.current?.getValue() || activeTab.content
+
+        // Format if enabled
+        if (settings.formatOnSave && editorRef.current) {
+            await editorRef.current.getAction('editor.action.formatDocument')?.run()
+            contentToSave = editorRef.current.getValue()
+        }
+
         if (!activeTab.filePath) {
             // Save As
-            const result = await window.electronAPI.saveFile(activeTab.content)
+            const result = await window.electronAPI.saveFile(contentToSave)
             if (result && result.success) {
                 markTabSaved(activeTab.id, result.filePath)
             }
         } else {
             // Save to existing path
-            const result = await window.electronAPI.saveFile(activeTab.content, activeTab.filePath)
+            const result = await window.electronAPI.saveFile(contentToSave, activeTab.filePath)
             if (result && result.success) {
                 markTabSaved(activeTab.id, result.filePath)
             }
         }
-    }, [activeTab, markTabSaved])
+    }, [activeTab, markTabSaved, settings.formatOnSave])
 
     // Save As handler
     const handleSaveAs = useCallback(async () => {
@@ -242,6 +384,9 @@ function App() {
 
         const currentCode = editorRef.current?.getValue() || activeTab.content
 
+        // Track analytics - code compiled
+        window.electronAPI?.trackEvent?.('code_compiled')
+
         // Use new interactive process API
         const startResult = await window.electronAPI.startProcess(currentCode, settings.cppStandard)
 
@@ -249,6 +394,8 @@ function App() {
 
         if (startResult.success) {
             setIsRunning(true)
+            // Track analytics - code run successfully
+            window.electronAPI?.trackEvent?.('code_run')
             setCompilationResult({
                 success: true,
                 output: '',
@@ -303,34 +450,65 @@ function App() {
     useEffect(() => {
         const cleanupNewFile = window.electronAPI.onNewFile(handleNewFile)
         const cleanupOpenFile = window.electronAPI.onOpenFile(handleOpenFile)
+        const cleanupCloseFolder = window.electronAPI.onCloseFolder(handleCloseFolder)
         const cleanupSave = window.electronAPI.onSave(handleSave)
         const cleanupSaveAs = window.electronAPI.onSaveAs(handleSaveAs)
         const cleanupRun = window.electronAPI.onRun(handleRun)
 
+        // Debug menu listeners
+        const cleanupDebugStart = window.electronAPI.onDebugStart(handleDebugStart)
+        const cleanupDebugStop = window.electronAPI.onDebugStop(handleDebugStop)
+        const cleanupDebugStepOver = window.electronAPI.onDebugStepOver(handleDebugStepOver)
+        const cleanupDebugStepInto = window.electronAPI.onDebugStepInto(handleDebugStepInto)
+        const cleanupDebugStepOut = window.electronAPI.onDebugStepOut(handleDebugStepOut)
+        const cleanupDebugContinue = window.electronAPI.onDebugContinue(handleDebugContinue)
+        const cleanupDebugToggleBp = window.electronAPI.onDebugToggleBreakpoint(handleToggleBreakpoint)
+
         return () => {
             cleanupNewFile()
             cleanupOpenFile()
+            cleanupCloseFolder()
             cleanupSave()
             cleanupSaveAs()
             cleanupRun()
+            cleanupDebugStart()
+            cleanupDebugStop()
+            cleanupDebugStepOver()
+            cleanupDebugStepInto()
+            cleanupDebugStepOut()
+            cleanupDebugContinue()
+            cleanupDebugToggleBp()
         }
-    }, [handleNewFile, handleOpenFile, handleSave, handleSaveAs, handleRun])
+    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint])
 
-    // Keyboard shortcut for toggling explorer
+    // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // F5 - Run code
+            if (e.key === 'F5') {
+                e.preventDefault()
+                if (!isCompiling && !isRunning && compilerInfo) {
+                    handleRun()
+                }
+            }
+            // Ctrl+B - Toggle explorer
             if (e.ctrlKey && e.key === 'b') {
                 e.preventDefault()
                 setShowExplorer(prev => !prev)
             }
+            // Ctrl+F/H - Find/Replace
             if (e.ctrlKey && (e.key === 'f' || e.key === 'h')) {
                 e.preventDefault()
                 setShowFind(true)
             }
+            // Escape - Close dialogs
+            if (e.key === 'Escape') {
+                if (showFind) setShowFind(false)
+            }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
+    }, [isCompiling, isRunning, compilerInfo, handleRun, showFind])
 
     // Start coding (dismiss welcome screen)
     const handleStartCoding = () => {
@@ -416,17 +594,47 @@ function App() {
             <main className="flex-1 flex min-h-0 relative">
                 {/* File Explorer */}
                 {!showWelcome && (
-                    <FileExplorer
-                        isVisible={showExplorer}
-                        onToggle={() => setShowExplorer(false)}
-                        onFileSelect={async (filePath) => {
-                            const content = await window.electronAPI.readFile(filePath)
-                            if (content !== null) {
-                                openFile(filePath, content)
-                            }
-                        }}
-                        currentFilePath={activeTab?.filePath || null}
-                    />
+                    <>
+                        <FileExplorer
+                            isVisible={showExplorer}
+                            onToggle={() => setShowExplorer(false)}
+                            onFileSelect={async (filePath) => {
+                                const content = await window.electronAPI.readFile(filePath)
+                                if (content !== null) {
+                                    openFile(filePath, content)
+                                }
+                            }}
+                            currentFilePath={activeTab?.filePath || null}
+                            rootPath={rootPath}
+                            onOpenFolder={handleOpenFolder}
+                            width={settings.explorerWidth}
+                        />
+                        {/* Explorer Resize Handle */}
+                        {showExplorer && (
+                            <div
+                                className="w-1 bg-editor-border cursor-ew-resize hover:bg-accent transition-colors shrink-0"
+                                onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    const startX = e.clientX
+                                    const startWidth = settings.explorerWidth
+
+                                    const onMouseMove = (e: globalThis.MouseEvent) => {
+                                        const delta = e.clientX - startX
+                                        const newWidth = Math.min(Math.max(150, startWidth + delta), 500)
+                                        updateSetting('explorerWidth', newWidth)
+                                    }
+
+                                    const onMouseUp = () => {
+                                        document.removeEventListener('mousemove', onMouseMove)
+                                        document.removeEventListener('mouseup', onMouseUp)
+                                    }
+
+                                    document.addEventListener('mousemove', onMouseMove)
+                                    document.addEventListener('mouseup', onMouseUp)
+                                }}
+                            />
+                        )}
+                    </>
                 )}
 
                 {/* Find & Replace */}
@@ -447,68 +655,120 @@ function App() {
                 />
 
                 {/* Editor Area */}
-                <div className="flex-1 flex flex-col min-h-0">
+                <div className={`flex-1 flex min-h-0 min-w-0 overflow-hidden ${settings.outputPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
                     {showWelcome ? (
                         <WelcomeScreen
                             compilerInfo={compilerInfo}
                             onNewFile={handleNewFile}
                             onOpenFile={handleOpenFile}
+                            onOpenFolder={handleOpenFolder}
                             onStartCoding={handleStartCoding}
                         />
                     ) : (
                         <>
-                            {/* Editor */}
-                            <div
-                                className="flex-1 min-h-0"
-                                style={{ height: `calc(100% - ${outputHeight}px)` }}
-                            >
-                                <Editor
-                                    value={activeTab?.content || ''}
-                                    onChange={handleCodeChange}
-                                    onEditorMount={(editor) => {
-                                        editorRef.current = editor
-                                        setEditorInstance(editor)
-                                    }}
-                                    fontSize={settings.fontSize}
-                                    tabSize={settings.tabSize}
-                                    minimap={settings.minimap}
-                                    wordWrap={settings.wordWrap}
-                                    theme={settings.theme}
+                            {/* Editor + Debug Panel Container */}
+                            <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                                {/* Editor */}
+                                <div className="flex-1 min-h-0">
+                                    <Editor
+                                        value={activeTab?.content || ''}
+                                        onChange={handleCodeChange}
+                                        onEditorMount={(editor) => {
+                                            editorRef.current = editor
+                                            setEditorInstance(editor)
+                                            editor.onDidChangeCursorPosition((e) => {
+                                                setCursorPosition({
+                                                    line: e.position.lineNumber,
+                                                    column: e.position.column
+                                                })
+                                            })
+                                        }}
+                                        fontSize={settings.fontSize}
+                                        tabSize={settings.tabSize}
+                                        minimap={settings.minimap}
+                                        wordWrap={settings.wordWrap}
+                                        theme={settings.theme}
+                                        onCopyPasteBlocked={handleCopyPasteBlocked}
+                                        onRun={handleRun}
+                                    />
+                                </div>
+
+                                {/* Debug Panel */}
+                                <DebugPanel
+                                    debugState={debugState}
+                                    onStart={handleDebugStart}
+                                    onStop={handleDebugStop}
+                                    onStepOver={handleDebugStepOver}
+                                    onStepInto={handleDebugStepInto}
+                                    onStepOut={handleDebugStepOut}
+                                    onContinue={handleDebugContinue}
                                 />
                             </div>
 
-                            {/* Resize Handle */}
-                            <div
-                                className="h-1 bg-editor-border cursor-ns-resize hover:bg-accent transition-colors shrink-0"
-                                onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    const startY = e.clientY
-                                    const startHeight = outputHeight
+                            {/* Resize Handle - Horizontal for right, Vertical for bottom */}
+                            {settings.outputPosition === 'right' ? (
+                                <div
+                                    className="w-1 bg-editor-border cursor-ew-resize hover:bg-accent transition-colors shrink-0"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        const startX = e.clientX
+                                        const startWidth = outputWidth
 
-                                    const onMouseMove = (e: globalThis.MouseEvent) => {
-                                        const delta = startY - e.clientY
-                                        const newHeight = Math.min(Math.max(100, startHeight + delta), 500)
-                                        setOutputHeight(newHeight)
-                                    }
+                                        const onMouseMove = (e: globalThis.MouseEvent) => {
+                                            const delta = startX - e.clientX
+                                            const newWidth = Math.min(Math.max(200, startWidth + delta), 800)
+                                            setOutputWidth(newWidth)
+                                        }
 
-                                    const onMouseUp = () => {
-                                        document.removeEventListener('mousemove', onMouseMove)
-                                        document.removeEventListener('mouseup', onMouseUp)
-                                    }
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove)
+                                            document.removeEventListener('mouseup', onMouseUp)
+                                        }
 
-                                    document.addEventListener('mousemove', onMouseMove)
-                                    document.addEventListener('mouseup', onMouseUp)
-                                }}
-                            />
+                                        document.addEventListener('mousemove', onMouseMove)
+                                        document.addEventListener('mouseup', onMouseUp)
+                                    }}
+                                />
+                            ) : (
+                                <div
+                                    className="h-1 bg-editor-border cursor-ns-resize hover:bg-accent transition-colors shrink-0"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        const startY = e.clientY
+                                        const startHeight = outputHeight
+
+                                        const onMouseMove = (e: globalThis.MouseEvent) => {
+                                            const delta = startY - e.clientY
+                                            const newHeight = Math.min(Math.max(100, startHeight + delta), 500)
+                                            setOutputHeight(newHeight)
+                                        }
+
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove)
+                                            document.removeEventListener('mouseup', onMouseUp)
+                                        }
+
+                                        document.addEventListener('mousemove', onMouseMove)
+                                        document.addEventListener('mouseup', onMouseUp)
+                                    }}
+                                />
+                            )}
 
                             {/* Output Panel */}
-                            <div style={{ height: outputHeight }} className="shrink-0">
+                            <div
+                                style={settings.outputPosition === 'right'
+                                    ? { width: outputWidth }
+                                    : { height: outputHeight }
+                                }
+                                className={`shrink-0 ${settings.outputPosition === 'right' ? 'border-l' : 'border-t'} border-editor-border`}
+                            >
                                 <OutputPanel
                                     result={compilationResult}
                                     isCompiling={isCompiling}
                                     isRunning={isRunning}
                                     onInput={handleInput}
                                     onStop={handleStop}
+                                    fontSize={settings.outputFontSize}
                                 />
                             </div>
                         </>
@@ -523,6 +783,31 @@ function App() {
                 compilerInfo={compilerInfo}
                 isCompiling={isCompiling}
                 compilationResult={compilationResult}
+                cursorPosition={cursorPosition}
+                outputPosition={settings.outputPosition}
+                onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
+            />
+
+            {/* Toast Notification */}
+            {toast.visible && (
+                <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50">
+                    <div className="bg-amber-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span className="font-medium">{toast.message}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Analytics Consent Dialog */}
+            <AnalyticsConsentDialog
+                isOpen={showAnalyticsConsent}
+                onConsent={(consent) => {
+                    updateSetting('analyticsConsent', consent)
+                    window.electronAPI?.setAnalyticsConsent?.(consent)
+                    setShowAnalyticsConsent(false)
+                }}
             />
         </div>
     )

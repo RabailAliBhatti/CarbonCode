@@ -14,6 +14,9 @@ interface StatusBarProps {
     compilerInfo: string | null
     isCompiling: boolean
     compilationResult: CompilationResult | null
+    cursorPosition?: { line: number; column: number }
+    outputPosition?: 'bottom' | 'right'
+    onToggleOutputPosition?: () => void
 }
 
 function StatusBar({
@@ -21,7 +24,10 @@ function StatusBar({
     cppStandard,
     compilerInfo,
     isCompiling,
-    compilationResult
+    compilationResult,
+    cursorPosition,
+    outputPosition = 'bottom',
+    onToggleOutputPosition
 }: StatusBarProps) {
     // Get status text and color
     const getStatus = () => {
@@ -61,6 +67,42 @@ function StatusBar({
 
             {/* Right side */}
             <div className="flex items-center gap-4">
+                {/* Output Position Toggle */}
+                {onToggleOutputPosition && (
+                    <button
+                        onClick={onToggleOutputPosition}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
+                        title={`Output: ${outputPosition === 'bottom' ? 'Bottom' : 'Right'} (Click to toggle)`}
+                    >
+                        {outputPosition === 'bottom' ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16v10H4V5z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 18h16" />
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h10v16H4V4z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 4v16" />
+                            </svg>
+                        )}
+                        <span className="text-white/80">{outputPosition === 'bottom' ? 'Bottom' : 'Right'}</span>
+                    </button>
+                )}
+
+                <div className="w-px h-3 bg-white/20" />
+
+                {/* Cursor Position */}
+                {cursorPosition && (
+                    <div className="flex items-center gap-1.5 min-w-[100px] justify-end">
+                        <span className="text-white/60">Ln</span>
+                        <span className="font-mono">{cursorPosition.line}</span>
+                        <span className="text-white/60">Col</span>
+                        <span className="font-mono">{cursorPosition.column}</span>
+                    </div>
+                )}
+
+                <div className="w-px h-3 bg-white/20" />
+
                 {/* Language */}
                 <div className="flex items-center gap-1.5">
                     <span className="text-white/60">Language:</span>

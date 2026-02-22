@@ -1,26 +1,32 @@
 import { useState, useCallback } from 'react'
 import { FileTab } from '../components/TabBar'
 
-// Default C++ template
-const DEFAULT_CODE = `#include <iostream>
-#include <vector>
-#include <string>
+// Generate default C++ template with author info
+const generateDefaultCode = (authorName: string): string => {
+    const date = new Date().toLocaleDateString()
+    return `// Author: ${authorName}
+// Date: ${date}
 
+#include <iostream>
 using namespace std;
 
 int main() {
     cout << "Hello, World!" << endl;
     cout << "Welcome to CarbonCode!" << endl;
-    
-    // Your code here
-    vector<int> numbers = {1, 2, 3, 4, 5};
-    
-    cout << "Numbers: ";
-    for (int num : numbers) {
-        cout << num << " ";
-    }
-    cout << endl;
-    
+     
+    return 0;
+}
+`
+}
+
+// Fallback template when author name is not available
+const DEFAULT_CODE = `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, World!" << endl;
+    cout << "Welcome to CarbonCode!" << endl;
+     
     return 0;
 }
 `
@@ -44,13 +50,14 @@ export function useFileManager() {
     // Get active tab
     const activeTab = tabs.find(tab => tab.id === activeTabId) || null
 
-    // Create new tab
-    const createNewTab = useCallback(() => {
+    // Create new tab with optional author name for template
+    const createNewTab = useCallback((authorName?: string) => {
+        const content = authorName ? generateDefaultCode(authorName) : DEFAULT_CODE
         const newTab: FileTab = {
             id: generateId(),
             fileName: 'Untitled',
             filePath: null,
-            content: DEFAULT_CODE,
+            content: content,
             isDirty: false,
             language: 'cpp'
         }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface CompilationResult {
     success: boolean
@@ -14,17 +14,34 @@ interface OutputPanelProps {
     isRunning: boolean
     onInput: (data: string) => void
     onStop: () => void
+    fontSize?: number
 }
 
-function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: OutputPanelProps) {
+function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize = 13 }: OutputPanelProps) {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
     const [inputValue, setInputValue] = useState('')
+    const inputRef = useRef<HTMLInputElement>(null)
+    const outputRef = useRef<HTMLDivElement>(null)
 
     const hasOutput = result?.output && result.output.trim().length > 0
     const hasErrors = result?.error && result.error.trim().length > 0
 
     // Auto-switch to errors tab if there are errors and no output (only initially)
     const effectiveTab = hasErrors && !hasOutput && !isRunning ? 'errors' : activeTab
+
+    // Auto-scroll to bottom when output changes
+    useEffect(() => {
+        if (outputRef.current) {
+            outputRef.current.scrollTop = outputRef.current.scrollHeight
+        }
+    }, [result?.output])
+
+    // Focus input when running
+    useEffect(() => {
+        if (isRunning && inputRef.current) {
+            inputRef.current.focus()
+        }
+    }, [isRunning])
 
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -43,12 +60,12 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
                     <button
                         onClick={() => setActiveTab('output')}
                         className={`
-              px-3 py-1 rounded text-sm font-medium transition-all
-              ${effectiveTab === 'output'
+                            px-3 py-1 rounded text-sm font-medium transition-all
+                            ${effectiveTab === 'output'
                                 ? 'bg-editor-bg text-text-bright'
                                 : 'text-text-secondary hover:text-text-primary'
                             }
-            `}
+                        `}
                     >
                         Output
                         {hasOutput && (
@@ -58,12 +75,12 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
                     <button
                         onClick={() => setActiveTab('errors')}
                         className={`
-              px-3 py-1 rounded text-sm font-medium transition-all
-              ${effectiveTab === 'errors'
+                            px-3 py-1 rounded text-sm font-medium transition-all
+                            ${effectiveTab === 'errors'
                                 ? 'bg-editor-bg text-text-bright'
                                 : 'text-text-secondary hover:text-text-primary'
                             }
-            `}
+                        `}
                     >
                         Errors
                         {hasErrors && (
@@ -114,7 +131,11 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
             {/* Panel Content */}
             <div className="flex-1 overflow-hidden flex flex-col">
                 {/* Scrollable Output */}
-                <div className="flex-1 overflow-auto p-4 font-mono text-sm">
+                <div
+                    ref={outputRef}
+                    className="flex-1 overflow-auto p-4 font-mono"
+                    style={{ fontSize: `${fontSize}px` }}
+                >
                     {isCompiling ? (
                         <div className="flex items-center gap-3 text-warning">
                             <div className="flex items-center gap-1">
@@ -125,15 +146,34 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
                             <span>Compiling...</span>
                         </div>
                     ) : result ? (
-                        <div className={effectiveTab === 'errors' ? '' : ''}>
+                        <div>
                             {effectiveTab === 'output' ? (
                                 <>
                                     {(hasOutput || isRunning) ? (
-                                        <pre className="text-text-primary whitespace-pre-wrap break-words leading-relaxed">
-                                            {result.output}
-                                            {/* Cursor block to indicate active terminal */}
-                                            {isRunning && <span className="inline-block w-2 h-4 bg-text-primary align-middle ml-1 animate-pulse" />}
-                                        </pre>
+                                        <div className="text-text-primary whitespace-pre-wrap break-words leading-relaxed">
+                                            {/* Output text */}
+                                            <span>{result.output}</span>
+                                            {/* Inline input when running */}
+                                            {isRunning && (
+                                                <span className="inline-flex items-center">
+                                                    <input
+                                                        ref={inputRef}
+                                                        type="text"
+                                                        value={inputValue}
+                                                        onChange={(e) => setInputValue(e.target.value)}
+                                                        onKeyDown={handleInputKeyDown}
+                                                        className="bg-transparent border-none outline-none text-accent font-mono min-w-[100px] w-auto"
+                                                        style={{
+                                                            fontSize: `${fontSize}px`,
+                                                            width: `${Math.max(100, inputValue.length * 8 + 20)}px`
+                                                        }}
+                                                        placeholder="type here..."
+                                                        autoFocus
+                                                    />
+                                                    <span className="inline-block w-2 h-4 bg-accent align-middle animate-pulse" />
+                                                </span>
+                                            )}
+                                        </div>
                                     ) : (
                                         <div className="text-text-secondary italic">
                                             {result.success
@@ -161,9 +201,9 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
                             {/* Status indicator */}
                             {result && !isCompiling && !isRunning && (
                                 <div className={`
-                    mt-4 pt-4 border-t border-editor-border flex items-center gap-2
-                    ${result.success ? 'text-success' : 'text-error'}
-                `}>
+                                    mt-4 pt-4 border-t border-editor-border flex items-center gap-2
+                                    ${result.success ? 'text-success' : 'text-error'}
+                                `}>
                                     {result.success ? (
                                         <>
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,25 +226,10 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop }: Output
                         </div>
                     )}
                 </div>
-
-                {/* Input Area (Only when running and output tab is active) */}
-                {isRunning && effectiveTab === 'output' && (
-                    <div className="flex items-center bg-editor-bg border-t border-editor-border p-2 gap-2 animate-in slide-in-from-bottom-2 duration-200">
-                        <div className="text-accent font-mono">{'>'}</div>
-                        <input
-                            type="text"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            placeholder="Type input here and press Enter..."
-                            className="flex-1 bg-transparent border-none outline-none text-sm font-mono text-text-primary placeholder:text-text-secondary/50"
-                            autoFocus
-                        />
-                    </div>
-                )}
             </div>
         </div>
     )
 }
 
 export default OutputPanel
+

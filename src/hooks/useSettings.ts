@@ -11,6 +11,11 @@ export interface Settings {
     theme: 'dark' | 'light'
     minimap: boolean
     wordWrap: boolean
+    formatOnSave: boolean
+    outputFontSize: number
+    outputPosition: 'bottom' | 'right'
+    explorerWidth: number
+    analyticsConsent: boolean | null  // null = not asked, true = opted in, false = opted out
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -21,7 +26,12 @@ const DEFAULT_SETTINGS: Settings = {
     compilerPath: '',
     theme: 'dark',
     minimap: true,
-    wordWrap: false
+    wordWrap: false,
+    formatOnSave: false,
+    outputFontSize: 13,
+    outputPosition: 'bottom',
+    explorerWidth: 250,
+    analyticsConsent: null
 }
 
 export function useSettings() {

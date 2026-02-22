@@ -1,7 +1,10 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
-import { detectCompiler, compileAndRun, compileCode, startInteractiveProcess, writeToProcess, killProcess, CompilationResult, CompileResult } from './compiler'
+import os from 'os'
+import { detectCompiler, compileAndRun, compileCode, startInteractiveProcess, writeToProcess, killProcess, CompilationResult, CompileResult, setCustomCompilerPath, getCompilerInfo, isUsingBundledCompiler } from './compiler'
+import { getDebugger, DebugState } from './debugger'
+import * as analytics from './analytics'
 
 // Store main window reference
 let mainWindow: BrowserWindow | null = null
@@ -99,6 +102,10 @@ function createApplicationMenu() {
                     accelerator: 'CmdOrCtrl+Shift+S',
                     click: () => mainWindow?.webContents.send('menu:save-as')
                 },
+                {
+                    label: 'Close Folder',
+                    click: () => mainWindow?.webContents.send('menu:close-folder')
+                },
                 { type: 'separator' },
                 {
                     label: 'Quit',
@@ -131,6 +138,48 @@ function createApplicationMenu() {
                     label: 'Stop Execution',
                     accelerator: 'Shift+F5',
                     click: () => mainWindow?.webContents.send('menu:stop')
+                }
+            ]
+        },
+        {
+            label: 'Debug',
+            submenu: [
+                {
+                    label: 'Start Debugging',
+                    accelerator: 'Ctrl+F5',
+                    click: () => mainWindow?.webContents.send('menu:debug-start')
+                },
+                {
+                    label: 'Stop Debugging',
+                    accelerator: 'Ctrl+Shift+F5',
+                    click: () => mainWindow?.webContents.send('menu:debug-stop')
+                },
+                { type: 'separator' },
+                {
+                    label: 'Step Over',
+                    accelerator: 'F10',
+                    click: () => mainWindow?.webContents.send('menu:debug-step-over')
+                },
+                {
+                    label: 'Step Into',
+                    accelerator: 'F11',
+                    click: () => mainWindow?.webContents.send('menu:debug-step-into')
+                },
+                {
+                    label: 'Step Out',
+                    accelerator: 'Shift+F11',
+                    click: () => mainWindow?.webContents.send('menu:debug-step-out')
+                },
+                {
+                    label: 'Continue',
+                    accelerator: 'F8',
+                    click: () => mainWindow?.webContents.send('menu:debug-continue')
+                },
+                { type: 'separator' },
+                {
+                    label: 'Toggle Breakpoint',
+                    accelerator: 'F9',
+                    click: () => mainWindow?.webContents.send('menu:debug-toggle-breakpoint')
                 }
             ]
         },
@@ -241,8 +290,38 @@ ipcMain.handle('state:set-dirty', (_, dirty: boolean) => {
 })
 
 // Detect compiler
-ipcMain.handle('compiler:detect', async () => {
-    return await detectCompiler()
+ipcMain.handle('compiler:detect', async (_, customPath?: string) => {
+    return await detectCompiler(customPath)
+})
+
+// Browse for compiler executable
+ipcMain.handle('compiler:browse', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'C++ Compiler', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] }
+        ],
+        title: 'Select C++ Compiler (g++.exe, clang++.exe, etc.)'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+})
+
+// Set custom compiler path
+ipcMain.handle('compiler:set-custom-path', (_, customPath: string) => {
+    setCustomCompilerPath(customPath)
+})
+
+// Get compiler info (path + source)
+ipcMain.handle('compiler:get-info', () => {
+    return getCompilerInfo()
+})
+
+// Get author name (system username)
+ipcMain.handle('get-author-name', () => {
+    return os.userInfo().username
 })
 
 // Compile and run code (Legacy/One-shot)
@@ -353,9 +432,101 @@ ipcMain.handle('file:read-directory', async (_, dirPath: string) => {
     }
 })
 
+// Debugger IPC Handlers
+const debugService = getDebugger()
+
+// Forward debugger events to renderer
+debugService.on('stateChanged', (state: DebugState) => {
+    mainWindow?.webContents.send('debugger:state-changed', state)
+})
+
+debugService.on('stdout', (data: string) => {
+    mainWindow?.webContents.send('debugger:stdout', data)
+})
+
+debugService.on('stderr', (data: string) => {
+    mainWindow?.webContents.send('debugger:stderr', data)
+})
+
+ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[]) => {
+    return await debugService.start(code, breakpoints)
+})
+
+ipcMain.handle('debugger:stop', async () => {
+    await debugService.stop()
+})
+
+ipcMain.handle('debugger:step-over', async () => {
+    await debugService.stepOver()
+})
+
+ipcMain.handle('debugger:step-into', async () => {
+    await debugService.stepInto()
+})
+
+ipcMain.handle('debugger:step-out', async () => {
+    await debugService.stepOut()
+})
+
+ipcMain.handle('debugger:continue', async () => {
+    await debugService.continue()
+})
+
+ipcMain.handle('debugger:get-state', () => {
+    return debugService.getState()
+})
+
+ipcMain.handle('debugger:set-breakpoint', async (_, file: string, line: number) => {
+    return await debugService.setBreakpoint(file, line)
+})
+
+ipcMain.handle('debugger:remove-breakpoint', async (_, id: number) => {
+    await debugService.removeBreakpoint(id)
+})
+
+// Analytics IPC handlers
+ipcMain.handle('analytics:track', (_, eventName: string) => {
+    switch (eventName) {
+        case 'file_created':
+            analytics.trackFileCreated()
+            break
+        case 'file_opened':
+            analytics.trackFileOpened()
+            break
+        case 'code_compiled':
+            analytics.trackCodeCompiled()
+            break
+        case 'code_run':
+            analytics.trackCodeRun()
+            break
+        case 'debug_started':
+            analytics.trackDebugStarted()
+            break
+    }
+})
+
+ipcMain.handle('analytics:set-consent', (_, consent: boolean) => {
+    analytics.setAnalyticsConsent(consent)
+})
+
+ipcMain.handle('analytics:get-consent', () => {
+    return analytics.hasAnalyticsConsent()
+})
+
+ipcMain.handle('analytics:has-been-asked', () => {
+    return analytics.hasBeenAskedAboutAnalytics()
+})
+
+ipcMain.handle('shell:open-external', (_, url: string) => {
+    shell.openExternal(url)
+})
+
 // App lifecycle
 app.whenReady().then(() => {
     createWindow()
+
+    // Track app launch (only if user has consented)
+    analytics.trackAppLaunch()
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

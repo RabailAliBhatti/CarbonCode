@@ -38,6 +38,8 @@ interface EditorProps {
     theme?: 'dark' | 'light'
     minimap?: boolean
     wordWrap?: boolean
+    onCopyPasteBlocked?: (message: string) => void
+    onRun?: () => void
 }
 
 // VS Code Dark+ theme colors
@@ -116,7 +118,7 @@ const editorThemeLight = {
     }
 }
 
-function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark' }: EditorProps) {
+function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onCopyPasteBlocked, onRun }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
 
@@ -139,14 +141,12 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
             brackets: [
                 ['{', '}'],
                 ['[', ']'],
-                ['(', ')'],
-                ['<', '>']
+                ['(', ')']
             ],
             autoClosingPairs: [
                 { open: '{', close: '}' },
                 { open: '[', close: ']' },
                 { open: '(', close: ')' },
-                { open: '<', close: '>' },
                 { open: '"', close: '"' },
                 { open: "'", close: "'" }
             ],
@@ -154,7 +154,6 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                 { open: '{', close: '}' },
                 { open: '[', close: ']' },
                 { open: '(', close: ')' },
-                { open: '<', close: '>' },
                 { open: '"', close: '"' },
                 { open: "'", close: "'" }
             ],
@@ -177,20 +176,31 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                 };
 
                 const suggestions = [
-                    // Keywords
-                    ...['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int', 'long', 'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', 'class', 'namespace', 'template', 'typename', 'using', 'virtual', 'friend', 'inline', 'public', 'protected', 'private', 'bool', 'true', 'false', 'nullptr', 'this', 'throw', 'try', 'catch', 'new', 'delete', 'operator', 'explicit', 'export', 'mutable', 'asm', 'dynamic_cast', 'static_cast', 'reinterpret_cast', 'const_cast', 'typeid'].map(k => ({
+                    // Keywords (Expanded)
+                    ...['alignas', 'alignof', 'and', 'and_eq', 'asm', 'atomic_cancel', 'atomic_commit', 'atomic_noexcept', 'auto', 'bitand', 'bitor', 'bool', 'break', 'case', 'catch', 'char', 'char8_t', 'char16_t', 'char32_t', 'class', 'compl', 'concept', 'const', 'consteval', 'constexpr', 'constinit', 'const_cast', 'continue', 'co_await', 'co_return', 'co_yield', 'decltype', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'noexcept', 'not', 'not_eq', 'nullptr', 'operator', 'or', 'or_eq', 'private', 'protected', 'public', 'reflexpr', 'register', 'reinterpret_cast', 'requires', 'return', 'short', 'signed', 'sizeof', 'static', 'static_assert', 'static_cast', 'struct', 'switch', 'synchronized', 'template', 'this', 'thread_local', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'xor', 'xor_eq'].map(k => ({
                         label: k,
                         kind: monaco.languages.CompletionItemKind.Keyword,
                         insertText: k,
                         range: range
                     })),
-                    // Standard types & objects
-                    ...['std', 'string', 'vector', 'map', 'set', 'list', 'queue', 'stack', 'deque', 'cout', 'cin', 'cerr', 'endl', 'printf', 'scanf'].map(k => ({
+
+                    // Standard Library (Expanded)
+                    ...['std', 'string', 'wstring', 'u8string', 'u16string', 'u32string', 'string_view', 'vector', 'map', 'unordered_map', 'set', 'unordered_set', 'list', 'forward_list', 'deque', 'queue', 'priority_queue', 'stack', 'span', 'array', 'bitset', 'tuple', 'pair', 'optional', 'variant', 'any', 'cout', 'cin', 'cerr', 'clog', 'endl', 'flush', 'fstream', 'ifstream', 'ofstream', 'stringstream', 'istringstream', 'ostringstream', 'unique_ptr', 'shared_ptr', 'weak_ptr', 'make_unique', 'make_shared', 'function', 'bind', 'thread', 'mutex', 'lock_guard', 'unique_lock', 'condition_variable', 'future', 'promise', 'atomic', 'filesystem', 'chrono', 'regex', 'exception', 'runtime_error', 'logic_error', 'sort', 'find', 'find_if', 'transform', 'accumulate', 'reduce', 'copy', 'copy_if', 'move', 'swap', 'max', 'min', 'clamp'].map(k => ({
                         label: k,
-                        kind: monaco.languages.CompletionItemKind.Variable,
+                        kind: monaco.languages.CompletionItemKind.Class,
                         insertText: k,
                         range: range
                     })),
+
+                    // Common Headers (as Snippets for convenience)
+                    ...['iostream', 'vector', 'string', 'map', 'set', 'algorithm', 'cmath', 'cstdio', 'cstdlib', 'fstream', 'iomanip', 'memory', 'thread', 'mutex', 'chrono', 'filesystem'].map(h => ({
+                        label: `#include <${h}>`,
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: `#include <${h}>`,
+                        range: range,
+                        documentation: `Include <${h}>`
+                    })),
+
                     // Snippets
                     {
                         label: 'main',
@@ -206,14 +216,6 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                         range: range
                     },
                     {
-                        label: 'include',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: '#include <$1>',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Include header',
-                        range: range
-                    },
-                    {
                         label: 'cout',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: 'std::cout << $1 << std::endl;',
@@ -222,10 +224,18 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                         range: range
                     },
                     {
+                        label: 'cin',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: 'std::cin >> $1;',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Read from standard input',
+                        range: range
+                    },
+                    {
                         label: 'for',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
-                            'for (int i = 0; i < $1; ++i) {',
+                            'for (int ${1:i} = 0; $1 < ${2:count}; ++$1) {',
                             '\t$0',
                             '}'
                         ].join('\n'),
@@ -234,15 +244,125 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                         range: range
                     },
                     {
+                        label: 'range-for',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'for (const auto& ${1:item} : ${2:container}) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Range-based for loop',
+                        range: range
+                    },
+                    {
                         label: 'if',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
-                            'if ($1) {',
+                            'if (${1:condition}) {',
                             '\t$0',
                             '}'
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'If block',
+                        range: range
+                    },
+                    {
+                        label: 'ifelse',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'if (${1:condition}) {',
+                            '\t$2',
+                            '} else {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'If-Else block',
+                        range: range
+                    },
+                    {
+                        label: 'while',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'while (${1:condition}) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'While loop',
+                        range: range
+                    },
+                    {
+                        label: 'do-while',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'do {',
+                            '\t$0',
+                            '} while (${1:condition});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Do-While loop',
+                        range: range
+                    },
+                    {
+                        label: 'switch',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'switch (${1:expression}) {',
+                            '\tcase ${2:constant}:',
+                            '\t\t$3',
+                            '\t\tbreak;',
+                            '\tdefault:',
+                            '\t\t$0',
+                            '\t\tbreak;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Switch statement',
+                        range: range
+                    },
+                    {
+                        label: 'class',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'class ${1:ClassName} {',
+                            'public:',
+                            '\t$1();',
+                            '\t~$1();',
+                            '',
+                            'private:',
+                            '\t$0',
+                            '};'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Class definition',
+                        range: range
+                    },
+                    {
+                        label: 'struct',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'struct ${1:StructName} {',
+                            '\t$0',
+                            '};'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Struct definition',
+                        range: range
+                    },
+                    {
+                        label: 'try',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'try {',
+                            '\t$1',
+                            '} catch (const std::exception& e) {',
+                            '\tstd::cerr << e.what() << std::endl;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Try-Catch block',
                         range: range
                     }
                 ];
@@ -250,32 +370,43 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
             }
         });
 
-        // Add keyboard shortcut for running code
+        // Add keyboard shortcut for running code (F5)
         editor.addCommand(monaco.KeyCode.F5, () => {
-            // This will be handled by the menu system
+            onRun?.()
         })
 
-        // Disable Copy-Paste (Anti-Cheat Feature)
-        editor.onKeyDown((e) => {
-            const { ctrlKey, metaKey, keyCode } = e;
-            // Block Ctrl+V / Cmd+V
-            if ((ctrlKey || metaKey) && keyCode === monaco.KeyCode.KeyV) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            // Block Ctrl+C / Cmd+C (optional, but good for total restriction)
-            if ((ctrlKey || metaKey) && keyCode === monaco.KeyCode.KeyC) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
+        // Add keyboard shortcut for duplicating line (Ctrl+D)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD, () => {
+            editor.trigger('keyboard', 'editor.action.copyLinesDownAction', null)
+        })
 
-        // Block the editor's built-in paste command
+        // Add keyboard shortcut for moving line up (Alt+Up)
+        editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.UpArrow, () => {
+            editor.trigger('keyboard', 'editor.action.moveLinesUpAction', null)
+        })
+
+        // Add keyboard shortcut for moving line down (Alt+Down)
+        editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.DownArrow, () => {
+            editor.trigger('keyboard', 'editor.action.moveLinesDownAction', null)
+        })
+
+        // Add keyboard shortcut for formatting
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
+            editor.getAction('editor.action.formatDocument')?.run()
+        })
+
+        // Disable cut (Ctrl+X / Cmd+X) to encourage manual typing
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, () => {
+            onCopyPasteBlocked?.('Cut is disabled to encourage manual typing')
+        })
+
+        // Block the editor's built-in paste command (Robust method)
         const editorAny = editor as any;
         if (editorAny._commandService) {
             const originalExecuteCommand = editorAny._commandService.executeCommand;
-            editorAny._commandService.executeCommand = function(id: string, ...args: any[]) {
+            editorAny._commandService.executeCommand = function (id: string, ...args: any[]) {
                 if (id === 'editor.action.clipboardPasteAction' || id === 'paste') {
+                    onCopyPasteBlocked?.('Paste is disabled to encourage manual typing')
                     return;
                 }
                 return originalExecuteCommand.apply(this, [id, ...args]);
@@ -306,6 +437,28 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
         }
     }, [value])
 
+    // Handle window/container resize - update editor layout
+    useEffect(() => {
+        const handleResize = () => {
+            // Delay to allow container to finish resizing
+            setTimeout(() => {
+                editorRef.current?.layout()
+            }, 100)
+        }
+
+        window.addEventListener('resize', handleResize)
+
+        // Also trigger layout update periodically to catch container changes
+        const interval = setInterval(() => {
+            editorRef.current?.layout()
+        }, 500)
+
+        return () => {
+            window.removeEventListener('resize', handleResize)
+            clearInterval(interval)
+        }
+    }, [])
+
     return (
         <div className="h-full w-full">
             <MonacoEditor
@@ -324,6 +477,7 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
                     cursorBlinking: 'smooth',
                     cursorSmoothCaretAnimation: 'on',
                     smoothScrolling: true,
+                    contextmenu: false,  // Disable right-click context menu to prevent copy/paste
                     minimap: {
                         enabled: minimap,
                         scale: 1,

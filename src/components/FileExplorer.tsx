@@ -13,21 +13,24 @@ interface FileExplorerProps {
     onToggle: () => void
     onFileSelect: (filePath: string) => void
     currentFilePath: string | null
+    rootPath: string | null
+    onOpenFolder: () => void
+    width?: number
 }
 
-function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath }: FileExplorerProps) {
-    const [rootPath, setRootPath] = useState<string | null>(null)
+function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath, rootPath, onOpenFolder, width = 250 }: FileExplorerProps) {
+    // Internal state for files
     const [files, setFiles] = useState<FileNode[]>([])
     const [loading, setLoading] = useState(false)
 
-    // Open folder handler
-    const handleOpenFolder = async () => {
-        const result = await window.electronAPI.openFolder()
-        if (result) {
-            setRootPath(result)
-            loadDirectory(result)
+    // Load directory when rootPath changes
+    useEffect(() => {
+        if (rootPath) {
+            loadDirectory(rootPath)
+        } else {
+            setFiles([])
         }
-    }
+    }, [rootPath])
 
     // Load directory contents
     const loadDirectory = async (dirPath: string) => {
@@ -100,60 +103,107 @@ function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath }: Fi
         setFiles(newFiles)
     }
 
+    // Get file icon based on extension
+    const getFileIcon = (fileName: string) => {
+        const ext = fileName.split('.').pop()?.toLowerCase()
+
+        // C/C++ files - blue accent
+        if (['cpp', 'c', 'cc', 'cxx'].includes(ext || '')) {
+            return <span className="w-4 h-4 text-xs font-bold text-blue-400 flex items-center justify-center">C++</span>
+        }
+        if (['h', 'hpp', 'hxx'].includes(ext || '')) {
+            return <span className="w-4 h-4 text-xs font-bold text-blue-300 flex items-center justify-center">H</span>
+        }
+
+        // Config/data files
+        if (['json', 'jsonc'].includes(ext || '')) {
+            return <span className="w-4 h-4 text-xs font-bold text-yellow-400 flex items-center justify-center">{'{}'}</span>
+        }
+        if (['md', 'markdown'].includes(ext || '')) {
+            return <span className="w-4 h-4 text-xs font-bold text-text-secondary flex items-center justify-center">M↓</span>
+        }
+        if (['txt', 'log'].includes(ext || '')) {
+            return (
+                <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            )
+        }
+
+        // Executables
+        if (['exe', 'out', 'bin'].includes(ext || '')) {
+            return (
+                <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            )
+        }
+
+        // Makefile
+        if (fileName.toLowerCase() === 'makefile' || ext === 'mk') {
+            return <span className="w-4 h-4 text-xs font-bold text-orange-400 flex items-center justify-center">M</span>
+        }
+
+        // Default file icon
+        return (
+            <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        )
+    }
+
     // Render file tree node
     const renderNode = (node: FileNode, path: number[], depth: number = 0) => {
         const isActive = currentFilePath === node.path
-        const isCppFile = node.name.endsWith('.cpp') || node.name.endsWith('.c') ||
-            node.name.endsWith('.h') || node.name.endsWith('.hpp')
 
         return (
             <div key={node.path}>
                 <button
                     onClick={() => toggleDirectory(node, path)}
                     className={`
-            w-full flex items-center gap-2 px-2 py-1 text-sm text-left
-            hover:bg-editor-highlight/50 transition-colors rounded
-            ${isActive ? 'bg-editor-highlight text-text-bright' : 'text-text-primary'}
-          `}
+                        w-full flex items-center gap-2 px-2 py-1 text-sm text-left
+                        hover:bg-editor-highlight/50 transition-colors rounded
+                        ${isActive ? 'bg-editor-highlight text-text-bright' : 'text-text-primary'}
+                    `}
                     style={{ paddingLeft: `${depth * 16 + 8}px` }}
                 >
                     {/* Expand/Collapse Icon */}
-                    {node.isDirectory && (
+                    {node.isDirectory ? (
                         <svg
-                            className={`w-3 h-3 text-text-secondary transition-transform ${node.expanded ? 'rotate-90' : ''}`}
+                            className={`w-3 h-3 text-text-secondary transition-transform duration-150 ${node.expanded ? 'rotate-90' : ''}`}
                             fill="currentColor"
                             viewBox="0 0 16 16"
                         >
                             <path d="M6 12l4-4-4-4v8z" />
                         </svg>
+                    ) : (
+                        <span className="w-3" /> // Spacer for alignment
                     )}
 
                     {/* File/Folder Icon */}
                     {node.isDirectory ? (
-                        <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                        </svg>
-                    ) : isCppFile ? (
-                        <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
+                        node.expanded ? (
+                            <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clipRule="evenodd" />
+                                <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                            </svg>
+                        )
                     ) : (
-                        <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
+                        getFileIcon(node.name)
                     )}
 
                     {/* File Name */}
                     <span className="truncate">{node.name}</span>
                 </button>
 
-                {/* Children */}
+                {/* Children with animation */}
                 {node.isDirectory && node.expanded && node.children && (
-                    <div>
+                    <div className="animate-fade-in">
                         {node.children.map((child, index) =>
                             renderNode(child, [...path, index], depth + 1)
                         )}
@@ -166,7 +216,7 @@ function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath }: Fi
     if (!isVisible) return null
 
     return (
-        <div className="w-64 bg-editor-sidebar border-r border-editor-border flex flex-col shrink-0">
+        <div style={{ width }} className="bg-editor-sidebar border-r border-editor-border flex flex-col shrink-0">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-editor-border">
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
@@ -174,7 +224,7 @@ function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath }: Fi
                 </span>
                 <div className="flex items-center gap-1">
                     <button
-                        onClick={handleOpenFolder}
+                        onClick={onOpenFolder}
                         className="p-1 hover:bg-editor-border rounded transition-colors"
                         title="Open Folder"
                     >
@@ -219,7 +269,7 @@ function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath }: Fi
                         </svg>
                         <p className="text-text-secondary text-sm mb-3">No folder open</p>
                         <button
-                            onClick={handleOpenFolder}
+                            onClick={onOpenFolder}
                             className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm transition-colors"
                         >
                             Open Folder

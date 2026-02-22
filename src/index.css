@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,6 +22,10 @@
     --color-text-primary: #cccccc;
     --color-text-secondary: #858585;
     --color-text-bright: #ffffff;
+    /* Shadows */
+    --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-glow: 0 0 20px rgba(0, 122, 204, 0.3);
   }
 
   :root[data-theme="light"] {
@@ -39,6 +45,15 @@
     --color-text-primary: #24292e;
     --color-text-secondary: #6e7681;
     --color-text-bright: #000000;
+    /* Shadows for light theme */
+    --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-glow: 0 0 20px rgba(0, 120, 212, 0.2);
+  }
+
+  /* Modern UI font */
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }
 
@@ -157,14 +172,61 @@ button {
   background: #007acc;
 }
 
-/* Monaco Editor overrides */
-.monaco-editor .margin {
-  background: #1e1e1e !important;
-}
+/* Monaco Editor overrides - let Monaco handle margin colors */
 
 /* Panel shadows */
 .panel-shadow {
-  box-shadow: 0 -1px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-panel);
+}
+
+.panel-shadow-hover {
+  transition: box-shadow 0.2s ease;
+}
+
+.panel-shadow-hover:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* Glow effect for accent elements */
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Enhanced button styles */
+.btn-modern {
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.btn-modern:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.btn-modern:active {
+  transform: translateY(0);
+}
+
+/* Fade-in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Subtle background gradient for reduced eye strain */
+.gradient-bg {
+  background: linear-gradient(180deg, var(--color-editor-bg) 0%, rgba(30, 30, 30, 0.95) 100%);
 }
 
 /* Dropdown styles */

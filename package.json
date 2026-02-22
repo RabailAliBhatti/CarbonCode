@@ -15,10 +15,12 @@
     "electron:build": "npm run build"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@types/uuid": "^10.0.0",
+    "monaco-editor": "^0.45.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@monaco-editor/react": "^4.6.0",
-    "monaco-editor": "^0.45.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -38,6 +40,12 @@
     "wait-on": "^7.2.0"
   },
   "build": {
+    "extraResources": [
+      {
+        "from": "vendor/mingw64",
+        "to": "mingw64"
+      }
+    ],
     "appId": "com.rabailalibhatti.carboncode",
     "productName": "CarbonCode",
     "copyright": "Copyright © 2026 Rabail Ali Bhatti",
@@ -57,19 +65,23 @@
           ]
         }
       ],
-      "icon": "public/icon.ico",
-      "artifactName": "CarbonCode-Setup-${version}.${ext}"
+      "icon": "public/icon.png",
+      "artifactName": "CarbonCode-Setup-${version}.${ext}",
+      "forceCodeSigning": false,
+      "publisherName": "Rabail Ali Bhatti",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico",
-      "installerHeaderIcon": "public/icon.ico",
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CarbonCode"
+      "shortcutName": "CarbonCode",
+      "uninstallDisplayName": "CarbonCode - C++ IDE",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     },
     "mac": {
       "target": "dmg",
