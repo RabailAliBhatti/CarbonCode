@@ -33,10 +33,15 @@ interface EditorProps {
     value: string
     onChange: (value: string | undefined) => void
     onEditorMount?: (editor: monacoEditor.editor.IStandaloneCodeEditor) => void
+    fontSize?: number
+    tabSize?: number
+    theme?: 'dark' | 'light'
+    minimap?: boolean
+    wordWrap?: boolean
 }
 
 // VS Code Dark+ theme colors
-const editorTheme = {
+const editorThemeDark = {
     base: 'vs-dark' as const,
     inherit: true,
     rules: [
@@ -73,7 +78,45 @@ const editorTheme = {
     }
 }
 
-function Editor({ value, onChange, onEditorMount }: EditorProps) {
+// VS Code Light+ theme colors
+const editorThemeLight = {
+    base: 'vs' as const,
+    inherit: true,
+    rules: [
+        { token: 'comment', foreground: '008000', fontStyle: 'italic' },
+        { token: 'keyword', foreground: '0000FF' },
+        { token: 'string', foreground: 'A31515' },
+        { token: 'number', foreground: '098658' },
+        { token: 'type', foreground: '267F99' },
+        { token: 'function', foreground: '795E26' },
+        { token: 'variable', foreground: '001080' },
+        { token: 'operator', foreground: '000000' },
+        { token: 'delimiter', foreground: '000000' },
+        { token: 'preprocessor', foreground: '800080' },
+    ],
+    colors: {
+        'editor.background': '#FFFFFE',
+        'editor.foreground': '#000000',
+        'editor.lineHighlightBackground': '#F3F3F3',
+        'editor.selectionBackground': '#ADD6FF',
+        'editor.inactiveSelectionBackground': '#e5ebf1',
+        'editorCursor.foreground': '#000000',
+        'editorWhitespace.foreground': '#3B3B3B',
+        'editorIndentGuide.background': '#D3D3D3',
+        'editorIndentGuide.activeBackground': '#939393',
+        'editor.selectionHighlightBackground': '#ADD6FF4D',
+        'editorLineNumber.foreground': '#237893',
+        'editorLineNumber.activeForeground': '#0B216F',
+        'editorGutter.background': '#FFFFFE',
+        'editorBracketMatch.background': '#D8D8D8',
+        'editorBracketMatch.border': '#888888',
+        'scrollbarSlider.background': '#64646433',
+        'scrollbarSlider.hoverBackground': '#64646466',
+        'scrollbarSlider.activeBackground': '#00000099',
+    }
+}
+
+function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark' }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
 
@@ -81,9 +124,11 @@ function Editor({ value, onChange, onEditorMount }: EditorProps) {
         editorRef.current = editor
         monacoRef.current = monaco
 
-        // Define custom theme
-        monaco.editor.defineTheme('cpp-ide-dark', editorTheme)
-        monaco.editor.setTheme('cpp-ide-dark')
+        // Define custom themes
+        monaco.editor.defineTheme('cpp-ide-dark', editorThemeDark)
+        monaco.editor.defineTheme('cpp-ide-light', editorThemeLight)
+
+        monaco.editor.setTheme(theme === 'dark' ? 'cpp-ide-dark' : 'cpp-ide-light')
 
         // Configure C++ language settings
         monaco.languages.setLanguageConfiguration('cpp', {
@@ -119,10 +164,123 @@ function Editor({ value, onChange, onEditorMount }: EditorProps) {
             }
         })
 
+        // Enhanced C++ IntelliSense
+        // Enhanced C++ IntelliSense
+        monaco.languages.registerCompletionItemProvider('cpp', {
+            provideCompletionItems: (model, position) => {
+                const word = model.getWordUntilPosition(position);
+                const range = {
+                    startLineNumber: position.lineNumber,
+                    endLineNumber: position.lineNumber,
+                    startColumn: word.startColumn,
+                    endColumn: word.endColumn
+                };
+
+                const suggestions = [
+                    // Keywords
+                    ...['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int', 'long', 'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', 'class', 'namespace', 'template', 'typename', 'using', 'virtual', 'friend', 'inline', 'public', 'protected', 'private', 'bool', 'true', 'false', 'nullptr', 'this', 'throw', 'try', 'catch', 'new', 'delete', 'operator', 'explicit', 'export', 'mutable', 'asm', 'dynamic_cast', 'static_cast', 'reinterpret_cast', 'const_cast', 'typeid'].map(k => ({
+                        label: k,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: k,
+                        range: range
+                    })),
+                    // Standard types & objects
+                    ...['std', 'string', 'vector', 'map', 'set', 'list', 'queue', 'stack', 'deque', 'cout', 'cin', 'cerr', 'endl', 'printf', 'scanf'].map(k => ({
+                        label: k,
+                        kind: monaco.languages.CompletionItemKind.Variable,
+                        insertText: k,
+                        range: range
+                    })),
+                    // Snippets
+                    {
+                        label: 'main',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'int main() {',
+                            '\t$0',
+                            '\treturn 0;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Main function',
+                        range: range
+                    },
+                    {
+                        label: 'include',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: '#include <$1>',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Include header',
+                        range: range
+                    },
+                    {
+                        label: 'cout',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: 'std::cout << $1 << std::endl;',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Print to standard output',
+                        range: range
+                    },
+                    {
+                        label: 'for',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'for (int i = 0; i < $1; ++i) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'For loop',
+                        range: range
+                    },
+                    {
+                        label: 'if',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'if ($1) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'If block',
+                        range: range
+                    }
+                ];
+                return { suggestions: suggestions };
+            }
+        });
+
         // Add keyboard shortcut for running code
         editor.addCommand(monaco.KeyCode.F5, () => {
             // This will be handled by the menu system
         })
+
+        // Disable Copy-Paste (Anti-Cheat Feature)
+        editor.onKeyDown((e) => {
+            const { ctrlKey, metaKey, keyCode } = e;
+            // Block Ctrl+V / Cmd+V
+            if ((ctrlKey || metaKey) && keyCode === monaco.KeyCode.KeyV) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            // Block Ctrl+C / Cmd+C (optional, but good for total restriction)
+            if ((ctrlKey || metaKey) && keyCode === monaco.KeyCode.KeyC) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        // Block the editor's built-in paste command
+        const editorAny = editor as any;
+        if (editorAny._commandService) {
+            const originalExecuteCommand = editorAny._commandService.executeCommand;
+            editorAny._commandService.executeCommand = function(id: string, ...args: any[]) {
+                if (id === 'editor.action.clipboardPasteAction' || id === 'paste') {
+                    return;
+                }
+                return originalExecuteCommand.apply(this, [id, ...args]);
+            };
+        }
 
         // Focus the editor
         editor.focus()
@@ -130,6 +288,13 @@ function Editor({ value, onChange, onEditorMount }: EditorProps) {
         // Call the mount callback
         onEditorMount?.(editor)
     }
+
+    // Update theme when it changes
+    useEffect(() => {
+        if (monacoRef.current) {
+            monacoRef.current.editor.setTheme(theme === 'dark' ? 'cpp-ide-dark' : 'cpp-ide-light')
+        }
+    }, [theme])
 
     // Update editor when value prop changes externally
     useEffect(() => {
@@ -151,7 +316,7 @@ function Editor({ value, onChange, onEditorMount }: EditorProps) {
                 onChange={onChange}
                 onMount={handleEditorMount}
                 options={{
-                    fontSize: 14,
+                    fontSize: fontSize,
                     fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
                     fontLigatures: true,
                     lineNumbers: 'on',
@@ -160,15 +325,15 @@ function Editor({ value, onChange, onEditorMount }: EditorProps) {
                     cursorSmoothCaretAnimation: 'on',
                     smoothScrolling: true,
                     minimap: {
-                        enabled: true,
+                        enabled: minimap,
                         scale: 1,
                         showSlider: 'mouseover'
                     },
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
-                    tabSize: 4,
+                    tabSize: tabSize,
                     insertSpaces: true,
-                    wordWrap: 'off',
+                    wordWrap: wordWrap ? 'on' : 'off',
                     folding: true,
                     foldingHighlight: true,
                     showFoldingControls: 'mouseover',

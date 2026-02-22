@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
-import { detectCompiler, compileAndRun, CompilationResult } from './compiler'
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
+import { detectCompiler, compileAndRun, compileCode, startInteractiveProcess, writeToProcess, killProcess, CompilationResult, CompileResult } from './compiler'
 
 // Store main window reference
 let mainWindow: BrowserWindow | null = null
@@ -245,15 +245,112 @@ ipcMain.handle('compiler:detect', async () => {
     return await detectCompiler()
 })
 
-// Compile and run code
+// Compile and run code (Legacy/One-shot)
 ipcMain.handle('compiler:run', async (_, code: string, cppStandard: string): Promise<CompilationResult> => {
     return await compileAndRun(code, cppStandard)
+})
+
+// Interactive Process Handlers
+
+// Start interactive process
+ipcMain.handle('process:start', async (_, code: string, cppStandard: string) => {
+    // 1. Compile
+    const compileResult = await compileCode(code, cppStandard)
+
+    if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
+        return {
+            success: false,
+            error: compileResult.error || 'Compilation failed',
+            compileTime: compileResult.compileTime
+        }
+    }
+
+    // 2. Start Process
+    startInteractiveProcess(
+        compileResult.executablePath,
+        compileResult.tempDir,
+        (data) => {
+            mainWindow?.webContents.send('process:stdout', data)
+        },
+        (data) => {
+            mainWindow?.webContents.send('process:stderr', data)
+        },
+        (code) => {
+            mainWindow?.webContents.send('process:exit', code)
+        }
+    )
+
+    return {
+        success: true,
+        compileTime: compileResult.compileTime
+    }
+})
+
+// Write to process stdin
+ipcMain.handle('process:write', (_, data: string) => {
+    writeToProcess(data)
+})
+
+// Stop process
+ipcMain.handle('process:stop', () => {
+    killProcess()
 })
 
 // Show confirmation dialog
 ipcMain.handle('dialog:show-message', async (_, options: Electron.MessageBoxOptions) => {
     if (!mainWindow) return null
     return await dialog.showMessageBox(mainWindow, options)
+})
+
+// Read a single file
+ipcMain.handle('file:read', async (_, filePath: string) => {
+    try {
+        const content = readFileSync(filePath, 'utf-8')
+        return content
+    } catch (error) {
+        console.error('Failed to read file:', error)
+        return null
+    }
+})
+
+// Open folder dialog
+ipcMain.handle('dialog:open-folder', async () => {
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory']
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+        return null
+    }
+
+    return result.filePaths[0]
+})
+
+// Read directory contents
+ipcMain.handle('file:read-directory', async (_, dirPath: string) => {
+    try {
+        const entries = readdirSync(dirPath)
+        const results = entries.map(name => {
+            const fullPath = join(dirPath, name)
+            try {
+                const stats = statSync(fullPath)
+                return {
+                    name,
+                    path: fullPath,
+                    isDirectory: stats.isDirectory()
+                }
+            } catch {
+                return null
+            }
+        }).filter(Boolean)
+
+        return results
+    } catch (error) {
+        console.error('Failed to read directory:', error)
+        return []
+    }
 })
 
 // App lifecycle

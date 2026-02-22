@@ -30,3 +30,8 @@ npm-debug.log*
 # Temporary files
 temp/
 tmp/
+cpp-ide-electron/
+
+# Vendor
+MinGW/
+vendor/

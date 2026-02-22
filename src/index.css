@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* Dark Theme (Default) */
+    --color-editor-bg: #1e1e1e;
+    --color-editor-sidebar: #252526;
+    --color-editor-border: #3c3c3c;
+    --color-editor-highlight: #264f78;
+    --color-editor-selection: #add6ff33;
+    --color-toolbar-bg: #323233;
+    --color-output-bg: #1e1e1e;
+    --color-accent: #007acc;
+    --color-accent-hover: #1e90ff;
+    --color-success: #4ec9b0;
+    --color-error: #f14c4c;
+    --color-warning: #cca700;
+    --color-text-primary: #cccccc;
+    --color-text-secondary: #858585;
+    --color-text-bright: #ffffff;
+  }
+
+  :root[data-theme="light"] {
+    /* Light Theme */
+    --color-editor-bg: #fffffe;
+    --color-editor-sidebar: #f3f3f3;
+    --color-editor-border: #e4e4e4;
+    --color-editor-highlight: #e4e6f1;
+    --color-editor-selection: #add6ff4d;
+    --color-toolbar-bg: #f3f3f3;
+    --color-output-bg: #ffffff;
+    --color-accent: #0078d4;
+    --color-accent-hover: #106ebe;
+    --color-success: #388a34;
+    --color-error: #e51400;
+    --color-warning: #795e00;
+    --color-text-primary: #24292e;
+    --color-text-secondary: #6e7681;
+    --color-text-bright: #000000;
+  }
+}
+
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 10px;
@@ -21,13 +61,29 @@
   background: #4f4f4f;
 }
 
+/* Thin scrollbar for tabs */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 2px;
+}
+
 /* Selection color */
 ::selection {
   background: rgba(0, 122, 204, 0.4);
 }
 
 /* Base styles */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   overflow: hidden;
   user-select: none;
@@ -59,27 +115,29 @@ button {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 .loading-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.1),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
 /* Pulse animation for running indicator */
 @keyframes pulse-dot {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.3;
   }
@@ -147,18 +205,24 @@ select {
 
 /* Success/Error animations */
 @keyframes success-flash {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: none;
   }
+
   50% {
     box-shadow: 0 0 20px rgba(78, 201, 176, 0.5);
   }
 }
 
 @keyframes error-flash {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: none;
   }
+
   50% {
     box-shadow: 0 0 20px rgba(241, 76, 76, 0.5);
   }

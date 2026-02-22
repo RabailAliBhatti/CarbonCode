@@ -7,7 +7,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "vite build && electron-builder --win",
+    "build:lite": "vite build && electron-builder --win --config electron-builder-lite.json",
+    "build:full": "vite build && electron-builder --win --config electron-builder-full.json",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build"
@@ -38,6 +40,7 @@
   "build": {
     "appId": "com.rabailalibhatti.carboncode",
     "productName": "CarbonCode",
+    "copyright": "Copyright © 2026 Rabail Ali Bhatti",
     "directories": {
       "output": "release"
     },
@@ -46,8 +49,27 @@
       "dist-electron/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "public/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.ico",
+      "artifactName": "CarbonCode-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CarbonCode"
     },
     "mac": {
       "target": "dmg",

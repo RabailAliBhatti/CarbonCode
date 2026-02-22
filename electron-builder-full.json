@@ -1,0 +1,44 @@
+{
+    "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+    "appId": "com.rabailalibhatti.carboncode.full",
+    "productName": "CarbonCode",
+    "copyright": "Copyright © 2026 Rabail Ali Bhatti",
+    "directories": {
+        "output": "release/full"
+    },
+    "files": [
+        "dist/**/*",
+        "dist-electron/**/*"
+    ],
+    "extraResources": [
+        {
+            "from": "mingw",
+            "to": "mingw",
+            "filter": [
+                "**/*"
+            ]
+        }
+    ],
+    "win": {
+        "target": [
+            {
+                "target": "nsis",
+                "arch": [
+                    "x64"
+                ]
+            }
+        ],
+        "icon": "public/icon.png",
+        "artifactName": "CarbonCode-Full-${version}.${ext}",
+        "signAndEditExecutable": false
+    },
+    "nsis": {
+        "oneClick": false,
+        "perMachine": true,
+        "include": "installer.nsh",
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "CarbonCode"
+    }
+}
