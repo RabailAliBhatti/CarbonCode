@@ -1,11 +1,19 @@
-# CarbonCode
+<p align="center">
+  <img src="public/icon.png" alt="CarbonCode Logo" width="120" />
+</p>
+
+<h1 align="center">CarbonCode</h1>
 
 <p align="center">
-  <strong>A lightweight, offline C++ IDE</strong>
+  <strong>A lightweight, offline C++ IDE</strong><br/>
+  <em>Developed by Rabail Ali Bhatti</em>
 </p>
 
 <p align="center">
-  <em>Developed by Rabail Ali Bhatti</em>
+  <img src="https://img.shields.io/badge/version-3.0.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/electron-28-9cf?style=flat-square" alt="Electron" />
 </p>
 
 ---
@@ -186,6 +194,32 @@ Your code may have an infinite loop. The execution timeout is 10 seconds.
 ### Compilation errors
 
 Check the "Errors" tab in the output panel for detailed error messages from the compiler.
+
+## 🔮 Future Enhancements — V4 Roadmap
+
+CarbonCode V4 is actively being planned. Here's what's coming next:
+
+### Phase 1: Smart Editor
+- 🤖 **AI-Powered Code Suggestions** — Context-aware autocomplete beyond IntelliSense
+- 🎨 **Custom Themes & Extensions** — User-created themes and plugin support
+- 📝 **Code Snippets Library** — Reusable snippet manager with cloud sync
+
+### Phase 2: Collaboration & Cloud
+- 🌐 **Live Collaboration** — Real-time pair programming with shared cursors
+- ☁️ **Cloud Sync** — Sync projects and settings across devices
+- 🏫 **Classroom Mode** — Teacher dashboard with student progress tracking
+
+### Phase 3: Advanced Tooling
+- 📊 **Memory Profiler** — Visual memory leak detection and heap analysis
+- 🧪 **Integrated Testing** — Built-in unit testing framework with coverage reports
+- 🔗 **Git Integration** — Visual Git management (commit, branch, merge) inside the IDE
+
+### Phase 4: Cross-Platform & Beyond
+- 🐧 **Linux & macOS Installers** — Native builds for all major platforms
+- 📱 **Web Version** — Browser-based CarbonCode powered by WebAssembly
+- 🌍 **Multi-Language Support** — Extend to Python, Java, and Rust compilation
+
+> 💡 Have a feature idea? [Open an issue](https://github.com/RabailAliBhatti/CarbonCode/issues) and let us know!
 
 ## 📄 License
 
