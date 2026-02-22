@@ -43,13 +43,27 @@ Download the latest version of CarbonCode from the [Releases](https://github.com
 
 ## 📋 Prerequisites
 
-You must have a C++ compiler installed and added to your system PATH:
+You must have a C++ compiler installed on your system.
 
-| Platform | Recommended Compiler | Command to Verify |
-|----------|----------------------|-------------------|
-| **Windows** | [MinGW-w64](https://www.mingw-w64.org/) | `g++ --version` |
-| **macOS** | Xcode Command Line Tools | `clang++ --version` |
-| **Linux** | `build-essential` | `g++ --version` |
+### 🪟 Windows (Recommended)
+1. **Download**: Get the [MinGW-w64](https://www.mingw-w64.org/downloads/) installer.
+2. **Install**: Choose the `x86_64` architecture during setup.
+3. **Environment**: Add the `bin` folder (e.g., `C:\mingw64\bin`) to your **System PATH**.
+4. **Verify**: Open a new terminal and type `g++ --version`.
+
+### 🍎 macOS
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+```
+
+### 🐧 Linux
+```bash
+# Ubuntu/Debian
+sudo apt install build-essential
+# Fedora
+sudo dnf install gcc-c++
+```
 
 ## 🚀 Getting Started (Development)
 
