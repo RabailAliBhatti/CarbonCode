@@ -358,6 +358,50 @@ function App() {
         }
     }, [activeTab, markTabSaved])
 
+    // Copy/Paste handlers
+    const handleCopy = useCallback(async () => {
+        if (!editorInstance) return
+        const selection = editorInstance.getSelection()
+        const model = editorInstance.getModel()
+        if (selection && model) {
+            const selectedText = model.getValueInRange(selection)
+            if (selectedText) {
+                await navigator.clipboard.writeText(selectedText)
+                showToast('Copied to clipboard')
+            } else {
+                // If nothing selected, maybe copy whole file? 
+                // Traditional IDEs usually don't, but we can if preferred.
+                // Let's just notify if selection is empty.
+                showToast('Nothing selected to copy')
+            }
+        }
+    }, [editorInstance, showToast])
+
+    const handlePaste = useCallback(async () => {
+        if (!editorInstance) return
+        try {
+            const text = await navigator.clipboard.readText()
+            if (text) {
+                const selection = editorInstance.getSelection()
+                if (selection) {
+                    editorInstance.executeEdits('toolbar-paste', [
+                        {
+                            range: selection,
+                            text: text,
+                            forceMoveMarkers: true
+                        }
+                    ])
+                    editorInstance.focus()
+                    // Track analytics - code pasted
+                    window.electronAPI?.trackEvent?.('code_pasted')
+                }
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard:', err)
+            showToast('Permission denied to access clipboard')
+        }
+    }, [editorInstance, showToast])
+
     // Run compilation handler
     const handleRun = useCallback(async () => {
         if (!activeTab) return
@@ -575,6 +619,8 @@ function App() {
                 onNewFile={handleNewFile}
                 onOpenFile={handleOpenFile}
                 onSave={handleSave}
+                onCopy={handleCopy}
+                onPaste={handlePaste}
                 isCompiling={isCompiling} // Could also indicate isRunning visually in Toolbar if needed
                 hasCompiler={!!compilerInfo}
             />

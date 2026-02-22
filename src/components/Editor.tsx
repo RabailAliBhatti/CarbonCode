@@ -395,23 +395,6 @@ function Editor({ value, onChange, onEditorMount, fontSize = 14, tabSize = 4, mi
             editor.getAction('editor.action.formatDocument')?.run()
         })
 
-        // Disable cut (Ctrl+X / Cmd+X) to encourage manual typing
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, () => {
-            onCopyPasteBlocked?.('Cut is disabled to encourage manual typing')
-        })
-
-        // Block the editor's built-in paste command (Robust method)
-        const editorAny = editor as any;
-        if (editorAny._commandService) {
-            const originalExecuteCommand = editorAny._commandService.executeCommand;
-            editorAny._commandService.executeCommand = function (id: string, ...args: any[]) {
-                if (id === 'editor.action.clipboardPasteAction' || id === 'paste') {
-                    onCopyPasteBlocked?.('Paste is disabled to encourage manual typing')
-                    return;
-                }
-                return originalExecuteCommand.apply(this, [id, ...args]);
-            };
-        }
 
         // Focus the editor
         editor.focus()

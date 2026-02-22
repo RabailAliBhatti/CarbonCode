@@ -1,114 +1,198 @@
-# CarbonCode 🚀
+# CarbonCode
 
 <p align="center">
-  <img src="public/icon.png" width="128" height="128" alt="CarbonCode Logo">
-</p>
-
-<p align="center">
-  <strong>A lightweight, offline C++ IDE built with Electron, React, and Monaco Editor.</strong>
+  <strong>A lightweight, offline C++ IDE</strong>
 </p>
 
 <p align="center">
   <em>Developed by Rabail Ali Bhatti</em>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
-  <img src="https://img.shields.io/badge/Electron-28.0-blue.svg" alt="Electron">
-  <img src="https://img.shields.io/badge/React-18.2-61dafb.svg" alt="React">
-</p>
-
 ---
 
-CarbonCode is a modern, cross-platform C++ IDE designed for speed and simplicity. It allows you to compile and run C++ code locally using your system's installed compiler, providing a VS Code-like experience in a lightweight, offline-first package.
-
-## 📥 Downloads
-
-**Ready to start coding?** 
-Download the latest version of CarbonCode from the [Releases](https://github.com/rabailalibhatti/carboncode/releases) page.
-
-- **Windows**: Download the `.exe` installer.
-- **macOS/Linux**: Build from source (see below) or check the latest release for supported binaries.
+CarbonCode is a modern, cross-platform C++ IDE built with Electron, React, and Monaco Editor. Compile and run C++ code locally using your system's installed compiler - no internet connection required.
 
 ## ✨ Features
 
-- 🖥️ **Modern Code Editor** - Powered by Monaco Editor (the heart of VS Code) with full C++ IntelliSense.
-- 🔧 **Native Compilation** - Seamlessly integrates with `g++`, `clang++`, or `MSVC`.
-- 📁 **File Management** - Full support for opening, editing, and saving `.cpp` files.
-- 🎨 **Premium UI** - Sleek, dark theme with glassmorphism touches and smooth micro-animations.
-- ⚡ **One-Click Run** - Hit `F5` to compile and execute your code instantly.
-- 📊 **Intelligent Output** - Real-time terminal output with precise timing for compilation and execution.
-- 🔢 **Standards Support** - Toggle between C++11, C++14, C++17, C++20, and C++23.
-- 💾 **100% Offline** - Your code never leaves your machine.
+- 🖥️ **Modern Code Editor** - Monaco Editor with C++ syntax highlighting, Enhanced IntelliSense, and bracket matching
+- 🐞 **Integrated Debugger** - GDB-powered line-by-line debugging with variable inspection and breakpoint support
+- 🛡️ **Anti-Cheat System** - Robust copy-paste restrictions with dedicated UI buttons and toast feedback
+- 🔧 **Dual Compiler Modes** - Uses bundled MinGW (Full version) or system compiler (Lite version)
+- 📁 **File Explorer** - Integrated file tree for easy project navigation
+- 📑 **Multi-Tab Interface** - Work on multiple files simultaneously with dirty-state tracking
+- 🔍 **Find & Replace** - Powerful search functionality with regex support (Ctrl+F)
+- ⚙️ **Customizable** - Settings for font size, themes, auto-save, and C++ standards
+- ⚡ **Fast Execution** - Compile and run code with a single click or F5
+- 📊 **Output Panel** - View stdout and stderr separately with timing information
+- 🔢 **C++ Standards** - Support for C++11 through C++23
+- 📈 **Performance Analytics** - Opt-in system usage tracking to improve user experience
+- 💾 **Offline First** - No internet connection required
 
 ## 📋 Prerequisites
 
-You must have a C++ compiler installed on your system.
+**For the "Full" version:** None! It comes with a bundled C++ compiler (MinGW).
 
-### 🪟 Windows (Recommended)
-1. **Download**: Get the [MinGW-w64](https://www.mingw-w64.org/downloads/) installer.
-2. **Install**: Choose the `x86_64` architecture during setup.
-3. **Environment**: Add the `bin` folder (e.g., `C:\mingw64\bin`) to your **System PATH**.
-4. **Verify**: Open a new terminal and type `g++ --version`.
+**For the "Lite" version:** You must have a C++ compiler installed on your system:
 
-### 🍎 macOS
+### Windows (Lite Version)
+- **Option 1: MinGW-w64** (Recommended)
+  1. Download from [MinGW-w64](https://www.mingw-w64.org/downloads/)
+  2. Add the `bin` folder to your system PATH
+  3. Verify: `g++ --version`
+
+- **Option 2: Visual Studio Build Tools**
+  1. Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
+  2. Install "Desktop development with C++"
+  3. Open the "Developer Command Prompt" to compile
+
+### macOS
 ```bash
 # Install Xcode Command Line Tools
 xcode-select --install
+
+# Verify installation
+clang++ --version
 ```
 
-### 🐧 Linux
+### Linux (Ubuntu/Debian)
 ```bash
-# Ubuntu/Debian
+# Install g++
+sudo apt update
 sudo apt install build-essential
-# Fedora
+
+# Verify installation
+g++ --version
+```
+
+### Linux (Fedora)
+```bash
 sudo dnf install gcc-c++
 ```
 
-## 🚀 Getting Started (Development)
+### Linux (Arch)
+```bash
+sudo pacman -S gcc
+```
 
-1. **Clone & Install**
-   ```bash
-   git clone https://github.com/rabailalibhatti/carboncode.git
-   cd carboncode
-   npm install
-   ```
+## 🚀 Installation
 
-2. **Run Development Mode**
-   ```bash
-   npm run dev
-   ```
+### From Source
 
-3. **Build Installer**
-   ```bash
-   npm run build
-   ```
+1. Clone the repository:
+```bash
+git clone https://github.com/rabailalibhatti/carboncode.git
+cd carboncode
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Run in development mode:
+```bash
+npm run dev
+```
+
+### Building for Distribution
+
+You can build two versions of the installer:
+
+**1. Lite Version (Smaller size, requires system compiler)**
+```bash
+npm run build:lite
+# Output: release/lite/CarbonCode-Lite-x.x.x.exe
+```
+
+**2. Full Version (Includes MinGW compiler, works out of the box)**
+```bash
+npm run build:full
+# Output: release/full/CarbonCode-Full-x.x.x.exe
+```
 
 ## ⌨️ Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
-| **New File** | `Ctrl + N` |
-| **Open File** | `Ctrl + O` |
-| **Save** | `Ctrl + S` |
-| **Save As** | `Ctrl + Shift + S` |
-| **Compile & Run** | `F5` |
-| **Quit** | `Ctrl + Q` |
+| New File | `Ctrl+N` |
+| Open File | `Ctrl+O` |
+| Save | `Ctrl+S` |
+| Save As | `Ctrl+Shift+S` |
+| Find / Replace | `Ctrl+F` |
+| Toggle Explorer | `Ctrl+B` |
+| Compile & Run | `F5` |
+| Quit | `Ctrl+Q` |
+
+## 🔧 Selecting C++ Standard
+
+Use the dropdown in the toolbar to select your desired C++ standard:
+- C++11
+- C++14
+- C++17 (default)
+- C++20
+- C++23
+
+## 📁 Project Structure
+
+```
+carboncode/
+├── electron/           # Electron main process
+│   ├── main.ts         # Main window & IPC handlers
+│   ├── preload.ts      # Secure IPC bridge
+│   ├── compiler.ts     # Compilation logic
+│   └── debugger.ts     # GDB Debugger integration
+├── src/                # React renderer process
+│   ├── components/     # UI components (Editor, DebugPanel, Analytics, etc.)
+│   ├── hooks/          # Custom React hooks (useFileManager, useSettings)
+│   ├── App.tsx         # Main application orchestrator
+│   ├── main.tsx        # React entry point
+│   └── index.css       # Global styles & themes
+├── public/             # Static assets (icons, etc.)
+├── vendor/             # Bundled tools (MinGW-w64)
+├── package.json        # Dependencies & build scripts
+├── vite.config.ts      # Build configuration
+└── tailwind.config.js  # Styling configuration
+```
 
 ## 🛠️ Technical Stack
 
-- **Framework**: Electron
-- **Frontend**: React 18 & TypeScript
-- **Bundler**: Vite
-- **Editor**: Monaco Editor
-- **Styling**: TailwindCSS & PostCSS
+- **Electron** - Cross-platform desktop framework
+- **React 18** - UI library with hooks
+- **TypeScript** - Type-safe JavaScript
+- **Vite** - Fast build tool
+- **Monaco Editor** - VS Code's editor component
+- **TailwindCSS** - Utility-first CSS framework
+
+## 🔒 Security
+
+CarbonCode follows Electron security best practices:
+- Context isolation is enabled
+- Node integration is disabled in the renderer
+- All IPC communication goes through a secure preload script
+- Temporary files are cleaned up after compilation
+
+## 🐛 Troubleshooting
+
+### "No compiler detected"
+
+1. Ensure you have g++, clang++, or cl.exe installed
+2. Verify the compiler is in your system PATH
+3. Restart the application after installing
+
+### Compilation times out
+
+Your code may have an infinite loop. The execution timeout is 10 seconds.
+
+### Compilation errors
+
+Check the "Errors" tab in the output panel for detailed error messages from the compiler.
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+MIT License - see LICENSE file for details.
 
 ---
 
 <p align="center">
-  Made with ❤️ by <strong>Rabail Ali Bhatti</strong>
+  <strong>CarbonCode</strong> - Made with ❤️ by <strong>Rabail Ali Bhatti</strong>
 </p>
