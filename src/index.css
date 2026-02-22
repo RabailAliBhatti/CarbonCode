@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4f4f4f;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(0, 122, 204, 0.4);
+}
+
+/* Base styles */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Allow text selection in the editor and output */
+.monaco-editor,
+.output-panel {
+  user-select: text;
+}
+
+/* Focus outline styles */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #007acc;
+  outline-offset: -2px;
+}
+
+/* Button hover transitions */
+button {
+  transition: all 0.2s ease;
+}
+
+/* Loading animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Pulse animation for running indicator */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+/* Custom styles for the resizable panels */
+.resize-handle {
+  background: #3c3c3c;
+  transition: background-color 0.2s ease;
+}
+
+.resize-handle:hover {
+  background: #007acc;
+}
+
+/* Monaco Editor overrides */
+.monaco-editor .margin {
+  background: #1e1e1e !important;
+}
+
+/* Panel shadows */
+.panel-shadow {
+  box-shadow: 0 -1px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Dropdown styles */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23858585' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+/* Tooltip styles */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: #424242;
+  color: #ffffff;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Success/Error animations */
+@keyframes success-flash {
+  0%, 100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(78, 201, 176, 0.5);
+  }
+}
+
+@keyframes error-flash {
+  0%, 100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(241, 76, 76, 0.5);
+  }
+}
+
+.flash-success {
+  animation: success-flash 0.5s ease;
+}
+
+.flash-error {
+  animation: error-flash 0.5s ease;
+}
