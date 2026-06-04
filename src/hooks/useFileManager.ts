@@ -25,10 +25,20 @@ const generateDefaultJavaCode = (authorName: string): string => {
     return `// Author: ${authorName}
 // Date: ${date}
 
+import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.HashMap;
+
 public class Main {
     public static void main(String[] args) {
         System.out.println("Hello, World!");
         System.out.println("Welcome to CarbonCode!");
+
+        // Example: Using Scanner for input
+        Scanner scan = new Scanner(System.in);
+        System.out.print("Enter a number: ");
+        int num = scan.nextInt();
+        System.out.println("You entered: " + num);
     }
 }
 `
@@ -46,10 +56,18 @@ int main() {
 }
 `
 
-const DEFAULT_JAVA_CODE = `public class Main {
+const DEFAULT_JAVA_CODE = `import java.util.Scanner;
+
+public class Main {
     public static void main(String[] args) {
         System.out.println("Hello, World!");
         System.out.println("Welcome to CarbonCode!");
+
+        // Example: Using Scanner for input
+        Scanner scan = new Scanner(System.in);
+        System.out.print("Enter a number: ");
+        int num = scan.nextInt();
+        System.out.println("You entered: " + num);
     }
 }
 `

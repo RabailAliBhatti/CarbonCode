@@ -475,6 +475,203 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
     }
 }
 
+/**
+ * Auto-detect and add missing Java imports
+ */
+function addMissingJavaImports(code: string): string {
+    // Map of class names to their import statements
+    const importMap: Record<string, string> = {
+        // java.util
+        'Scanner': 'import java.util.Scanner;',
+        'ArrayList': 'import java.util.ArrayList;',
+        'LinkedList': 'import java.util.LinkedList;',
+        'HashMap': 'import java.util.HashMap;',
+        'TreeMap': 'import java.util.TreeMap;',
+        'LinkedHashMap': 'import java.util.LinkedHashMap;',
+        'HashSet': 'import java.util.HashSet;',
+        'TreeSet': 'import java.util.TreeSet;',
+        'List': 'import java.util.List;',
+        'ArrayList_': 'import java.util.ArrayList;',
+        'Map': 'import java.util.Map;',
+        'Set': 'import java.util.Set;',
+        'Queue': 'import java.util.Queue;',
+        'Deque': 'import java.util.Deque;',
+        'Stack': 'import java.util.Stack;',
+        'PriorityQueue': 'import java.util.PriorityQueue;',
+        'Collections': 'import java.util.Collections;',
+        'Arrays': 'import java.util.Arrays;',
+        'Comparator': 'import java.util.Comparator;',
+        'Comparable': 'import java.lang.Comparable;',
+        'Iterator': 'import java.util.Iterator;',
+        'ListIterator': 'import java.util.ListIterator;',
+        'Random': 'import java.util.Random;',
+        'Date': 'import java.util.Date;',
+        'Calendar': 'import java.util.Calendar;',
+        'Optional': 'import java.util.Optional;',
+        'stream': 'import java.util.stream.*;',
+        'Stream': 'import java.util.stream.Stream;',
+        'Collectors': 'import java.util.stream.Collectors;',
+        'HashMap_': 'import java.util.HashMap;',
+        'StringJoiner': 'import java.util.StringJoiner;',
+        'Objects': 'import java.util.Objects;',
+        'Tuple': 'import java.util.AbstractMap;',
+
+        // java.io
+        'File': 'import java.io.File;',
+        'FileReader': 'import java.io.FileReader;',
+        'FileWriter': 'import java.io.FileWriter;',
+        'BufferedReader': 'import java.io.BufferedReader;',
+        'BufferedWriter': 'import java.io.BufferedWriter;',
+        'PrintWriter': 'import java.io.PrintWriter;',
+        'FileNotFoundException': 'import java.io.FileNotFoundException;',
+        'IOException': 'import java.io.IOException;',
+        'InputStream': 'import java.io.InputStream;',
+        'OutputStream': 'import java.io.OutputStream;',
+        'FileInputStream': 'import java.io.FileInputStream;',
+        'FileOutputStream': 'import java.io.FileOutputStream;',
+        'ObjectOutputStream': 'import java.io.ObjectOutputStream;',
+        'ObjectInputStream': 'import java.io.ObjectInputStream;',
+        'ByteArrayInputStream': 'import java.io.ByteArrayInputStream;',
+        'ByteArrayOutputStream': 'import java.io.ByteArrayOutputStream;',
+        'DataInputStream': 'import java.io.DataInputStream;',
+        'DataOutputStream': 'import java.io.DataOutputStream;',
+        'Serializable': 'import java.io.Serializable;',
+
+        // java.math
+        'BigDecimal': 'import java.math.BigDecimal;',
+        'BigInteger': 'import java.math.BigInteger;',
+
+        // java.time
+        'LocalDate': 'import java.time.LocalDate;',
+        'LocalTime': 'import java.time.LocalTime;',
+        'LocalDateTime': 'import java.time.LocalDateTime;',
+        'Instant': 'import java.time.Instant;',
+        'Duration': 'import java.time.Duration;',
+        'Period': 'import java.time.Period;',
+        'DateTimeFormatter': 'import java.time.format.DateTimeFormatter;',
+
+        // java.util.regex
+        'Pattern': 'import java.util.regex.Pattern;',
+        'Matcher': 'import java.util.regex.Matcher;',
+
+        // java.net
+        'URL': 'import java.net.URL;',
+        'URI': 'import java.net.URI;',
+        'HttpURLConnection': 'import java.net.HttpURLConnection;',
+        'ServerSocket': 'import java.net.ServerSocket;',
+        'Socket': 'import java.net.Socket;',
+
+        // java.lang (usually auto-imported, but explicit for clarity)
+        'Math': 'import java.lang.Math;',
+        'String': 'import java.lang.String;',
+        'System': 'import java.lang.System;',
+        'Thread': 'import java.lang.Thread;',
+        'Runnable': 'import java.lang.Runnable;',
+        'Exception': 'import java.lang.Exception;',
+        'RuntimeException': 'import java.lang.RuntimeException;',
+        'NullPointerException': 'import java.lang.NullPointerException;',
+        'IndexOutOfBoundsException': 'import java.lang.IndexOutOfBoundsException;',
+        'ClassNotFoundException': 'import java.lang.ClassNotFoundException;',
+        'StringBuilder': 'import java.lang.StringBuilder;',
+        'StringBuffer': 'import java.lang.StringBuffer;',
+        'Integer': 'import java.lang.Integer;',
+        'Double': 'import java.lang.Double;',
+        'Float': 'import java.lang.Float;',
+        'Long': 'import java.lang.Long;',
+        'Boolean': 'import java.lang.Boolean;',
+        'Character': 'import java.lang.Character;',
+        'Byte': 'import java.lang.Byte;',
+        'Short': 'import java.lang.Short;',
+        'Number': 'import java.lang.Number;',
+        'Void': 'import java.lang.Void;',
+        'Class': 'import java.lang.Class;',
+        'SuppressWarnings': 'import java.lang.SuppressWarnings;',
+        'Override': 'import java.lang.Override;',
+        'Deprecated': 'import java.lang.Deprecated;',
+        'AutoCloseable': 'import java.lang.AutoCloseable;',
+        'Comparable_': 'import java.lang.Comparable;',
+        'Enum': 'import java.lang.Enum;',
+        'Annotation': 'import java.lang.annotation.Annotation;',
+        'FunctionalInterface': 'import java.lang.FunctionalInterface;',
+    }
+
+    // Common patterns that indicate a class is used
+    const classPatterns = [
+        /new\s+(\w+)\s*\(/g,           // new ClassName(
+        /(\w+)\s+\w+\s*=/g,            // ClassName variable =
+        /(\w+)\s*<[^>]*>/g,            // ClassName<...>
+        /(\w+)\s*\[\]/g,               // ClassName[]
+        /(\w+)\s+\w+\s*;/g,            // ClassName variable;
+        /(\w+)\s+\w+\s*\)/g,           // ClassName variable)
+        /:\s*(\w+)/g,                   // : ClassName
+        /extends\s+(\w+)/g,            // extends ClassName
+        /implements\s+(\w+)/g,         // implements ClassName
+        /throws\s+(\w+)/g,             // throws ClassName
+        /catch\s*\(\s*(\w+)/g,         // catch (ClassName
+        /import\s+.*\.(\w+);/g,        // Already imported
+        /(\w+)\.(\w+)\s*\(/g,          // ClassName.method(
+        /static\s+(\w+)\./g,           // static ClassName.
+    ]
+
+    // Extract existing imports
+    const existingImports = new Set<string>()
+    const importRegex = /import\s+[\w.]+;/g
+    let match
+    while ((match = importRegex.exec(code)) !== null) {
+        existingImports.add(match[0])
+    }
+
+    // Find classes that are used but not imported
+    const missingImports = new Set<string>()
+    const classesToImport = new Set<string>()
+
+    // Check each class in the import map
+    for (const className of Object.keys(importMap)) {
+        // Skip internal markers
+        if (className.endsWith('_')) continue
+
+        // Check if class is used in code (but not in import statements)
+        const codeWithoutImports = code.replace(/import\s+[\w.]+;/g, '')
+        const classRegex = new RegExp(`\\b${className}\\b`, 'g')
+        if (classRegex.test(codeWithoutImports)) {
+            // Check if already imported
+            const importStmt = importMap[className]
+            if (!existingImports.has(importStmt)) {
+                // Also check if there's a wildcard import for the package
+                const packageName = importStmt.replace('import ', '').replace(`.${className};`, '')
+                const wildcardImport = `import ${packageName}.*;`
+                if (!existingImports.has(wildcardImport)) {
+                    missingImports.add(importStmt)
+                }
+            }
+        }
+    }
+
+    // If there are missing imports, add them after the package declaration (or at the top)
+    if (missingImports.size > 0) {
+        const sortedImports = Array.from(missingImports).sort()
+        const importBlock = sortedImports.join('\n')
+
+        // Find where to insert imports
+        const packageMatch = code.match(/package\s+[\w.]+;\s*\n/)
+        if (packageMatch) {
+            // Insert after package declaration
+            const insertPos = code.indexOf(packageMatch[0]) + packageMatch[0].length
+            return code.slice(0, insertPos) + '\n' + importBlock + '\n\n' + code.slice(insertPos)
+        } else {
+            // Insert at the beginning (after any comments)
+            const firstNonComment = code.search(/^(?!\/\/)/m)
+            if (firstNonComment > 0) {
+                return code.slice(0, firstNonComment) + importBlock + '\n\n' + code.slice(firstNonComment)
+            } else {
+                return importBlock + '\n\n' + code
+            }
+        }
+    }
+
+    return code
+}
+
 export async function compileJavaCode(code: string, filePath?: string | null): Promise<CompileResult & { mainClass?: string }> {
     const runtime = await detectJavaRuntime()
 
@@ -492,9 +689,12 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
     const sourceFile = join(tempDir, sourceName)
     const mainClass = basename(sourceName, extname(sourceName))
 
+    // Auto-add missing imports
+    const codeWithImports = addMissingJavaImports(code)
+
     try {
         mkdirSync(tempDir, { recursive: true })
-        writeFileSync(sourceFile, code, 'utf-8')
+        writeFileSync(sourceFile, codeWithImports, 'utf-8')
 
         const javacCmd = runtime.compilerPath.includes(' ') ? `"${runtime.compilerPath}"` : runtime.compilerPath
         const compileStart = Date.now()
