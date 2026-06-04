@@ -425,6 +425,88 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         insertText: k,
                         range
                     })),
+                    // Scanner methods
+                    ...['nextInt', 'nextDouble', 'nextFloat', 'nextLong', 'nextBoolean', 'nextByte', 'nextShort', 'nextLine', 'next', 'hasNext', 'hasNextInt', 'hasNextDouble', 'hasNextFloat', 'hasNextLong', 'hasNextBoolean', 'hasNextLine', 'close'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `Scanner.${m}()`,
+                        range,
+                        detail: 'Scanner method'
+                    })),
+                    // System methods
+                    ...['out.println', 'out.print', 'out.printf', 'err.println', 'err.print', 'exit', 'currentTimeMillis', 'nanoTime', 'getenv', 'getProperty', 'arraycopy'].map(m => ({
+                        label: m.split('.').pop() || m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m.includes('.') ? m + '($1)' : m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `System.${m}()`,
+                        range,
+                        detail: 'System method',
+                        filterText: m
+                    })),
+                    // String methods
+                    ...['length', 'charAt', 'substring', 'indexOf', 'lastIndexOf', 'contains', 'equals', 'equalsIgnoreCase', 'compareTo', 'compareToIgnoreCase', 'toLowerCase', 'toUpperCase', 'trim', 'replace', 'replaceAll', 'split', 'startsWith', 'endsWith', 'isEmpty', 'isBlank', 'toCharArray', 'valueOf', 'format', 'join', 'repeat', 'strip', 'stripLeading', 'stripTrailing'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `String.${m}()`,
+                        range,
+                        detail: 'String method'
+                    })),
+                    // ArrayList methods
+                    ...['add', 'get', 'set', 'remove', 'size', 'isEmpty', 'contains', 'indexOf', 'lastIndexOf', 'clear', 'subList', 'toArray', 'addAll', 'removeAll', 'retainAll', 'sort', 'forEach', 'iterator', 'listIterator'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `ArrayList.${m}()`,
+                        range,
+                        detail: 'ArrayList method'
+                    })),
+                    // HashMap methods
+                    ...['put', 'get', 'remove', 'containsKey', 'containsValue', 'size', 'isEmpty', 'keySet', 'values', 'entrySet', 'putAll', 'clear', 'getOrDefault', 'putIfAbsent', 'replace', 'replaceAll', 'compute', 'computeIfAbsent', 'computeIfPresent', 'merge', 'forEach'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `HashMap.${m}()`,
+                        range,
+                        detail: 'HashMap method'
+                    })),
+                    // Collections methods
+                    ...['sort', 'reverse', 'shuffle', 'swap', 'copy', 'fill', 'rotate', 'unmodifiableList', 'unmodifiableMap', 'unmodifiableSet', 'synchronizedList', 'synchronizedMap', 'synchronizedSet', 'singletonList', 'singletonMap', 'singleton', 'emptyList', 'emptyMap', 'emptySet', 'nCopies', 'frequency', 'disjoint', 'min', 'max', 'indexOfSubList', 'lastIndexOfSubList'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `Collections.${m}()`,
+                        range,
+                        detail: 'Collections method'
+                    })),
+                    // Arrays methods
+                    ...['sort', 'binarySearch', 'copyOf', 'copyOfRange', 'fill', 'equals', 'deepEquals', 'hashCode', 'deepHashCode', 'toString', 'deepToString', 'asList', 'stream', 'compare', 'mismatch'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m + '($1)',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `Arrays.${m}()`,
+                        range,
+                        detail: 'Arrays method'
+                    })),
+                    // Math methods
+                    ...['abs', 'max', 'min', 'sqrt', 'pow', 'log', 'log10', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'toDegrees', 'toRadians', 'random', 'round', 'ceil', 'floor', 'signum', 'exp', 'PI', 'E'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: m.includes('PI') || m === 'E' ? m : m + '($1)',
+                        insertTextRules: m.includes('PI') || m === 'E' ? undefined : monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: `Math.${m}()`,
+                        range,
+                        detail: 'Math method'
+                    })),
+                    // Common snippets
                     {
                         label: 'psvm',
                         kind: monaco.languages.CompletionItemKind.Snippet,
@@ -435,30 +517,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Public static void main',
-                        range
-                    },
-                    {
-                        label: 'main',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public static void main(String[] args) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Main method',
-                        range
-                    },
-                    {
-                        label: 'class',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public class ${1:Main} {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Public class',
                         range
                     },
                     {
@@ -475,73 +533,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         insertText: 'System.out.println("${1:variable} = " + $1);',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Print variable with label',
-                        range
-                    },
-                    {
-                        label: 'soutm',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.println("${1:ClassName}.${2:methodName}");',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Print method name',
-                        range
-                    },
-                    {
-                        label: 'soutp',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.println("${1:param} = " + $1);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Print parameter',
-                        range
-                    },
-                    {
-                        label: 'print',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.print($1);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'System.out.print()',
-                        range
-                    },
-                    {
-                        label: 'printf',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.printf("${1:format}", $2);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'System.out.printf()',
-                        range
-                    },
-                    {
-                        label: 'scanner',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'Scanner scanner = new Scanner(System.in);',
-                            '$0'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Scanner for stdin',
-                        range
-                    },
-                    {
-                        label: 'scnn',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'Scanner ${1:sc} = new Scanner(System.in);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Scanner with custom name',
-                        range
-                    },
-                    {
-                        label: 'readln',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: '${1:String} ${2:line} = ${3:sc}.nextLine();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Read line from scanner',
-                        range
-                    },
-                    {
-                        label: 'readint',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'int ${1:num} = ${2:sc}.nextInt();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Read integer from scanner',
                         range
                     },
                     {
@@ -581,18 +572,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         range
                     },
                     {
-                        label: 'dowhile',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'do {',
-                            '\t$0',
-                            '} while (${1:condition});'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Do-while loop',
-                        range
-                    },
-                    {
                         label: 'if',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
@@ -616,22 +595,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'If-else block',
-                        range
-                    },
-                    {
-                        label: 'elseif',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'if (${1:condition}) {',
-                            '\t$2',
-                            '} else if (${3:condition}) {',
-                            '\t$4',
-                            '} else {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'If-else if-else block',
                         range
                     },
                     {
@@ -665,28 +628,23 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         range
                     },
                     {
-                        label: 'switch',
+                        label: 'class',
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: [
-                            'switch (${1:expression}) {',
-                            '\tcase ${2:value}:',
-                            '\t\t$3',
-                            '\t\tbreak;',
-                            '\tdefault:',
-                            '\t\t$0',
-                            '\t\tbreak;',
+                            'public class ${1:Main} {',
+                            '\t$0',
                             '}'
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Switch statement',
+                        documentation: 'Public class',
                         range
                     },
                     {
-                        label: 'array',
+                        label: 'scanner',
                         kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: '${1:Type}[] ${2:name} = new ${1:Type}[${3:size}];',
+                        insertText: 'Scanner ${1:sc} = new Scanner(System.in);',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Create array',
+                        documentation: 'Create Scanner',
                         range
                     },
                     {
@@ -703,147 +661,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         insertText: 'HashMap<${1:Key}, ${2:Value}> ${3:map} = new HashMap<>();',
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Create HashMap',
-                        range
-                    },
-                    {
-                        label: 'linkedlist',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'LinkedList<${1:Type}> ${2:list} = new LinkedList<>();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Create LinkedList',
-                        range
-                    },
-                    {
-                        label: 'import',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'import ${1:package}.${2:Class};',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Import statement',
-                        range
-                    },
-                    {
-                        label: 'pkg',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'package ${1:com.example.app};',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Package declaration',
-                        range
-                    },
-                    {
-                        label: 'method',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public ${1:void} ${2:methodName}(${3:params}) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Public method',
-                        range
-                    },
-                    {
-                        label: 'pmethod',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'private ${1:void} ${2:methodName}(${3:params}) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Private method',
-                        range
-                    },
-                    {
-                        label: 'interface',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public interface ${1:InterfaceName} {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Interface definition',
-                        range
-                    },
-                    {
-                        label: 'enum',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public enum ${1:EnumName} {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Enum definition',
-                        range
-                    },
-                    {
-                        label: 'trywith',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'try (${1:resource}) {',
-                            '\t$0',
-                            '} catch (${2:Exception} e) {',
-                            '\te.printStackTrace();',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Try-with-resources',
-                        range
-                    },
-                    {
-                        label: 'singleton',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'private static ${1:ClassName} instance;',
-                            '',
-                            'private ${1:ClassName}() {}',
-                            '',
-                            'public static ${1:ClassName} getInstance() {',
-                            '\tif (instance == null) {',
-                            '\t\tinstance = new ${1:ClassName}();',
-                            '\t}',
-                            '\treturn instance;',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Singleton pattern',
-                        range
-                    },
-                    {
-                        label: 'sysout',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.println($1);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'System.out.println() (alias)',
-                        range
-                    },
-                    {
-                        label: 'cin',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: '${1:String} ${2:input} = ${3:sc}.nextLine();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Read input (alias)',
-                        range
-                    },
-                    {
-                        label: 'throw',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'throw new ${1:Exception}("${2:message}");',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Throw exception',
-                        range
-                    },
-                    {
-                        label: 'catch',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'catch (${1:Exception} e) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Catch block',
                         range
                     }
                 ]
@@ -876,6 +693,196 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
         editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
             editor.getAction('editor.action.formatDocument')?.run()
         })
+
+        // Java missing import diagnostic service
+        const javaImportMap: Record<string, string> = {
+            'Scanner': 'java.util.Scanner',
+            'ArrayList': 'java.util.ArrayList',
+            'LinkedList': 'java.util.LinkedList',
+            'HashMap': 'java.util.HashMap',
+            'TreeMap': 'java.util.TreeMap',
+            'HashSet': 'java.util.HashSet',
+            'TreeSet': 'java.util.TreeSet',
+            'List': 'java.util.List',
+            'Map': 'java.util.Map',
+            'Set': 'java.util.Set',
+            'Collections': 'java.util.Collections',
+            'Arrays': 'java.util.Arrays',
+            'Comparator': 'java.util.Comparator',
+            'Comparable': 'java.lang.Comparable',
+            'Optional': 'java.util.Optional',
+            'Stream': 'java.util.stream.Stream',
+            'File': 'java.io.File',
+            'FileReader': 'java.io.FileReader',
+            'FileWriter': 'java.io.FileWriter',
+            'BufferedReader': 'java.io.BufferedReader',
+            'PrintWriter': 'java.io.PrintWriter',
+            'IOException': 'java.io.IOException',
+            'Serializable': 'java.io.Serializable',
+            'BigDecimal': 'java.math.BigDecimal',
+            'BigInteger': 'java.math.BigInteger',
+            'LocalDate': 'java.time.LocalDate',
+            'LocalTime': 'java.time.LocalTime',
+            'LocalDateTime': 'java.time.LocalDateTime',
+            'Pattern': 'java.util.regex.Pattern',
+            'Matcher': 'java.util.regex.Matcher',
+            'StringBuilder': 'java.lang.StringBuilder',
+            'Integer': 'java.lang.Integer',
+            'Double': 'java.lang.Double',
+            'Boolean': 'java.lang.Boolean',
+        }
+
+        // Quick fix action: Add import
+        editor.addAction({
+            id: 'java.add-import',
+            label: 'Add Import',
+            keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.Enter],
+            contextMenuGroupId: 'navigation',
+            contextMenuOrder: 1.5,
+            run: (ed) => {
+                const model = ed.getModel()
+                if (!model || language !== 'java') return
+
+                const position = ed.getPosition()
+                const word = model.getWordAtPosition(position)
+                if (!word) return
+
+                const className = word.word
+                const fullImport = javaImportMap[className]
+                if (!fullImport) return
+
+                const importStatement = `import ${fullImport};\n`
+                const code = model.getValue()
+
+                // Check if import already exists
+                if (code.includes(`import ${fullImport};`)) return
+
+                // Find where to insert (after package or at top)
+                const packageMatch = code.match(/package\s+[\w.]+;\s*\n/)
+                if (packageMatch) {
+                    const insertPos = model.getPositionAt(code.indexOf(packageMatch[0]) + packageMatch[0].length)
+                    model.applyEdits([{
+                        range: new monacoEditor.Range(insertPos.lineNumber, insertPos.column, insertPos.lineNumber, insertPos.column),
+                        text: `\nimport ${fullImport};`
+                    }])
+                } else {
+                    // Insert at beginning
+                    model.applyEdits([{
+                        range: new monacoEditor.Range(1, 1, 1, 1),
+                        text: `import ${fullImport};\n`
+                    }])
+                }
+            }
+        })
+
+        // Register code action provider for quick fixes
+        monaco.languages.registerCodeActionProvider('java', {
+            provideCodeActions: (model, range, context) => {
+                const actions: monaco.languages.CodeAction[] = []
+                const code = model.getValue()
+                const lines = code.split('\n')
+
+                // Check each line for missing imports
+                for (const className of Object.keys(javaImportMap)) {
+                    const fullImport = javaImportMap[className]
+
+                    // Check if class is used but not imported
+                    const classRegex = new RegExp(`\\b${className}\\b`, 'g')
+                    if (classRegex.test(code) && !code.includes(`import ${fullImport};`)) {
+                        // Find all occurrences
+                        let match
+                        while ((match = classRegex.exec(code)) !== null) {
+                            const lineNumber = code.substring(0, match.index).split('\n').length
+                            const line = lines[lineNumber - 1]
+
+                            // Check if it's in an import statement
+                            if (line.trim().startsWith('import')) continue
+
+                            const startCol = match.index - code.lastIndexOf('\n', match.index - 1)
+                            const endCol = startCol + className.length
+
+                            actions.push({
+                                title: `Import '${className}'`,
+                                kind: 'quickfix',
+                                diagnostics: [{
+                                    severity: monacoEditor.MarkerSeverity.Warning,
+                                    message: `Cannot resolve symbol '${className}'`,
+                                    startLineNumber: lineNumber,
+                                    startColumn: startCol,
+                                    endLineNumber: lineNumber,
+                                    endColumn: endCol,
+                                    source: 'Java'
+                                }],
+                                edit: {
+                                    edits: [{
+                                        resource: model.uri,
+                                        text: `import ${fullImport};\n`,
+                                        range: {
+                                            startLineNumber: 1,
+                                            startColumn: 1,
+                                            endLineNumber: 1,
+                                            endColumn: 1
+                                        }
+                                    }]
+                                },
+                                isPreferred: true
+                            })
+                        }
+                    }
+                }
+
+                return { actions }
+            }
+        })
+
+        // Set markers for missing imports on content change
+        const updateDiagnostics = () => {
+            const model = editor.getModel()
+            if (!model || language !== 'java') return
+
+            const code = model.getValue()
+            const markers: monacoEditor.IMarkerData[] = []
+            const lines = code.split('\n')
+
+            for (const className of Object.keys(javaImportMap)) {
+                const fullImport = javaImportMap[className]
+                const classRegex = new RegExp(`\\b${className}\\b`, 'g')
+                let match
+
+                if (classRegex.test(code) && !code.includes(`import ${fullImport};`)) {
+                    classRegex.lastIndex = 0
+                    while ((match = classRegex.exec(code)) !== null) {
+                        const lineNumber = code.substring(0, match.index).split('\n').length
+                        const line = lines[lineNumber - 1]
+                        if (line.trim().startsWith('import')) continue
+
+                        const startCol = match.index - code.lastIndexOf('\n', match.index - 1)
+                        const endCol = startCol + className.length
+
+                        markers.push({
+                            severity: monacoEditor.MarkerSeverity.Warning,
+                            message: `Cannot resolve symbol '${className}'. Press Alt+Enter to import.`,
+                            startLineNumber: lineNumber,
+                            startColumn: startCol,
+                            endLineNumber: lineNumber,
+                            endColumn: endCol,
+                            source: 'Java',
+                            tags: [monacoEditor.MarkerTag.Unnecessary]
+                        })
+                    }
+                }
+            }
+
+            monacoEditor.editor.setModelMarkers(model, 'java-imports', markers)
+        }
+
+        // Run diagnostics on content change
+        editor.onDidChangeModelContent(() => {
+            updateDiagnostics()
+        })
+
+        // Run initial diagnostics
+        updateDiagnostics()
 
 
         // Focus the editor
