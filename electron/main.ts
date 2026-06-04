@@ -2,9 +2,14 @@ import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from
 import { join } from 'path'
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import os from 'os'
-import { detectCompiler, compileAndRun, compileCode, startInteractiveProcess, writeToProcess, killProcess, CompilationResult, CompileResult, setCustomCompilerPath, getCompilerInfo, isUsingBundledCompiler } from './compiler'
+import { detectCompiler, detectJavaRuntime, compileAndRun, compileCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startInteractiveCommand, writeToProcess, killProcess, CompilationResult, CompileResult, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
+
+// Set app name BEFORE anything else for Windows taskbar
+app.name = 'CarbonCode'
+app.setName('CarbonCode')
+app.setAppUserModelId('com.rabailalibhatti.carboncode')
 
 // Store main window reference
 let mainWindow: BrowserWindow | null = null
@@ -21,6 +26,8 @@ function createWindow() {
         minHeight: 600,
         backgroundColor: '#1e1e1e',
         titleBarStyle: 'default',
+        autoHideMenuBar: true,
+        title: 'CarbonCode',
         icon: join(__dirname, '../public/icon.png'),
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
@@ -30,13 +37,25 @@ function createWindow() {
         }
     })
 
+    // Hide the menu bar completely
+    mainWindow.setMenuBarVisibility(false)
+
+    // Force the window title
+    mainWindow.setTitle('CarbonCode')
+
     // Load the app
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-        // DevTools can be opened manually via View menu or Ctrl+Shift+I
     } else {
         mainWindow.loadFile(join(__dirname, '../dist/index.html'))
     }
+
+    // Force title after page loads
+    mainWindow.webContents.on('did-finish-load', () => {
+        if (mainWindow) {
+            mainWindow.setTitle('CarbonCode')
+        }
+    })
 
     // Create application menu
     createApplicationMenu()
@@ -204,11 +223,12 @@ function createApplicationMenu() {
                     label: 'About CarbonCode',
                     click: async () => {
                         const compiler = await detectCompiler()
+                        const javaRuntime = await detectJavaRuntime()
                         dialog.showMessageBox(mainWindow!, {
                             type: 'info',
                             title: 'About CarbonCode',
                             message: 'CarbonCode',
-                            detail: `Version: 1.0.0\n\nA lightweight, offline C++ IDE built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nCompiler: ${compiler || 'Not detected - Please install g++ or clang++'}`
+                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C++ and Java built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC++ Compiler: ${compiler || 'Not detected - Please install g++ or clang++'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}`
                         })
                     }
                 }
@@ -230,6 +250,7 @@ ipcMain.handle('dialog:open-file', async () => {
         properties: ['openFile'],
         filters: [
             { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx'] },
+            { name: 'Java Files', extensions: ['java'] },
             { name: 'All Files', extensions: ['*'] }
         ]
     })
@@ -251,16 +272,17 @@ ipcMain.handle('dialog:open-file', async () => {
 })
 
 // Save file (to existing path or show save dialog)
-ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: string) => {
+ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: string, language?: string) => {
     if (!mainWindow) return null
 
     let filePath = existingPath
 
     if (!filePath) {
         const result = await dialog.showSaveDialog(mainWindow, {
-            defaultPath: 'untitled.cpp',
+            defaultPath: language === 'java' ? 'untitled.java' : 'untitled.cpp',
             filters: [
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
+                { name: 'Java Files', extensions: ['java'] },
                 { name: 'Header Files', extensions: ['h', 'hpp', 'hxx'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
@@ -314,6 +336,29 @@ ipcMain.handle('compiler:set-custom-path', (_, customPath: string) => {
     setCustomCompilerPath(customPath)
 })
 
+// Java Runtime Detection
+ipcMain.handle('java:detect', async (_, javaHome?: string, javaCompilerPath?: string): Promise<RuntimeInfo> => {
+    return await detectJavaRuntime(javaHome, javaCompilerPath)
+})
+
+ipcMain.handle('java:browse-compiler', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Java Compiler', extensions: process.platform === 'win32' ? ['exe'] : ['*'] },
+            { name: 'All Files', extensions: ['*'] }
+        ],
+        title: 'Select Java Compiler (javac)'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+})
+
+ipcMain.handle('java:set-custom-path', (_, customPath: string) => {
+    setCustomJavaPath(customPath)
+})
+
 // Get compiler info (path + source)
 ipcMain.handle('compiler:get-info', () => {
     return getCompilerInfo()
@@ -332,9 +377,45 @@ ipcMain.handle('compiler:run', async (_, code: string, cppStandard: string): Pro
 // Interactive Process Handlers
 
 // Start interactive process
-ipcMain.handle('process:start', async (_, code: string, cppStandard: string) => {
-    // 1. Compile
-    const compileResult = await compileCode(code, cppStandard)
+ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, legacyCppStandard?: string) => {
+    const request: RunRequest = typeof requestOrCode === 'string'
+        ? { language: 'cpp', code: requestOrCode, cppStandard: legacyCppStandard }
+        : requestOrCode
+
+    if (request.language === 'java') {
+        const compileResult = await compileJavaCode(request.code, request.filePath)
+
+        if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir || !compileResult.mainClass) {
+            return {
+                success: false,
+                error: compileResult.error || 'Java compilation failed',
+                compileTime: compileResult.compileTime
+            }
+        }
+
+        startJavaProcess(
+            compileResult.executablePath,
+            compileResult.tempDir,
+            compileResult.mainClass,
+            (data) => {
+                mainWindow?.webContents.send('process:stdout', data)
+            },
+            (data) => {
+                mainWindow?.webContents.send('process:stderr', data)
+            },
+            (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+            }
+        )
+
+        return {
+            success: true,
+            compileTime: compileResult.compileTime
+        }
+    }
+
+    // C++ path
+    const compileResult = await compileCode(request.code, request.cppStandard || 'c++17')
 
     if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
         return {
@@ -344,7 +425,6 @@ ipcMain.handle('process:start', async (_, code: string, cppStandard: string) => 
         }
     }
 
-    // 2. Start Process
     startInteractiveProcess(
         compileResult.executablePath,
         compileResult.tempDir,
@@ -523,6 +603,9 @@ ipcMain.handle('shell:open-external', (_, url: string) => {
 
 // App lifecycle
 app.whenReady().then(() => {
+    // Force app name for Windows taskbar
+    app.setName('CarbonCode')
+
     createWindow()
 
     // Track app launch (only if user has consented)

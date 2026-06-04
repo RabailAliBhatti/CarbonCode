@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { FileTab } from '../components/TabBar'
+import { SupportedLanguage, getLanguageFromFileName } from '../types/language'
 
 // Generate default C++ template with author info
 const generateDefaultCode = (authorName: string): string => {
@@ -19,6 +20,20 @@ int main() {
 `
 }
 
+const generateDefaultJavaCode = (authorName: string): string => {
+    const date = new Date().toLocaleDateString()
+    return `// Author: ${authorName}
+// Date: ${date}
+
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+        System.out.println("Welcome to CarbonCode!");
+    }
+}
+`
+}
+
 // Fallback template when author name is not available
 const DEFAULT_CODE = `#include <iostream>
 using namespace std;
@@ -30,6 +45,22 @@ int main() {
     return 0;
 }
 `
+
+const DEFAULT_JAVA_CODE = `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+        System.out.println("Welcome to CarbonCode!");
+    }
+}
+`
+
+const getDefaultContent = (language: SupportedLanguage, authorName?: string) => {
+    if (language === 'java') {
+        return authorName ? generateDefaultJavaCode(authorName) : DEFAULT_JAVA_CODE
+    }
+
+    return authorName ? generateDefaultCode(authorName) : DEFAULT_CODE
+}
 
 // Generate unique ID
 const generateId = () => `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -51,15 +82,15 @@ export function useFileManager() {
     const activeTab = tabs.find(tab => tab.id === activeTabId) || null
 
     // Create new tab with optional author name for template
-    const createNewTab = useCallback((authorName?: string) => {
-        const content = authorName ? generateDefaultCode(authorName) : DEFAULT_CODE
+    const createNewTab = useCallback((language: SupportedLanguage = 'cpp', authorName?: string) => {
+        const content = getDefaultContent(language, authorName)
         const newTab: FileTab = {
             id: generateId(),
-            fileName: 'Untitled',
+            fileName: language === 'java' ? 'Untitled.java' : 'Untitled.cpp',
             filePath: null,
             content: content,
             isDirty: false,
-            language: 'cpp'
+            language
         }
         setTabs(prev => [...prev, newTab])
         setActiveTabId(newTab.id)
@@ -82,7 +113,7 @@ export function useFileManager() {
             filePath,
             content,
             isDirty: false,
-            language: 'cpp'
+            language: getLanguageFromFileName(filePath)
         }
         setTabs(prev => [...prev, newTab])
         setActiveTabId(newTab.id)

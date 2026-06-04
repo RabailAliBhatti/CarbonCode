@@ -11,7 +11,9 @@ import FindReplace from './components/FindReplace'
 import SettingsModal from './components/SettingsModal'
 import DebugPanel from './components/DebugPanel'
 import AnalyticsConsentDialog from './components/AnalyticsConsentDialog'
+import NewFileDialog from './components/NewFileDialog'
 import { useFileManager } from './hooks/useFileManager'
+import { SupportedLanguage } from './types/language'
 import { useSettings } from './hooks/useSettings'
 
 interface DebugState {
@@ -30,11 +32,20 @@ interface CompilationResult {
     executionTime?: number
 }
 
+interface RuntimeInfo {
+    language: SupportedLanguage
+    compilerPath: string | null
+    runtimePath?: string | null
+    source: 'custom' | 'bundled' | 'system' | 'none'
+    version?: string
+}
+
 function App() {
     // Settings
     const { settings, updateSetting } = useSettings()
     const [showSettings, setShowSettings] = useState(false)
     const [showAnalyticsConsent, setShowAnalyticsConsent] = useState(false)
+    const [showNewFileDialog, setShowNewFileDialog] = useState(false)
 
     // Check if we need to show analytics consent on first launch
     useEffect(() => {
@@ -80,6 +91,7 @@ function App() {
 
     // Compiler state
     const [compilerInfo, setCompilerInfo] = useState<string | null>(null)
+    const [javaRuntimeInfo, setJavaRuntimeInfo] = useState<RuntimeInfo | null>(null)
     const [isCompiling, setIsCompiling] = useState<boolean>(false)
     const [compilationResult, setCompilationResult] = useState<{
         success: boolean
@@ -182,12 +194,21 @@ function App() {
     }, [])
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
+    const activeLanguage: SupportedLanguage = activeTab?.language || 'cpp'
+    const activeRuntimeInfo = activeLanguage === 'java'
+        ? (javaRuntimeInfo?.compilerPath || null)
+        : compilerInfo
+    const hasActiveRuntime = activeLanguage === 'java'
+        ? !!javaRuntimeInfo?.compilerPath && !!javaRuntimeInfo?.runtimePath
+        : !!compilerInfo
 
     // Check for compiler and fetch author name on mount
     useEffect(() => {
         const checkCompiler = async () => {
             const compiler = await window.electronAPI.detectCompiler(settings.compilerPath || undefined)
             setCompilerInfo(compiler)
+            const javaRuntime = await window.electronAPI.detectJavaRuntime(settings.javaHome || undefined, settings.javaCompilerPath || undefined)
+            setJavaRuntimeInfo(javaRuntime)
         }
         const fetchAuthorName = async () => {
             const name = await window.electronAPI.getAuthorName()
@@ -195,7 +216,7 @@ function App() {
         }
         checkCompiler()
         fetchAuthorName()
-    }, [])
+    }, [settings.compilerPath, settings.javaHome, settings.javaCompilerPath])
 
     // Update dirty state in main process
     useEffect(() => {
@@ -222,12 +243,14 @@ function App() {
     }, [showToast])
 
     // New file handler
-    const handleNewFile = useCallback(() => {
-        // Create the tab with author name for template
-        const newTab = createNewTab(authorName || undefined)
-        // Track analytics
+    const handleNewFile = useCallback(async () => {
+        setShowNewFileDialog(true)
+    }, [])
+
+    const handleNewFileSelect = useCallback((language: 'cpp' | 'java') => {
+        setShowNewFileDialog(false)
+        const newTab = createNewTab(language, authorName || undefined)
         window.electronAPI?.trackEvent?.('file_created')
-        // Effect will handle hiding welcome screen
     }, [createNewTab, authorName])
 
     // Open file handler
@@ -267,6 +290,14 @@ function App() {
         if (!activeTab) return
         const code = editorRef.current?.getValue() || activeTab.content
         const bpArray = breakpoints.map(line => ({ line }))
+        if (activeTab.language === 'java') {
+            setCompilationResult({
+                success: false,
+                output: '',
+                error: 'Java debugging is not available yet. You can compile and run Java files with F5.'
+            })
+            return
+        }
         const result = await window.electronAPI.debugStart(code, bpArray)
         if (result.success) {
             // Track analytics - debug started
@@ -335,13 +366,13 @@ function App() {
 
         if (!activeTab.filePath) {
             // Save As
-            const result = await window.electronAPI.saveFile(contentToSave)
+            const result = await window.electronAPI.saveFile(contentToSave, undefined, activeTab.language)
             if (result && result.success) {
                 markTabSaved(activeTab.id, result.filePath)
             }
         } else {
             // Save to existing path
-            const result = await window.electronAPI.saveFile(contentToSave, activeTab.filePath)
+            const result = await window.electronAPI.saveFile(contentToSave, activeTab.filePath, activeTab.language)
             if (result && result.success) {
                 markTabSaved(activeTab.id, result.filePath)
             }
@@ -352,7 +383,7 @@ function App() {
     const handleSaveAs = useCallback(async () => {
         if (!activeTab) return
         const currentCode = editorRef.current?.getValue() || activeTab.content
-        const result = await window.electronAPI.saveFile(currentCode, undefined)
+        const result = await window.electronAPI.saveFile(currentCode, undefined, activeTab.language)
         if (result) {
             markTabSaved(activeTab.id, result.filePath)
         }
@@ -406,11 +437,13 @@ function App() {
     const handleRun = useCallback(async () => {
         if (!activeTab) return
 
-        if (!compilerInfo) {
+        if (!hasActiveRuntime) {
             setCompilationResult({
                 success: false,
                 output: '',
-                error: '❌ No C++ compiler detected!\n\nPlease install a C++ compiler and restart the application.'
+                error: activeLanguage === 'java'
+                    ? 'No Java JDK detected!\n\nInstall a JDK with javac, set JAVA_HOME, or configure Java in Settings.'
+                    : 'No C++ compiler detected!\n\nPlease install a C++ compiler and restart the application.'
             })
             return
         }
@@ -432,7 +465,12 @@ function App() {
         window.electronAPI?.trackEvent?.('code_compiled')
 
         // Use new interactive process API
-        const startResult = await window.electronAPI.startProcess(currentCode, settings.cppStandard)
+        const startResult = await window.electronAPI.startProcess({
+            language: activeLanguage,
+            code: currentCode,
+            filePath: activeTab.filePath,
+            cppStandard: settings.cppStandard
+        })
 
         setIsCompiling(false)
 
@@ -455,7 +493,7 @@ function App() {
             })
         }
 
-    }, [activeTab, settings.cppStandard, compilerInfo, isRunning])
+    }, [activeTab, settings.cppStandard, hasActiveRuntime, activeLanguage, isRunning])
 
     // Tab close handler
     const handleTabClose = useCallback(async (tabId: string, e: MouseEvent) => {
@@ -475,7 +513,7 @@ function App() {
             if (result.response === 0) {
                 // Save first
                 const currentCode = editorRef.current?.getValue() || tab.content
-                const saveResult = await window.electronAPI.saveFile(currentCode, tab.filePath || undefined)
+                const saveResult = await window.electronAPI.saveFile(currentCode, tab.filePath || undefined, tab.language)
                 if (saveResult) {
                     markTabSaved(tabId, saveResult.filePath)
                 }
@@ -531,7 +569,7 @@ function App() {
             // F5 - Run code
             if (e.key === 'F5') {
                 e.preventDefault()
-                if (!isCompiling && !isRunning && compilerInfo) {
+                if (!isCompiling && !isRunning && hasActiveRuntime) {
                     handleRun()
                 }
             }
@@ -552,7 +590,7 @@ function App() {
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isCompiling, isRunning, compilerInfo, handleRun, showFind])
+    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, showFind])
 
     // Start coding (dismiss welcome screen)
     const handleStartCoding = () => {
@@ -592,7 +630,7 @@ function App() {
                     {/* Logo */}
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center shadow-glow">
-                            <span className="text-white font-bold text-sm">C++</span>
+                            <span className="text-white font-bold text-sm">&lt;/&gt;</span>
                         </div>
                         <span className="text-text-bright font-semibold text-lg hidden sm:inline">CarbonCode</span>
                     </div>
@@ -613,6 +651,7 @@ function App() {
 
             {/* Toolbar */}
             <Toolbar
+                language={activeLanguage}
                 cppStandard={settings.cppStandard}
                 onCppStandardChange={(std) => updateSetting('cppStandard', std)}
                 onRun={handleRun}
@@ -622,7 +661,7 @@ function App() {
                 onCopy={handleCopy}
                 onPaste={handlePaste}
                 isCompiling={isCompiling} // Could also indicate isRunning visually in Toolbar if needed
-                hasCompiler={!!compilerInfo}
+                hasCompiler={hasActiveRuntime}
             />
 
             {/* Tab Bar */}
@@ -705,6 +744,7 @@ function App() {
                     {showWelcome ? (
                         <WelcomeScreen
                             compilerInfo={compilerInfo}
+                            javaRuntimeInfo={javaRuntimeInfo ? javaRuntimeInfo.version || javaRuntimeInfo.compilerPath : null}
                             onNewFile={handleNewFile}
                             onOpenFile={handleOpenFile}
                             onOpenFolder={handleOpenFolder}
@@ -718,6 +758,7 @@ function App() {
                                 <div className="flex-1 min-h-0">
                                     <Editor
                                         value={activeTab?.content || ''}
+                                        language={activeLanguage}
                                         onChange={handleCodeChange}
                                         onEditorMount={(editor) => {
                                             editorRef.current = editor
@@ -825,8 +866,9 @@ function App() {
             {/* Status Bar */}
             <StatusBar
                 filePath={activeTab?.filePath || null}
+                language={activeLanguage}
                 cppStandard={settings.cppStandard}
-                compilerInfo={compilerInfo}
+                runtimeInfo={activeRuntimeInfo}
                 isCompiling={isCompiling}
                 compilationResult={compilationResult}
                 cursorPosition={cursorPosition}
@@ -854,6 +896,13 @@ function App() {
                     window.electronAPI?.setAnalyticsConsent?.(consent)
                     setShowAnalyticsConsent(false)
                 }}
+            />
+
+            {/* New File Dialog */}
+            <NewFileDialog
+                isOpen={showNewFileDialog}
+                onSelect={handleNewFileSelect}
+                onCancel={() => setShowNewFileDialog(false)}
             />
         </div>
     )

@@ -5,7 +5,7 @@
 <h1 align="center">CarbonCode</h1>
 
 <p align="center">
-  <strong>A lightweight, offline C++ IDE</strong><br/>
+  <strong>A lightweight, offline C++ & Java IDE</strong><br/>
   <em>Developed by Rabail Ali Bhatti</em>
 </p>
 
@@ -18,7 +18,7 @@
 
 ---
 
-CarbonCode is a modern, cross-platform C++ IDE built with Electron, React, and Monaco Editor. Compile and run C++ code locally using your system's installed compiler - no internet connection required.
+CarbonCode is a modern, cross-platform IDE for C++ and Java built with Electron, React, and Monaco Editor. Compile and run C++ and Java code locally using your system's installed compiler - no internet connection required.
 
 ## ✨ Features
 
@@ -33,6 +33,7 @@ CarbonCode is a modern, cross-platform C++ IDE built with Electron, React, and M
 - ⚡ **Fast Execution** - Compile and run code with a single click or F5
 - 📊 **Output Panel** - View stdout and stderr separately with timing information
 - 🔢 **C++ Standards** - Support for C++11 through C++23
+- ☕ **Java Support** - Compile and run Java programs with automatic JDK detection
 - 📈 **Performance Analytics** - Opt-in system usage tracking to improve user experience
 - 💾 **Offline First** - No internet connection required
 
@@ -80,6 +81,31 @@ sudo dnf install gcc-c++
 ### Linux (Arch)
 ```bash
 sudo pacman -S gcc
+```
+
+### Java JDK (Required for Java support)
+
+To compile and run Java programs, you need the Java Development Kit (JDK):
+
+**Windows:**
+1. Download [Eclipse Temurin JDK](https://adoptium.net/temurin/releases/) or [Oracle JDK](https://www.oracle.com/java/technologies/downloads/)
+2. Install and ensure `javac` is on your PATH
+3. Verify: `javac -version`
+
+**macOS:**
+```bash
+# Install via Homebrew
+brew install openjdk
+
+# Verify
+javac -version
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt update
+sudo apt install default-jdk
+javac -version
 ```
 
 ## 🚀 Installation
@@ -170,6 +196,7 @@ carboncode/
 - **Vite** - Fast build tool
 - **Monaco Editor** - VS Code's editor component
 - **TailwindCSS** - Utility-first CSS framework
+- **Java/JDK** - Java compilation and execution support
 
 ## 🔒 Security
 

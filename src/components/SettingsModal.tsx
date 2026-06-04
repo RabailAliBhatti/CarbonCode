@@ -107,7 +107,7 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
 
                     {/* Compiler Settings */}
                     <section className="space-y-4">
-                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Compiler</h3>
+                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Compilers</h3>
 
                         <div className="space-y-1">
                             <label className="text-sm text-text-primary">Default C++ Standard</label>
@@ -151,6 +151,47 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                                 </button>
                             </div>
                             <p className="text-xs text-text-secondary">Leave blank to use the built-in MinGW compiler. Specify a path to use a different compiler (e.g., C:\msys64\mingw64\bin\g++.exe).</p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-sm text-text-primary">Java Compiler Path (Optional)</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={settings.javaCompilerPath}
+                                    placeholder="Path to javac"
+                                    onChange={(e) => {
+                                        onUpdateSetting('javaCompilerPath', e.target.value)
+                                        window.electronAPI?.setCustomJavaPath(e.target.value)
+                                    }}
+                                    className="flex-1 bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const path = await window.electronAPI?.browseJavaCompiler()
+                                        if (path) {
+                                            onUpdateSetting('javaCompilerPath', path)
+                                            window.electronAPI?.setCustomJavaPath(path)
+                                        }
+                                    }}
+                                    className="px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30 rounded text-sm transition-colors whitespace-nowrap"
+                                >
+                                    Browse...
+                                </button>
+                            </div>
+                            <p className="text-xs text-text-secondary">Java support requires a JDK with javac, not just a JRE. Leave blank to use JAVA_HOME or the system PATH.</p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-sm text-text-primary">JAVA_HOME (Optional)</label>
+                            <input
+                                type="text"
+                                value={settings.javaHome}
+                                placeholder="Path to a JDK folder"
+                                onChange={(e) => onUpdateSetting('javaHome', e.target.value)}
+                                className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                            />
+                            <p className="text-xs text-text-secondary">Example: C:\Program Files\Eclipse Adoptium\jdk-21</p>
                         </div>
                     </section>
 

@@ -8,6 +8,8 @@ export interface Settings {
     autoSave: boolean
     cppStandard: CppStandard
     compilerPath: string
+    javaCompilerPath: string
+    javaHome: string
     theme: 'dark' | 'light'
     minimap: boolean
     wordWrap: boolean
@@ -24,6 +26,8 @@ const DEFAULT_SETTINGS: Settings = {
     autoSave: false,
     cppStandard: 'c++17',
     compilerPath: '',
+    javaCompilerPath: '',
+    javaHome: '',
     theme: 'dark',
     minimap: true,
     wordWrap: false,

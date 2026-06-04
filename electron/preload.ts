@@ -9,13 +9,30 @@ interface DebugState {
     locals: { name: string; value: string; type: string }[]
 }
 
+type SupportedLanguage = 'cpp' | 'java'
+
+interface RuntimeInfo {
+    language: SupportedLanguage
+    compilerPath: string | null
+    runtimePath?: string | null
+    source: 'custom' | 'bundled' | 'system' | 'none'
+    version?: string
+}
+
+interface RunRequest {
+    language: SupportedLanguage
+    code: string
+    filePath?: string | null
+    cppStandard?: string
+}
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
     // File operations
     openFile: () => ipcRenderer.invoke('dialog:open-file'),
-    saveFile: (content: string, existingPath?: string) =>
-        ipcRenderer.invoke('dialog:save-file', content, existingPath),
+    saveFile: (content: string, existingPath?: string, language?: SupportedLanguage) =>
+        ipcRenderer.invoke('dialog:save-file', content, existingPath, language),
     readFile: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
 
     // Folder operations
@@ -30,12 +47,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     browseCompiler: () => ipcRenderer.invoke('compiler:browse'),
     setCustomCompilerPath: (customPath: string) => ipcRenderer.invoke('compiler:set-custom-path', customPath),
     getCompilerInfo: () => ipcRenderer.invoke('compiler:get-info'),
+    detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) =>
+        ipcRenderer.invoke('java:detect', javaHome, javaCompilerPath),
+    browseJavaCompiler: () => ipcRenderer.invoke('java:browse-compiler'),
+    setCustomJavaPath: (customPath: string) => ipcRenderer.invoke('java:set-custom-path', customPath),
     runCompilation: (code: string, cppStandard: string) =>
         ipcRenderer.invoke('compiler:run', code, cppStandard),
 
     // Interactive Process
-    startProcess: (code: string, cppStandard: string) =>
-        ipcRenderer.invoke('process:start', code, cppStandard),
+    startProcess: (request: RunRequest) =>
+        ipcRenderer.invoke('process:start', request),
     writeProcess: (data: string) => ipcRenderer.invoke('process:write', data),
     stopProcess: () => ipcRenderer.invoke('process:stop'),
 
@@ -176,12 +197,15 @@ export interface DebugStateType {
 
 export interface ElectronAPI {
     openFile: () => Promise<{ filePath: string; content: string } | null>
-    saveFile: (content: string, existingPath?: string) => Promise<{ filePath: string; success: boolean } | null>
+    saveFile: (content: string, existingPath?: string, language?: SupportedLanguage) => Promise<{ filePath: string; success: boolean } | null>
     readFile: (filePath: string) => Promise<string | null>
     openFolder: () => Promise<string | null>
     readDirectory: (dirPath: string) => Promise<{ name: string; path: string; isDirectory: boolean }[]>
     setDirty: (dirty: boolean) => Promise<void>
     detectCompiler: () => Promise<string | null>
+    detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) => Promise<RuntimeInfo>
+    browseJavaCompiler: () => Promise<string | null>
+    setCustomJavaPath: (customPath: string) => Promise<void>
     runCompilation: (code: string, cppStandard: string) => Promise<{
         success: boolean
         output: string
@@ -191,7 +215,7 @@ export interface ElectronAPI {
     }>
 
     // Interactive
-    startProcess: (code: string, cppStandard: string) => Promise<{
+    startProcess: (request: RunRequest) => Promise<{
         success: boolean
         error?: string
         compileTime?: number

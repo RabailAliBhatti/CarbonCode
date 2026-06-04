@@ -8,11 +8,28 @@ interface DebugState {
     locals: { name: string; value: string; type: string }[]
 }
 
+type SupportedLanguage = 'cpp' | 'java'
+
+interface RuntimeInfo {
+    language: SupportedLanguage
+    compilerPath: string | null
+    runtimePath?: string | null
+    source: 'custom' | 'bundled' | 'system' | 'none'
+    version?: string
+}
+
+interface RunRequest {
+    language: SupportedLanguage
+    code: string
+    filePath?: string | null
+    cppStandard?: string
+}
+
 interface Window {
     electronAPI: {
         // File operations
         openFile: () => Promise<{ filePath: string; content: string } | null>
-        saveFile: (content: string, existingPath?: string) => Promise<{ filePath: string; success: boolean } | null>
+        saveFile: (content: string, existingPath?: string, language?: SupportedLanguage) => Promise<{ filePath: string; success: boolean } | null>
         readFile: (filePath: string) => Promise<string | null>
 
         // Folder operations
@@ -24,6 +41,9 @@ interface Window {
         browseCompiler: () => Promise<string | null>
         setCustomCompilerPath: (customPath: string) => Promise<void>
         getCompilerInfo: () => Promise<{ path: string | null, source: string }>
+        detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) => Promise<RuntimeInfo>
+        browseJavaCompiler: () => Promise<string | null>
+        setCustomJavaPath: (customPath: string) => Promise<void>
         runCompilation: (code: string, cppStandard: string) => Promise<{
             success: boolean
             output: string
@@ -33,7 +53,7 @@ interface Window {
         }>
 
         // Interactive
-        startProcess: (code: string, cppStandard: string) => Promise<{
+        startProcess: (request: RunRequest) => Promise<{
             success: boolean
             error?: string
             compileTime?: number

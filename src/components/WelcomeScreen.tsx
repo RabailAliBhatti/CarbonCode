@@ -1,5 +1,6 @@
 interface WelcomeScreenProps {
     compilerInfo: string | null
+    javaRuntimeInfo: string | null
     onNewFile: () => void
     onOpenFile: () => void
     onOpenFolder: () => void
@@ -8,6 +9,7 @@ interface WelcomeScreenProps {
 
 function WelcomeScreen({
     compilerInfo,
+    javaRuntimeInfo,
     onNewFile,
     onOpenFile,
     onOpenFolder,
@@ -20,46 +22,33 @@ function WelcomeScreen({
                     {/* Logo */}
                     <div className="mb-8">
                         <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-accent to-blue-600 shadow-glow mb-6">
-                            <span className="text-white font-bold text-3xl">C++</span>
+                            <span className="text-white font-bold text-3xl">&lt;/&gt;</span>
                         </div>
                         <h1 className="text-4xl font-bold text-text-bright mb-2">
                             Welcome to CarbonCode
                         </h1>
                         <p className="text-text-secondary text-lg mb-2">
-                            A lightweight, offline C++ IDE
+                            A lightweight IDE for C++ and Java
                         </p>
                         <p className="text-text-secondary/60 text-sm">
                             Crafted by <span className="text-accent font-medium">Rabail Ali Bhatti</span>
                         </p>
                     </div>
 
-                    {/* Compiler Status */}
-                    <div className={`
-                        inline-flex items-center gap-3 px-6 py-3 rounded-xl mb-10 mx-auto max-w-full
-                        ${compilerInfo
-                            ? 'bg-success/10 border border-success/30'
-                            : 'bg-error/10 border border-error/30'
-                        }
-                    `}>
-                        {compilerInfo ? (
-                            <>
-                                <svg className="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-success font-medium whitespace-nowrap">Compiler Detected:</span>
-                                <span className="text-success/70 font-mono truncate max-w-[200px]" title={compilerInfo || undefined}>{compilerInfo}</span>
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-6 h-6 text-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <div className="text-left">
-                                    <p className="text-error font-medium">No Compiler Found</p>
-                                    <p className="text-error/70 text-sm">Install g++, clang++, or MSVC to compile code</p>
-                                </div>
-                            </>
-                        )}
+                    {/* Runtime Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-10 mx-auto max-w-2xl">
+                        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${compilerInfo ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'}`}>
+                            <span className={`text-sm font-semibold ${compilerInfo ? 'text-success' : 'text-error'}`}>C++</span>
+                            <span className={`text-xs font-mono truncate ${compilerInfo ? 'text-success/80' : 'text-error/80'}`} title={compilerInfo || undefined}>
+                                {compilerInfo || 'Compiler not found'}
+                            </span>
+                        </div>
+                        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${javaRuntimeInfo ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'}`}>
+                            <span className={`text-sm font-semibold ${javaRuntimeInfo ? 'text-success' : 'text-error'}`}>Java</span>
+                            <span className={`text-xs font-mono truncate ${javaRuntimeInfo ? 'text-success/80' : 'text-error/80'}`} title={javaRuntimeInfo || undefined}>
+                                {javaRuntimeInfo || 'JDK not found'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
@@ -141,7 +130,7 @@ function WelcomeScreen({
                     {/* Footer */}
                     <div className="mt-12 text-center animate-fade-in delay-100 pb-8">
                         <p className="text-text-secondary font-medium italic">
-                            Experience the pinnacle of C++ development, meticulously architected by <span className="text-accent font-bold">Rabail Ali Bhatti</span>.
+                            Build, test, and learn in C++ or Java with CarbonCode.
                         </p>
                     </div>
                 </div>

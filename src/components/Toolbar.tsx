@@ -1,6 +1,9 @@
+import { SupportedLanguage, getLanguageLabel } from '../types/language'
+
 type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
 
 interface ToolbarProps {
+    language: SupportedLanguage
     cppStandard: CppStandard
     onCppStandardChange: (std: CppStandard) => void
     onRun: () => void
@@ -22,6 +25,7 @@ const standardDescriptions: Record<CppStandard, string> = {
 }
 
 function Toolbar({
+    language,
     cppStandard,
     onCppStandardChange,
     onRun,
@@ -101,26 +105,39 @@ function Toolbar({
                 <div className="w-px h-6 bg-editor-border mx-2" />
             </div>
 
-            {/* Center - C++ Standard selector */}
+            {/* Center - Language/Standard */}
             <div className="flex items-center gap-3">
-                <label className="text-text-secondary text-sm hidden sm:inline">Standard:</label>
-                <div className="relative group">
-                    <select
-                        value={cppStandard}
-                        onChange={(e) => onCppStandardChange(e.target.value as CppStandard)}
-                        className="appearance-none bg-editor-bg border border-editor-border rounded-md px-3 py-1.5 pr-8 text-text-primary text-sm font-mono cursor-pointer hover:border-accent focus:border-accent focus:ring-1 focus:ring-accent transition-all outline-none"
-                    >
-                        <option value="c++11">C++11</option>
-                        <option value="c++14">C++14</option>
-                        <option value="c++17">C++17</option>
-                        <option value="c++20">C++20</option>
-                        <option value="c++23">C++23</option>
-                    </select>
-                    {/* Tooltip */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-editor-bg border border-editor-border rounded-md shadow-lg text-xs text-text-secondary whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                        {standardDescriptions[cppStandard]}
-                    </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-editor-bg border border-editor-border rounded-md">
+                    <span className="text-text-secondary text-sm">Language:</span>
+                    <span className="text-text-primary text-sm font-mono">{getLanguageLabel(language)}</span>
                 </div>
+
+                {language === 'cpp' ? (
+                    <>
+                        <label className="text-text-secondary text-sm hidden sm:inline">Standard:</label>
+                        <div className="relative group">
+                            <select
+                                value={cppStandard}
+                                onChange={(e) => onCppStandardChange(e.target.value as CppStandard)}
+                                className="appearance-none bg-editor-bg border border-editor-border rounded-md px-3 py-1.5 pr-8 text-text-primary text-sm font-mono cursor-pointer hover:border-accent focus:border-accent focus:ring-1 focus:ring-accent transition-all outline-none"
+                            >
+                                <option value="c++11">C++11</option>
+                                <option value="c++14">C++14</option>
+                                <option value="c++17">C++17</option>
+                                <option value="c++20">C++20</option>
+                                <option value="c++23">C++23</option>
+                            </select>
+                            {/* Tooltip */}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-editor-bg border border-editor-border rounded-md shadow-lg text-xs text-text-secondary whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                {standardDescriptions[cppStandard]}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-text-secondary text-sm hidden sm:block">
+                        JDK compile/run
+                    </div>
+                )}
             </div>
 
             {/* Right side - Run button */}

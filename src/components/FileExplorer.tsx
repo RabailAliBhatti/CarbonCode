@@ -114,6 +114,9 @@ function FileExplorer({ isVisible, onToggle, onFileSelect, currentFilePath, root
         if (['h', 'hpp', 'hxx'].includes(ext || '')) {
             return <span className="w-4 h-4 text-xs font-bold text-blue-300 flex items-center justify-center">H</span>
         }
+        if (ext === 'java') {
+            return <span className="w-4 h-4 text-xs font-bold text-orange-400 flex items-center justify-center">J</span>
+        }
 
         // Config/data files
         if (['json', 'jsonc'].includes(ext || '')) {

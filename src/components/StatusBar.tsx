@@ -1,3 +1,5 @@
+import { SupportedLanguage, getLanguageLabel } from '../types/language'
+
 type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
 
 interface CompilationResult {
@@ -10,8 +12,9 @@ interface CompilationResult {
 
 interface StatusBarProps {
     filePath: string | null
+    language: SupportedLanguage
     cppStandard: CppStandard
-    compilerInfo: string | null
+    runtimeInfo: string | null
     isCompiling: boolean
     compilationResult: CompilationResult | null
     cursorPosition?: { line: number; column: number }
@@ -21,8 +24,9 @@ interface StatusBarProps {
 
 function StatusBar({
     filePath,
+    language,
     cppStandard,
-    compilerInfo,
+    runtimeInfo,
     isCompiling,
     compilationResult,
     cursorPosition,
@@ -106,14 +110,16 @@ function StatusBar({
                 {/* Language */}
                 <div className="flex items-center gap-1.5">
                     <span className="text-white/60">Language:</span>
-                    <span className="font-mono">C++ ({cppStandard})</span>
+                    <span className="font-mono">
+                        {language === 'cpp' ? `C++ (${cppStandard})` : getLanguageLabel(language)}
+                    </span>
                 </div>
 
-                {/* Compiler */}
+                {/* Runtime */}
                 <div className="flex items-center gap-1.5">
-                    <span className="text-white/60">Compiler:</span>
-                    <span className={`font-mono ${compilerInfo ? 'text-white' : 'text-error'}`}>
-                        {compilerInfo || 'Not found'}
+                    <span className="text-white/60">{language === 'java' ? 'JDK:' : 'Compiler:'}</span>
+                    <span className={`font-mono ${runtimeInfo ? 'text-white' : 'text-error'}`}>
+                        {runtimeInfo || 'Not found'}
                     </span>
                 </div>
 

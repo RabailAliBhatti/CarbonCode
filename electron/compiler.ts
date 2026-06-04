@@ -1,6 +1,6 @@
 import { execSync, spawn, ChildProcess } from 'child_process'
 import { writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
-import { join } from 'path'
+import { basename, extname, join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
@@ -13,11 +13,30 @@ export interface CompilationResult {
     executionTime?: number
 }
 
+export type SupportedLanguage = 'cpp' | 'java'
+
+export interface RuntimeInfo {
+    language: SupportedLanguage
+    compilerPath: string | null
+    runtimePath?: string | null
+    source: 'custom' | 'bundled' | 'system' | 'none'
+    version?: string
+}
+
+export interface RunRequest {
+    language: SupportedLanguage
+    code: string
+    filePath?: string | null
+    cppStandard?: string
+}
+
 // Store running processes for potential cancellation
 let currentProcess: ChildProcess | null = null
 
 // Store the detected compiler path
 let detectedCompilerPath: string | null = null
+let detectedJavaCompilerPath: string | null = null
+let detectedJavaRuntimePath: string | null = null
 
 // Whether the detected compiler is the bundled one
 let isBundledCompiler = false
@@ -92,6 +111,8 @@ export function isUsingBundledCompiler(): boolean {
 
 // Track the source type for UI display
 let compilerSource: 'custom' | 'bundled' | 'system' | 'none' = 'none'
+let javaSource: 'custom' | 'bundled' | 'system' | 'none' = 'none'
+let javaVersion: string | undefined
 
 /**
  * Set a custom compiler path from user settings.
@@ -118,6 +139,152 @@ export function getCompilerInfo(): { path: string | null, source: string } {
     return {
         path: detectedCompilerPath,
         source: compilerSource
+    }
+}
+
+export function setCustomJavaPath(javaPath: string): void {
+    detectedJavaCompilerPath = null
+    detectedJavaRuntimePath = null
+    javaSource = 'none'
+    javaVersion = undefined
+
+    if (javaPath && existsSync(javaPath)) {
+        detectedJavaCompilerPath = javaPath
+        detectedJavaRuntimePath = javaPath.replace(/javac(\.exe)?$/i, process.platform === 'win32' ? 'java.exe' : 'java')
+        javaSource = 'custom'
+    }
+}
+
+function normalizeJavaToolPath(basePath: string, tool: 'java' | 'javac') {
+    const exe = process.platform === 'win32' ? `${tool}.exe` : tool
+    if (basePath.toLowerCase().endsWith(exe.toLowerCase())) {
+        return basePath
+    }
+    return join(basePath, 'bin', exe)
+}
+
+function getBundledJdkPath(tool: 'java' | 'javac'): string | null {
+    const exe = process.platform === 'win32' ? `${tool}.exe` : tool
+    const candidates = [
+        join(process.resourcesPath || '', 'jdk', 'bin', exe),
+        join(app.getAppPath(), 'vendor', 'jdk', 'bin', exe)
+    ]
+
+    return candidates.find(candidate => existsSync(candidate)) || null
+}
+
+function getJavaVersion(javacPath: string): string | undefined {
+    try {
+        const cmd = javacPath.includes(' ') ? `"${javacPath}" -version` : `${javacPath} -version`
+        const output = execSync(cmd, {
+            stdio: 'pipe',
+            timeout: 5000,
+            windowsHide: true
+        }).toString()
+        return output.trim()
+    } catch (e: any) {
+        const stderr = e?.stderr?.toString?.().trim()
+        return stderr || undefined
+    }
+}
+
+export async function detectJavaRuntime(javaHome?: string, javaCompilerPath?: string): Promise<RuntimeInfo> {
+    if (detectedJavaCompilerPath && detectedJavaRuntimePath) {
+        return {
+            language: 'java',
+            compilerPath: detectedJavaCompilerPath,
+            runtimePath: detectedJavaRuntimePath,
+            source: javaSource,
+            version: javaVersion
+        }
+    }
+
+    const customCandidates: Array<{ javac: string, java: string, source: 'custom' | 'bundled' | 'system' }> = []
+
+    if (javaCompilerPath) {
+        customCandidates.push({
+            javac: javaCompilerPath,
+            java: javaCompilerPath.replace(/javac(\.exe)?$/i, process.platform === 'win32' ? 'java.exe' : 'java'),
+            source: 'custom'
+        })
+    }
+
+    if (javaHome) {
+        customCandidates.push({
+            javac: normalizeJavaToolPath(javaHome, 'javac'),
+            java: normalizeJavaToolPath(javaHome, 'java'),
+            source: 'custom'
+        })
+    }
+
+    const bundledJavac = getBundledJdkPath('javac')
+    const bundledJava = getBundledJdkPath('java')
+    if (bundledJavac && bundledJava) {
+        customCandidates.push({ javac: bundledJavac, java: bundledJava, source: 'bundled' })
+    }
+
+    if (process.env.JAVA_HOME) {
+        customCandidates.push({
+            javac: normalizeJavaToolPath(process.env.JAVA_HOME, 'javac'),
+            java: normalizeJavaToolPath(process.env.JAVA_HOME, 'java'),
+            source: 'system'
+        })
+    }
+
+    for (const candidate of customCandidates) {
+        if (!existsSync(candidate.javac) || !existsSync(candidate.java)) continue
+        try {
+            execSync(`${candidate.javac.includes(' ') ? `"${candidate.javac}"` : candidate.javac} -version`, {
+                stdio: 'pipe',
+                timeout: 5000,
+                windowsHide: true
+            })
+            detectedJavaCompilerPath = candidate.javac
+            detectedJavaRuntimePath = candidate.java
+            javaSource = candidate.source
+            javaVersion = getJavaVersion(candidate.javac)
+            return {
+                language: 'java',
+                compilerPath: detectedJavaCompilerPath,
+                runtimePath: detectedJavaRuntimePath,
+                source: javaSource,
+                version: javaVersion
+            }
+        } catch {
+            // Try next candidate
+        }
+    }
+
+    try {
+        execSync('javac -version', {
+            stdio: 'pipe',
+            timeout: 5000,
+            windowsHide: true
+        })
+        execSync('java -version', {
+            stdio: 'pipe',
+            timeout: 5000,
+            windowsHide: true
+        })
+        detectedJavaCompilerPath = 'javac'
+        detectedJavaRuntimePath = 'java'
+        javaSource = 'system'
+        javaVersion = getJavaVersion('javac')
+        return {
+            language: 'java',
+            compilerPath: detectedJavaCompilerPath,
+            runtimePath: detectedJavaRuntimePath,
+            source: javaSource,
+            version: javaVersion
+        }
+    } catch {
+        javaSource = 'none'
+        return {
+            language: 'java',
+            compilerPath: null,
+            runtimePath: null,
+            source: 'none'
+        }
     }
 }
 
@@ -308,6 +475,66 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
     }
 }
 
+export async function compileJavaCode(code: string, filePath?: string | null): Promise<CompileResult & { mainClass?: string }> {
+    const runtime = await detectJavaRuntime()
+
+    if (!runtime.compilerPath || !runtime.runtimePath) {
+        return {
+            success: false,
+            error: 'No Java JDK found!\n\nInstall a JDK with javac, set JAVA_HOME, or configure the Java compiler path in Settings.'
+        }
+    }
+
+    const tempDir = join(tmpdir(), `carboncode-java-${randomUUID()}`)
+    const sourceName = filePath && filePath.toLowerCase().endsWith('.java')
+        ? basename(filePath)
+        : 'Main.java'
+    const sourceFile = join(tempDir, sourceName)
+    const mainClass = basename(sourceName, extname(sourceName))
+
+    try {
+        mkdirSync(tempDir, { recursive: true })
+        writeFileSync(sourceFile, code, 'utf-8')
+
+        const javacCmd = runtime.compilerPath.includes(' ') ? `"${runtime.compilerPath}"` : runtime.compilerPath
+        const compileStart = Date.now()
+        const compileResult = await runCompilationProcess(javacCmd, [`"${sourceFile}"`], tempDir, 30000)
+        const compileTime = Date.now() - compileStart
+
+        if (!compileResult.success) {
+            try {
+                if (existsSync(tempDir)) {
+                    rmSync(tempDir, { recursive: true, force: true })
+                }
+            } catch { }
+
+            return {
+                success: false,
+                error: `Java Compilation Error:\n\n${compileResult.stderr || compileResult.stdout}`,
+                compileTime
+            }
+        }
+
+        return {
+            success: true,
+            tempDir,
+            executablePath: runtime.runtimePath,
+            compileTime,
+            mainClass
+        }
+    } catch (e: any) {
+        try {
+            if (existsSync(tempDir)) {
+                rmSync(tempDir, { recursive: true, force: true })
+            }
+        } catch { }
+        return {
+            success: false,
+            error: `Unexpected Java error: ${e.message}`
+        }
+    }
+}
+
 /**
  * Start the executable in interactive mode
  */
@@ -366,6 +593,69 @@ export function startInteractiveProcess(
     })
 
     return currentProcess
+}
+
+export function startInteractiveCommand(
+    command: string,
+    args: string[],
+    cwd: string,
+    onStdout: (data: string) => void,
+    onStderr: (data: string) => void,
+    onExit: (code: number) => void,
+    env?: NodeJS.ProcessEnv
+): ChildProcess {
+    const options: any = {
+        cwd,
+        shell: true,
+        windowsHide: true
+    }
+    if (env) {
+        options.env = env
+    }
+
+    currentProcess = spawn(command, args, options)
+
+    currentProcess.stdout?.on('data', (data) => {
+        onStdout(data.toString())
+    })
+
+    currentProcess.stderr?.on('data', (data) => {
+        onStderr(data.toString())
+    })
+
+    currentProcess.on('close', (code) => {
+        currentProcess = null
+        onExit(code || 0)
+        setTimeout(() => {
+            try {
+                if (existsSync(cwd)) {
+                    rmSync(cwd, { recursive: true, force: true })
+                }
+            } catch (err) {
+                console.error('Failed to cleanup temp dir:', err)
+            }
+        }, 500)
+    })
+
+    currentProcess.on('error', (err) => {
+        onStderr(`Spawn Error: ${err.message}`)
+        currentProcess = null
+        onExit(1)
+    })
+
+    return currentProcess
+}
+
+export function startJavaProcess(
+    javaPath: string,
+    tempDir: string,
+    mainClass: string,
+    onStdout: (data: string) => void,
+    onStderr: (data: string) => void,
+    onExit: (code: number) => void
+): ChildProcess {
+    const cmd = javaPath.includes(' ') ? `"${javaPath}"` : javaPath
+    return startInteractiveCommand(cmd, ['-cp', `"${tempDir}"`, mainClass], tempDir, onStdout, onStderr, onExit)
 }
 
 /**
