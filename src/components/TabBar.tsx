@@ -1,4 +1,5 @@
 import { MouseEvent } from 'react'
+import { SupportedLanguage } from '../types/language'
 
 export interface FileTab {
     id: string
@@ -6,7 +7,7 @@ export interface FileTab {
     filePath: string | null
     content: string
     isDirty: boolean
-    language: string
+    language: SupportedLanguage
 }
 
 interface TabBarProps {

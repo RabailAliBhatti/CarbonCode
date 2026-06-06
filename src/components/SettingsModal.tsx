@@ -92,15 +92,6 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between group cursor-pointer" onClick={() => onUpdateSetting('formatOnSave', !settings.formatOnSave)}>
-                            <div className="flex flex-col">
-                                <label className="text-sm text-text-primary cursor-pointer">Format on Save</label>
-                                <span className="text-xs text-text-secondary">Format code when saving</span>
-                            </div>
-                            <div className={`w-10 h-5 rounded-full transition-colors relative ${settings.formatOnSave ? 'bg-accent' : 'bg-editor-border group-hover:bg-editor-border/80'}`}>
-                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${settings.formatOnSave ? 'left-6' : 'left-1'}`} />
-                            </div>
-                        </div>
                     </section>
 
                     <div className="h-px bg-editor-border" />

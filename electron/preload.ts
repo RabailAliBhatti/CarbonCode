@@ -51,8 +51,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('java:detect', javaHome, javaCompilerPath),
     browseJavaCompiler: () => ipcRenderer.invoke('java:browse-compiler'),
     setCustomJavaPath: (customPath: string) => ipcRenderer.invoke('java:set-custom-path', customPath),
-    runCompilation: (code: string, cppStandard: string) =>
-        ipcRenderer.invoke('compiler:run', code, cppStandard),
 
     // Interactive Process
     startProcess: (request: RunRequest) =>
@@ -62,17 +60,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Process Listeners
     onProcessStdout: (callback: (data: string) => void) => {
-        const subscription = (_: any, data: string) => callback(data)
+        const subscription = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
         ipcRenderer.on('process:stdout', subscription)
         return () => ipcRenderer.removeListener('process:stdout', subscription)
     },
     onProcessStderr: (callback: (data: string) => void) => {
-        const subscription = (_: any, data: string) => callback(data)
+        const subscription = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
         ipcRenderer.on('process:stderr', subscription)
         return () => ipcRenderer.removeListener('process:stderr', subscription)
     },
     onProcessExit: (callback: (code: number) => void) => {
-        const subscription = (_: any, code: number) => callback(code)
+        const subscription = (_event: Electron.IpcRendererEvent, code: number) => callback(code)
         ipcRenderer.on('process:exit', subscription)
         return () => ipcRenderer.removeListener('process:exit', subscription)
     },
@@ -93,17 +91,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Debugger event listeners
     onDebugStateChanged: (callback: (state: DebugState) => void) => {
-        const subscription = (_: any, state: DebugState) => callback(state)
+        const subscription = (_event: Electron.IpcRendererEvent, state: DebugState) => callback(state)
         ipcRenderer.on('debugger:state-changed', subscription)
         return () => ipcRenderer.removeListener('debugger:state-changed', subscription)
     },
     onDebugStdout: (callback: (data: string) => void) => {
-        const subscription = (_: any, data: string) => callback(data)
+        const subscription = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
         ipcRenderer.on('debugger:stdout', subscription)
         return () => ipcRenderer.removeListener('debugger:stdout', subscription)
     },
     onDebugStderr: (callback: (data: string) => void) => {
-        const subscription = (_: any, data: string) => callback(data)
+        const subscription = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
         ipcRenderer.on('debugger:stderr', subscription)
         return () => ipcRenderer.removeListener('debugger:stderr', subscription)
     },
@@ -144,10 +142,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('menu:stop', callback)
         return () => ipcRenderer.removeListener('menu:stop', callback)
     },
-    onToggleExplorer: (callback: () => void) => {
-        ipcRenderer.on('menu:toggle-explorer', callback)
-        return () => ipcRenderer.removeListener('menu:toggle-explorer', callback)
-    },
     // Debug menu listeners
     onDebugStart: (callback: () => void) => {
         ipcRenderer.on('menu:debug-start', callback)
@@ -183,7 +177,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAnalyticsConsent: (consent: boolean) => ipcRenderer.invoke('analytics:set-consent', consent),
     getAnalyticsConsent: () => ipcRenderer.invoke('analytics:get-consent'),
     hasBeenAskedAnalytics: () => ipcRenderer.invoke('analytics:has-been-asked'),
-    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url)
+    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+
+    // File watch API
+    watchFile: (filePath: string) => ipcRenderer.invoke('file:watch-start', filePath),
+    unwatchFile: (filePath: string) => ipcRenderer.invoke('file:watch-stop', filePath),
+    onFileChanged: (callback: (filePath: string) => void) => {
+        const subscription = (_event: Electron.IpcRendererEvent, filePath: string) => callback(filePath)
+        ipcRenderer.on('file:changed', subscription)
+        return () => ipcRenderer.removeListener('file:changed', subscription)
+    }
 })
 
 // Type definitions for the exposed API
@@ -202,17 +205,13 @@ export interface ElectronAPI {
     openFolder: () => Promise<string | null>
     readDirectory: (dirPath: string) => Promise<{ name: string; path: string; isDirectory: boolean }[]>
     setDirty: (dirty: boolean) => Promise<void>
-    detectCompiler: () => Promise<string | null>
+    detectCompiler: (customPath?: string) => Promise<string | null>
+    browseCompiler: () => Promise<string | null>
+    setCustomCompilerPath: (customPath: string) => Promise<void>
+    getCompilerInfo: () => Promise<{ path: string | null; source: string }>
     detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) => Promise<RuntimeInfo>
     browseJavaCompiler: () => Promise<string | null>
     setCustomJavaPath: (customPath: string) => Promise<void>
-    runCompilation: (code: string, cppStandard: string) => Promise<{
-        success: boolean
-        output: string
-        error: string
-        compileTime?: number
-        executionTime?: number
-    }>
 
     // Interactive
     startProcess: (request: RunRequest) => Promise<{
@@ -249,7 +248,6 @@ export interface ElectronAPI {
     onSaveAs: (callback: () => void) => () => void
     onRun: (callback: () => void) => () => void
     onStop: (callback: () => void) => () => void
-    onToggleExplorer: (callback: () => void) => () => void
 
     // Debug menu listeners
     onDebugStart: (callback: () => void) => () => void
@@ -266,6 +264,11 @@ export interface ElectronAPI {
     getAnalyticsConsent: () => Promise<boolean | null>
     hasBeenAskedAnalytics: () => Promise<boolean>
     openExternal: (url: string) => Promise<void>
+
+    // File watch API
+    watchFile: (filePath: string) => Promise<void>
+    unwatchFile: (filePath: string) => Promise<void>
+    onFileChanged: (callback: (filePath: string) => void) => () => void
 }
 
 declare global {

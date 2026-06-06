@@ -9,7 +9,7 @@ import { randomUUID } from 'crypto'
 
 // GA4 Configuration
 const MEASUREMENT_ID = 'G-B7G7W5YQ7M'
-const API_SECRET = '6Lijt1zxTRWghaiBAFN1JQ' // Generate in GA4 -> Admin -> Data Streams -> Measurement Protocol
+const API_SECRET = process.env.VITE_GA4_API_SECRET || ''
 
 // Settings file path
 const getSettingsPath = () => path.join(app.getPath('userData'), 'analytics-settings.json')
@@ -76,16 +76,24 @@ export function setAnalyticsConsent(consent: boolean): void {
 }
 
 // Log helper
-function logAnalytics(message: string) {
-    const logPath = path.join(app.getPath('userData'), 'analytics_debug.txt')
-    const timestamp = new Date().toISOString()
-    const logMessage = `[${timestamp}] ${message}\n`
+function logAnalytics(message: string): void {
+    if (app.isPackaged) return // no debug logging in production builds
 
     try {
-        fs.appendFileSync(logPath, logMessage, { encoding: 'utf8' })
+        const logPath = path.join(app.getPath('userData'), 'analytics_debug.txt')
+
+        // Rotate: if file exceeds 500KB, keep only the last 500 lines
+        if (fs.existsSync(logPath)) {
+            const stats = fs.statSync(logPath)
+            if (stats.size > 500 * 1024) {
+                const lines = fs.readFileSync(logPath, 'utf8').split('\n')
+                fs.writeFileSync(logPath, lines.slice(-500).join('\n'))
+            }
+        }
+
+        fs.appendFileSync(logPath, `${new Date().toISOString()} ${message}\n`)
     } catch (e) {
-        // Fallback
-        console.error('Failed to write to log:', e)
+        // ignore log failures silently
     }
 }
 

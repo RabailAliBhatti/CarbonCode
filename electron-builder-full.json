@@ -12,8 +12,8 @@
     ],
     "extraResources": [
         {
-            "from": "mingw",
-            "to": "mingw",
+            "from": "vendor/mingw64",
+            "to": "mingw64",
             "filter": [
                 "**/*"
             ]

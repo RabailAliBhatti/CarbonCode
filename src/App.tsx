@@ -24,14 +24,6 @@ interface DebugState {
     locals: { name: string; value: string; type: string }[]
 }
 
-interface CompilationResult {
-    success: boolean
-    output: string
-    error: string
-    compileTime?: number
-    executionTime?: number
-}
-
 interface RuntimeInfo {
     language: SupportedLanguage
     compilerPath: string | null
@@ -66,8 +58,38 @@ function App() {
         updateTabContent,
         markTabSaved,
         closeTab,
-        switchToTab
+        switchToTab,
+        hasRecoveryData,
+        acceptRecovery,
+        dismissRecovery,
+        reloadTabFromDisk
     } = fileManager
+
+    // Tab recovery: prompt user if previous session data exists
+    useEffect(() => {
+        if (hasRecoveryData) {
+            const promptRecovery = async () => {
+                try {
+                    const result = await window.electronAPI.showMessage({
+                        type: 'question',
+                        buttons: ['Restore', 'Start Fresh'],
+                        defaultId: 0,
+                        title: 'Tab Recovery',
+                        message: 'Previous session tabs were found. Would you like to restore them?'
+                    })
+                    if (result.response === 0) {
+                        acceptRecovery()
+                    } else {
+                        dismissRecovery()
+                    }
+                } catch {
+                    // Fallback: accept recovery if showMessage is not available
+                    acceptRecovery()
+                }
+            }
+            promptRecovery()
+        }
+    }, [hasRecoveryData, acceptRecovery, dismissRecovery])
 
     // UI state
     const [showWelcome, setShowWelcome] = useState<boolean>(true)
@@ -85,9 +107,6 @@ function App() {
 
     // Author name for new file templates
     const [authorName, setAuthorName] = useState<string>('')
-
-    // Toast notification state
-    const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
 
     // Compiler state
     const [compilerInfo, setCompilerInfo] = useState<string | null>(null)
@@ -114,6 +133,9 @@ function App() {
 
     // Interactive Process State
     const [isRunning, setIsRunning] = useState<boolean>(false)
+
+    // Java debug unsupported state
+    const [javaDebugUnsupported, setJavaDebugUnsupported] = useState(false)
 
     // Debug state
     const [debugState, setDebugState] = useState<DebugState>({
@@ -224,23 +246,57 @@ function App() {
         window.electronAPI.setDirty(hasUnsaved)
     }, [tabs])
 
+    // Watch files when tabs are opened, unwatch on close
+    useEffect(() => {
+        const filePaths = tabs.filter(t => t.filePath).map(t => t.filePath!)
+        // Watch new files
+        for (const fp of filePaths) {
+            window.electronAPI.watchFile(fp)
+        }
+        // Cleanup: unwatch all on unmount or when tabs change
+        return () => {
+            for (const fp of filePaths) {
+                window.electronAPI.unwatchFile(fp)
+            }
+        }
+    }, [tabs])
+
+    // Handle external file changes
+    const handleFileChanged = useCallback(async (filePath: string) => {
+        const tab = tabs.find(t => t.filePath === filePath)
+        if (!tab) return
+
+        if (!tab.isDirty) {
+            await reloadTabFromDisk(filePath)
+            return
+        }
+
+        // File is dirty — ask user
+        const result = await window.electronAPI.showMessage({
+            type: 'warning',
+            buttons: ['Reload from disk', 'Keep my changes'],
+            defaultId: 1,
+            title: 'File Modified Externally',
+            message: `This file was modified outside CarbonCode.\n\nReload and lose your unsaved changes, or keep your version?`
+        })
+
+        if (result.response === 0) {
+            await reloadTabFromDisk(filePath)
+        }
+    }, [tabs, reloadTabFromDisk])
+
+    // Listen for file change events
+    useEffect(() => {
+        const cleanup = window.electronAPI.onFileChanged(handleFileChanged)
+        return cleanup
+    }, [handleFileChanged])
+
     // Handle code changes
     const handleCodeChange = useCallback((value: string | undefined) => {
         if (value !== undefined && activeTabId) {
             updateTabContent(activeTabId, value)
         }
     }, [activeTabId, updateTabContent])
-
-    // Show toast notification
-    const showToast = useCallback((message: string) => {
-        setToast({ message, visible: true })
-        setTimeout(() => setToast({ message: '', visible: false }), 3000)
-    }, [])
-
-    // Callback for when copy/paste is blocked in editor
-    const handleCopyPasteBlocked = useCallback((message: string) => {
-        showToast(message)
-    }, [showToast])
 
     // New file handler
     const handleNewFile = useCallback(async () => {
@@ -249,7 +305,7 @@ function App() {
 
     const handleNewFileSelect = useCallback((language: 'cpp' | 'java') => {
         setShowNewFileDialog(false)
-        const newTab = createNewTab(language, authorName || undefined)
+        createNewTab(language, authorName || undefined)
         window.electronAPI?.trackEvent?.('file_created')
     }, [createNewTab, authorName])
 
@@ -288,16 +344,13 @@ function App() {
     // Debug handlers
     const handleDebugStart = useCallback(async () => {
         if (!activeTab) return
-        const code = editorRef.current?.getValue() || activeTab.content
-        const bpArray = breakpoints.map(line => ({ line }))
         if (activeTab.language === 'java') {
-            setCompilationResult({
-                success: false,
-                output: '',
-                error: 'Java debugging is not available yet. You can compile and run Java files with F5.'
-            })
+            setJavaDebugUnsupported(true)
             return
         }
+        setJavaDebugUnsupported(false)
+        const code = editorRef.current?.getValue() || activeTab.content
+        const bpArray = breakpoints.map(line => ({ line }))
         const result = await window.electronAPI.debugStart(code, bpArray)
         if (result.success) {
             // Track analytics - debug started
@@ -344,6 +397,11 @@ function App() {
         })
     }, [])
 
+    // Reset java debug unsupported when switching tabs/languages
+    useEffect(() => {
+        setJavaDebugUnsupported(false)
+    }, [activeTabId, activeTab?.language])
+
     // Listen for debug state changes
     useEffect(() => {
         const cleanup = window.electronAPI.onDebugStateChanged((state) => {
@@ -358,12 +416,6 @@ function App() {
 
         let contentToSave = editorRef.current?.getValue() || activeTab.content
 
-        // Format if enabled
-        if (settings.formatOnSave && editorRef.current) {
-            await editorRef.current.getAction('editor.action.formatDocument')?.run()
-            contentToSave = editorRef.current.getValue()
-        }
-
         if (!activeTab.filePath) {
             // Save As
             const result = await window.electronAPI.saveFile(contentToSave, undefined, activeTab.language)
@@ -377,7 +429,18 @@ function App() {
                 markTabSaved(activeTab.id, result.filePath)
             }
         }
-    }, [activeTab, markTabSaved, settings.formatOnSave])
+    }, [activeTab, markTabSaved])
+
+    // Auto-save with debounce
+    useEffect(() => {
+        if (!settings.autoSave || !activeTab?.isDirty) return
+
+        const timer = setTimeout(() => {
+            handleSave()
+        }, 2000)
+
+        return () => clearTimeout(timer)
+    }, [settings.autoSave, activeTab?.isDirty, activeTab?.content, handleSave])
 
     // Save As handler
     const handleSaveAs = useCallback(async () => {
@@ -388,50 +451,6 @@ function App() {
             markTabSaved(activeTab.id, result.filePath)
         }
     }, [activeTab, markTabSaved])
-
-    // Copy/Paste handlers
-    const handleCopy = useCallback(async () => {
-        if (!editorInstance) return
-        const selection = editorInstance.getSelection()
-        const model = editorInstance.getModel()
-        if (selection && model) {
-            const selectedText = model.getValueInRange(selection)
-            if (selectedText) {
-                await navigator.clipboard.writeText(selectedText)
-                showToast('Copied to clipboard')
-            } else {
-                // If nothing selected, maybe copy whole file? 
-                // Traditional IDEs usually don't, but we can if preferred.
-                // Let's just notify if selection is empty.
-                showToast('Nothing selected to copy')
-            }
-        }
-    }, [editorInstance, showToast])
-
-    const handlePaste = useCallback(async () => {
-        if (!editorInstance) return
-        try {
-            const text = await navigator.clipboard.readText()
-            if (text) {
-                const selection = editorInstance.getSelection()
-                if (selection) {
-                    editorInstance.executeEdits('toolbar-paste', [
-                        {
-                            range: selection,
-                            text: text,
-                            forceMoveMarkers: true
-                        }
-                    ])
-                    editorInstance.focus()
-                    // Track analytics - code pasted
-                    window.electronAPI?.trackEvent?.('code_pasted')
-                }
-            }
-        } catch (err) {
-            console.error('Failed to read clipboard:', err)
-            showToast('Permission denied to access clipboard')
-        }
-    }, [editorInstance, showToast])
 
     // Run compilation handler
     const handleRun = useCallback(async () => {
@@ -536,6 +555,7 @@ function App() {
         const cleanupSave = window.electronAPI.onSave(handleSave)
         const cleanupSaveAs = window.electronAPI.onSaveAs(handleSaveAs)
         const cleanupRun = window.electronAPI.onRun(handleRun)
+        const cleanupStop = window.electronAPI.onStop(handleStop)
 
         // Debug menu listeners
         const cleanupDebugStart = window.electronAPI.onDebugStart(handleDebugStart)
@@ -553,6 +573,7 @@ function App() {
             cleanupSave()
             cleanupSaveAs()
             cleanupRun()
+            cleanupStop()
             cleanupDebugStart()
             cleanupDebugStop()
             cleanupDebugStepOver()
@@ -561,7 +582,7 @@ function App() {
             cleanupDebugContinue()
             cleanupDebugToggleBp()
         }
-    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint])
+    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint])
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -658,8 +679,6 @@ function App() {
                 onNewFile={handleNewFile}
                 onOpenFile={handleOpenFile}
                 onSave={handleSave}
-                onCopy={handleCopy}
-                onPaste={handlePaste}
                 isCompiling={isCompiling} // Could also indicate isRunning visually in Toolbar if needed
                 hasCompiler={hasActiveRuntime}
             />
@@ -775,7 +794,6 @@ function App() {
                                         minimap={settings.minimap}
                                         wordWrap={settings.wordWrap}
                                         theme={settings.theme}
-                                        onCopyPasteBlocked={handleCopyPasteBlocked}
                                         onRun={handleRun}
                                     />
                                 </div>
@@ -783,6 +801,7 @@ function App() {
                                 {/* Debug Panel */}
                                 <DebugPanel
                                     debugState={debugState}
+                                    javaDebugUnsupported={javaDebugUnsupported}
                                     onStart={handleDebugStart}
                                     onStop={handleDebugStop}
                                     onStepOver={handleDebugStepOver}
@@ -875,18 +894,6 @@ function App() {
                 outputPosition={settings.outputPosition}
                 onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
             />
-
-            {/* Toast Notification */}
-            {toast.visible && (
-                <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className="bg-amber-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <span className="font-medium">{toast.message}</span>
-                    </div>
-                </div>
-            )}
 
             {/* Analytics Consent Dialog */}
             <AnalyticsConsentDialog

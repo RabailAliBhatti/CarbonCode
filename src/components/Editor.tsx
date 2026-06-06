@@ -40,7 +40,6 @@ interface EditorProps {
     theme?: 'dark' | 'light'
     minimap?: boolean
     wordWrap?: boolean
-    onCopyPasteBlocked?: (message: string) => void
     onRun?: () => void
 }
 
@@ -120,7 +119,7 @@ const editorThemeLight = {
     }
 }
 
-function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onCopyPasteBlocked, onRun }: EditorProps) {
+function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onRun }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
 
@@ -689,11 +688,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             editor.trigger('keyboard', 'editor.action.moveLinesDownAction', null)
         })
 
-        // Add keyboard shortcut for formatting
-        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
-            editor.getAction('editor.action.formatDocument')?.run()
-        })
-
         // Java missing import diagnostic service
         const javaImportMap: Record<string, string> = {
             'Scanner': 'java.util.Scanner',
@@ -744,6 +738,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                 if (!model || language !== 'java') return
 
                 const position = ed.getPosition()
+                if (!position) return
                 const word = model.getWordAtPosition(position)
                 if (!word) return
 
@@ -751,13 +746,12 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                 const fullImport = javaImportMap[className]
                 if (!fullImport) return
 
-                const importStatement = `import ${fullImport};\n`
                 const code = model.getValue()
 
                 // Check if import already exists
                 if (code.includes(`import ${fullImport};`)) return
 
-                // Find where to insert (after package or at top)
+                // Find where to insert (after package or at top, but after initial comment lines if no package)
                 const packageMatch = code.match(/package\s+[\w.]+;\s*\n/)
                 if (packageMatch) {
                     const insertPos = model.getPositionAt(code.indexOf(packageMatch[0]) + packageMatch[0].length)
@@ -766,9 +760,22 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         text: `\nimport ${fullImport};`
                     }])
                 } else {
-                    // Insert at beginning
+                    // Insert at the top, but after any initial comment lines (single-line comments)
+                    let insertLine = 1
+                    let insertColumn = 1
+                    const lines = code.split('\n')
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i]
+                        // If we hit a non-empty line that is not a comment, break
+                        if (line.trim() !== '' && !line.trim().startsWith('//')) {
+                            break
+                        }
+                        insertLine = i + 2 // because we want to insert after this line
+                        insertColumn = 1
+                    }
+
                     model.applyEdits([{
-                        range: new monacoEditor.Range(1, 1, 1, 1),
+                        range: new monacoEditor.Range(insertLine, insertColumn, insertLine, insertColumn),
                         text: `import ${fullImport};\n`
                     }])
                 }
@@ -776,9 +783,9 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
         })
 
         // Register code action provider for quick fixes
-        monaco.languages.registerCodeActionProvider('java', {
-            provideCodeActions: (model, range, context) => {
-                const actions: monaco.languages.CodeAction[] = []
+        monacoEditor.languages.registerCodeActionProvider('java', {
+            provideCodeActions: (model, _range, _context, _token) => {
+                const actions: monacoEditor.languages.CodeAction[] = []
                 const code = model.getValue()
                 const lines = code.split('\n')
 
@@ -801,6 +808,37 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                             const startCol = match.index - code.lastIndexOf('\n', match.index - 1)
                             const endCol = startCol + className.length
 
+                            // Find where to insert imports
+                            let insertLineNumber = 1
+                            let insertColumn = 1
+                            const packageLineIndex = lines.findIndex(l => l.trimStart().startsWith('package '))
+                            if (packageLineIndex !== -1) {
+                                // Find first blank line after package statement
+                                let found = false
+                                for (let i = packageLineIndex + 1; i < lines.length; i++) {
+                                    if (lines[i].trim() === '') {
+                                        insertLineNumber = i + 1
+                                        insertColumn = 1
+                                        found = true
+                                        break
+                                    }
+                                }
+                                // If no blank line found, insert right after the package line
+                                if (!found) {
+                                    insertLineNumber = packageLineIndex + 2
+                                    insertColumn = 1
+                                }
+                            } else {
+                                // No package statement: insert after initial comment lines
+                                for (let i = 0; i < lines.length; i++) {
+                                    if (lines[i].trim() !== '' && !lines[i].trim().startsWith('//')) {
+                                        break
+                                    }
+                                    insertLineNumber = i + 2
+                                    insertColumn = 1
+                                }
+                            }
+
                             actions.push({
                                 title: `Import '${className}'`,
                                 kind: 'quickfix',
@@ -816,12 +854,15 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                                 edit: {
                                     edits: [{
                                         resource: model.uri,
-                                        text: `import ${fullImport};\n`,
-                                        range: {
-                                            startLineNumber: 1,
-                                            startColumn: 1,
-                                            endLineNumber: 1,
-                                            endColumn: 1
+                                        versionId: model.getVersionId(),
+                                        textEdit: {
+                                            range: {
+                                                startLineNumber: insertLineNumber,
+                                                startColumn: insertColumn,
+                                                endLineNumber: insertLineNumber,
+                                                endColumn: insertColumn
+                                            },
+                                            text: `import ${fullImport};\n`
                                         }
                                     }]
                                 },
@@ -831,7 +872,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                     }
                 }
 
-                return { actions }
+                return { actions, dispose: () => {} }
             }
         })
 
@@ -841,7 +882,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             if (!model || language !== 'java') return
 
             const code = model.getValue()
-            const markers: monacoEditor.IMarkerData[] = []
+            const markers: monacoEditor.editor.IMarkerData[] = []
             const lines = code.split('\n')
 
             for (const className of Object.keys(javaImportMap)) {
@@ -956,7 +997,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                     cursorBlinking: 'smooth',
                     cursorSmoothCaretAnimation: 'on',
                     smoothScrolling: true,
-                    contextmenu: false,  // Disable right-click context menu to prevent copy/paste
+                    contextmenu: true,
                     minimap: {
                         enabled: minimap,
                         scale: 1,
@@ -989,6 +1030,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         comments: false,
                         strings: false
                     },
+                    quickSuggestionsDelay: 0,
                     parameterHints: {
                         enabled: true
                     },

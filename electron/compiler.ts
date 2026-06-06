@@ -1,17 +1,9 @@
-import { execSync, spawn, ChildProcess } from 'child_process'
+import { execSync, spawn, ChildProcess, SpawnOptions } from 'child_process'
 import { writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
 import { basename, extname, join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
-
-export interface CompilationResult {
-    success: boolean
-    output: string
-    error: string
-    compileTime?: number
-    executionTime?: number
-}
 
 export type SupportedLanguage = 'cpp' | 'java'
 
@@ -93,20 +85,13 @@ function getBundledMingwBinDir(): string | null {
 /**
  * Build an env object with the bundled MinGW bin dir prepended to PATH
  */
-export function getBundledMingwEnv(): NodeJS.ProcessEnv {
+function getBundledMingwEnv(): NodeJS.ProcessEnv {
     const env = { ...process.env }
     const mingwBinDir = getBundledMingwBinDir()
     if (mingwBinDir) {
         env.PATH = `${mingwBinDir};${env.PATH || ''}`
     }
     return env
-}
-
-/**
- * Check if the current compiler is bundled
- */
-export function isUsingBundledCompiler(): boolean {
-    return isBundledCompiler
 }
 
 // Track the source type for UI display
@@ -182,9 +167,12 @@ function getJavaVersion(javacPath: string): string | undefined {
             windowsHide: true
         }).toString()
         return output.trim()
-    } catch (e: any) {
-        const stderr = e?.stderr?.toString?.().trim()
-        return stderr || undefined
+    } catch (e: unknown) {
+        if (e instanceof Error) {
+            const stderr = (e as NodeJS.ErrnoException & { stderr?: Buffer }).stderr?.toString?.().trim()
+            return stderr || undefined
+        }
+        return undefined
     }
 }
 
@@ -347,7 +335,7 @@ export async function detectCompiler(customPath?: string): Promise<string | null
 /**
  * Get the actual compiler path to use for compilation
  */
-export function getCompilerPath(): string | null {
+function getCompilerPath(): string | null {
     return detectedCompilerPath
 }
 
@@ -399,21 +387,20 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
                 '/EHsc',
                 `/std:${cppStandard.replace('c++', 'c++')}`,
                 '/W4',
-                `/Fe:"${executableFile}"`,
-                `"${sourceFile}"`
+                `/Fe:${executableFile}`,
+                sourceFile
             ]
             compileCmd = compilerPath
         } else {
-            // GCC/Clang - quote paths to handle spaces
+            // GCC/Clang
             compileArgs = [
                 `-std=${cppStandard}`,
                 '-Wall',
                 '-Wextra',
-                '-o', `"${executableFile}"`,
-                `"${sourceFile}"`
+                '-o', executableFile,
+                sourceFile
             ]
-            // Use quoted path for bundled compiler
-            compileCmd = compilerPath.includes(' ') ? `"${compilerPath}"` : compilerPath
+            compileCmd = compilerPath
         }
 
         // Build env with bundled MinGW path if applicable
@@ -461,16 +448,17 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
             compileTime
         }
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         // Cleanup on unexpected error
         try {
             if (existsSync(tempDir)) {
                 rmSync(tempDir, { recursive: true, force: true })
             }
         } catch { }
+        const message = e instanceof Error ? e.message : String(e)
         return {
             success: false,
-            error: `❌ Unexpected error: ${e.message}`
+            error: `❌ Unexpected error: ${message}`
         }
     }
 }
@@ -500,9 +488,9 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
         mkdirSync(tempDir, { recursive: true })
         writeFileSync(sourceFile, codeWithImports, 'utf-8')
 
-        const javacCmd = runtime.compilerPath.includes(' ') ? `"${runtime.compilerPath}"` : runtime.compilerPath
+        const javacCmd = runtime.compilerPath
         const compileStart = Date.now()
-        const compileResult = await runCompilationProcess(javacCmd, [`"${sourceFile}"`], tempDir, 30000)
+        const compileResult = await runCompilationProcess(javacCmd, [sourceFile], tempDir, 30000)
         const compileTime = Date.now() - compileStart
 
         if (!compileResult.success) {
@@ -526,15 +514,16 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
             compileTime,
             mainClass
         }
-    } catch (e: any) {
+    } catch (e: unknown) {
         try {
             if (existsSync(tempDir)) {
                 rmSync(tempDir, { recursive: true, force: true })
             }
         } catch { }
+        const message = e instanceof Error ? e.message : String(e)
         return {
             success: false,
-            error: `Unexpected Java error: ${e.message}`
+            error: `Unexpected Java error: ${message}`
         }
     }
 }
@@ -550,22 +539,19 @@ export function startInteractiveProcess(
     onExit: (code: number) => void
 ): ChildProcess {
     const cwd = tempDir
-    // Quote the path to handle spaces
-    const cmd = process.platform === 'win32' ? `"${executablePath}"` : `./"${executablePath.split('/').pop()}"`
+    const cmd = process.platform === 'win32' ? executablePath : `./${basename(executablePath)}`
 
     // Use bundled MinGW env so runtime DLLs can be found
     const env = isBundledCompiler ? getBundledMingwEnv() : undefined
 
-    const options: any = {
+    const spawnOptions: SpawnOptions = {
         cwd,
-        shell: true,
-        windowsHide: true
-    }
-    if (env) {
-        options.env = env
+        shell: false,
+        windowsHide: true,
+        ...(env ? { env } : {})
     }
 
-    currentProcess = spawn(cmd, [], options)
+    currentProcess = spawn(cmd, [], spawnOptions)
 
     currentProcess.stdout?.on('data', (data) => {
         onStdout(data.toString())
@@ -599,7 +585,7 @@ export function startInteractiveProcess(
     return currentProcess
 }
 
-export function startInteractiveCommand(
+function startInteractiveCommand(
     command: string,
     args: string[],
     cwd: string,
@@ -608,16 +594,14 @@ export function startInteractiveCommand(
     onExit: (code: number) => void,
     env?: NodeJS.ProcessEnv
 ): ChildProcess {
-    const options: any = {
+    const spawnOptions: SpawnOptions = {
         cwd,
-        shell: true,
-        windowsHide: true
-    }
-    if (env) {
-        options.env = env
+        shell: false,
+        windowsHide: true,
+        ...(env ? { env } : {})
     }
 
-    currentProcess = spawn(command, args, options)
+    currentProcess = spawn(command, args, spawnOptions)
 
     currentProcess.stdout?.on('data', (data) => {
         onStdout(data.toString())
@@ -658,8 +642,8 @@ export function startJavaProcess(
     onStderr: (data: string) => void,
     onExit: (code: number) => void
 ): ChildProcess {
-    const cmd = javaPath.includes(' ') ? `"${javaPath}"` : javaPath
-    return startInteractiveCommand(cmd, ['-cp', `"${tempDir}"`, mainClass], tempDir, onStdout, onStderr, onExit)
+    const cmd = javaPath
+    return startInteractiveCommand(cmd, ['-cp', tempDir, mainClass], tempDir, onStdout, onStderr, onExit)
 }
 
 /**
@@ -672,7 +656,7 @@ export function writeToProcess(input: string): boolean {
             // Add newline if not present? Usually std::cin expects newline to flush buffer.
             // But let user handle Enter key.
             return true
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Failed to write to process:', e)
             return false
         }
@@ -688,50 +672,6 @@ export function killProcess(): boolean {
     return false
 }
 
-
-/**
- * Compile and run C++ code (Legacy wrapper)
- */
-export async function compileAndRun(code: string, cppStandard: string): Promise<CompilationResult> {
-    const compileRes = await compileCode(code, cppStandard)
-    if (!compileRes.success || !compileRes.executablePath || !compileRes.tempDir) {
-        return {
-            success: false,
-            output: '',
-            error: compileRes.error || 'Compilation failed',
-            compileTime: compileRes.compileTime
-        }
-    }
-
-    return new Promise((resolve) => {
-        let stdout = ''
-        let stderr = ''
-        const startTime = Date.now()
-
-        startInteractiveProcess(
-            compileRes.executablePath!,
-            compileRes.tempDir!,
-            (data) => stdout += data,
-            (data) => stderr += data,
-            (code) => {
-                const executionTime = Date.now() - startTime
-                // If there's a non-zero exit code, mark as failed
-                let error = stderr
-                if (code !== 0 && !stdout && !stderr) {
-                    error = `⚠️ Program exited with code ${code}`
-                }
-
-                resolve({
-                    success: code === 0 || !!stdout,
-                    output: stdout,
-                    error: error ? `⚠️ Runtime Error:\n\n${error}` : '',
-                    compileTime: compileRes.compileTime,
-                    executionTime
-                })
-            }
-        )
-    })
-}
 
 /**
  * Run compilation process (helper wrapper around runProcess for compile step)
@@ -752,16 +692,14 @@ function runCompilationProcess(
         let stdout = ''
         let stderr = ''
 
-        const options: any = {
+        const spawnOptions: SpawnOptions = {
             cwd,
-            shell: true,
-            windowsHide: true
-        }
-        if (env) {
-            options.env = env
+            shell: false,
+            windowsHide: true,
+            ...(env ? { env } : {})
         }
 
-        const proc = spawn(cmd, args, options)
+        const proc = spawn(cmd, args, spawnOptions)
 
         const timer = setTimeout(() => {
             proc.kill()

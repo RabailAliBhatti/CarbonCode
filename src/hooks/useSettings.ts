@@ -13,7 +13,6 @@ export interface Settings {
     theme: 'dark' | 'light'
     minimap: boolean
     wordWrap: boolean
-    formatOnSave: boolean
     outputFontSize: number
     outputPosition: 'bottom' | 'right'
     explorerWidth: number
@@ -31,7 +30,6 @@ const DEFAULT_SETTINGS: Settings = {
     theme: 'dark',
     minimap: true,
     wordWrap: false,
-    formatOnSave: false,
     outputFontSize: 13,
     outputPosition: 'bottom',
     explorerWidth: 250,

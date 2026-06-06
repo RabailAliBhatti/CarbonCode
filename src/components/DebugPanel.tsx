@@ -20,6 +20,7 @@ interface DebugState {
 
 interface DebugPanelProps {
     debugState: DebugState
+    javaDebugUnsupported?: boolean
     onStart: () => void
     onStop: () => void
     onStepOver: () => void
@@ -30,6 +31,7 @@ interface DebugPanelProps {
 
 function DebugPanel({
     debugState,
+    javaDebugUnsupported = false,
     onStart,
     onStop,
     onStepOver,
@@ -39,6 +41,20 @@ function DebugPanel({
 }: DebugPanelProps) {
     const isDebugging = debugState.status !== 'idle' && debugState.status !== 'exited'
     const isStopped = debugState.status === 'stopped'
+
+    if (javaDebugUnsupported) {
+        return (
+            <div className="bg-editor-sidebar border-t border-editor-border">
+                <div className="flex items-start gap-3 px-4 py-3" style={{ borderLeft: '3px solid #3b82f6', background: 'rgba(59, 130, 246, 0.08)' }}>
+                    <i className="ti ti-info-circle text-blue-400 text-lg mt-0.5 shrink-0" />
+                    <div className="text-sm">
+                        <p className="text-text-primary font-medium">Java debugging is not supported</p>
+                        <p className="text-text-secondary mt-1">Use F5 to compile and run your Java program. For debugging, add <code className="text-accent">System.out.println()</code> statements to inspect values.</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="bg-editor-sidebar border-t border-editor-border">

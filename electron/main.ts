@@ -1,8 +1,8 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, watch, type FSWatcher } from 'fs'
 import os from 'os'
-import { detectCompiler, detectJavaRuntime, compileAndRun, compileCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startInteractiveCommand, writeToProcess, killProcess, CompilationResult, CompileResult, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
+import { detectCompiler, detectJavaRuntime, compileCode, compileJavaCode, startInteractiveProcess, startJavaProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
 
@@ -18,7 +18,27 @@ let mainWindow: BrowserWindow | null = null
 let currentFilePath: string | null = null
 let isDirty = false
 
+// File watchers
+const fileWatchers = new Map<string, { watcher: FSWatcher; timeout: ReturnType<typeof setTimeout> | null }>()
+
 function createWindow() {
+    // Create splash screen
+    const splash = new BrowserWindow({
+        width: 480,
+        height: 300,
+        frame: false,
+        resizable: false,
+        alwaysOnTop: true,
+        transparent: true,
+        skipTaskbar: true,
+        center: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    })
+    splash.loadFile(join(__dirname, '../public/splash.html'))
+
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
@@ -29,6 +49,7 @@ function createWindow() {
         autoHideMenuBar: true,
         title: 'CarbonCode',
         icon: join(__dirname, '../public/icon.png'),
+        show: false,
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -42,6 +63,13 @@ function createWindow() {
 
     // Force the window title
     mainWindow.setTitle('CarbonCode')
+
+    // Show main window when ready, close splash
+    mainWindow.once('ready-to-show', () => {
+        mainWindow?.show()
+        splash.close()
+        splash.destroy()
+    })
 
     // Load the app
     if (process.env.VITE_DEV_SERVER_URL) {
@@ -278,14 +306,27 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
     let filePath = existingPath
 
     if (!filePath) {
-        const result = await dialog.showSaveDialog(mainWindow, {
-            defaultPath: language === 'java' ? 'untitled.java' : 'untitled.cpp',
-            filters: [
+        const filters = language === 'java'
+            ? [
+                { name: 'Java Files', extensions: ['java'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
+            : language === 'cpp'
+            ? [
+                { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
+                { name: 'Header Files', extensions: ['h', 'hpp', 'hxx'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
+            : [
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
                 { name: 'Java Files', extensions: ['java'] },
                 { name: 'Header Files', extensions: ['h', 'hpp', 'hxx'] },
                 { name: 'All Files', extensions: ['*'] }
-            ]
+              ]
+
+        const result = await dialog.showSaveDialog(mainWindow, {
+            defaultPath: language === 'java' ? 'untitled.java' : 'untitled.cpp',
+            filters
         })
 
         if (result.canceled || !result.filePath) {
@@ -367,11 +408,6 @@ ipcMain.handle('compiler:get-info', () => {
 // Get author name (system username)
 ipcMain.handle('get-author-name', () => {
     return os.userInfo().username
-})
-
-// Compile and run code (Legacy/One-shot)
-ipcMain.handle('compiler:run', async (_, code: string, cppStandard: string): Promise<CompilationResult> => {
-    return await compileAndRun(code, cppStandard)
 })
 
 // Interactive Process Handlers
@@ -597,7 +633,40 @@ ipcMain.handle('analytics:has-been-asked', () => {
     return analytics.hasBeenAskedAboutAnalytics()
 })
 
+// File watch handlers
+ipcMain.handle('file:watch-start', (_, filePath: string) => {
+    if (fileWatchers.has(filePath)) return
+
+    const watcher = watch(filePath, { persistent: false }, () => {
+        const entry = fileWatchers.get(filePath)
+        if (!entry) return
+
+        // Debounce: cancel previous timeout, set new one (300ms)
+        if (entry.timeout) clearTimeout(entry.timeout)
+        entry.timeout = setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('file:changed', filePath)
+            }
+        }, 300)
+    })
+
+    fileWatchers.set(filePath, { watcher, timeout: null })
+})
+
+ipcMain.handle('file:watch-stop', (_, filePath: string) => {
+    const entry = fileWatchers.get(filePath)
+    if (entry) {
+        if (entry.timeout) clearTimeout(entry.timeout)
+        entry.watcher.close()
+        fileWatchers.delete(filePath)
+    }
+})
+
 ipcMain.handle('shell:open-external', (_, url: string) => {
+    if (!url.startsWith('https:')) {
+        console.warn(`Blocked opening of non-https URL: ${url}`)
+        return
+    }
     shell.openExternal(url)
 })
 
@@ -622,6 +691,16 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit()
     }
+})
+
+app.on('before-quit', () => {
+    debugService.stop()
+    // Close all file watchers
+    for (const [, entry] of fileWatchers) {
+        if (entry.timeout) clearTimeout(entry.timeout)
+        entry.watcher.close()
+    }
+    fileWatchers.clear()
 })
 
 app.on('will-quit', () => {

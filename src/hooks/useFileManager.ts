@@ -1,6 +1,37 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { FileTab } from '../components/TabBar'
 import { SupportedLanguage, getLanguageFromFileName } from '../types/language'
+
+const STORAGE_KEY = 'carboncode-tabs'
+
+function loadTabsFromStorage(): { tabs: FileTab[]; activeTabId: string | null } | null {
+    try {
+        const data = localStorage.getItem(STORAGE_KEY)
+        if (data) {
+            const parsed = JSON.parse(data)
+            if (parsed.tabs && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+                return parsed
+            }
+        }
+    } catch { }
+    return null
+}
+
+function saveTabsToStorage(tabs: FileTab[], activeTabId: string | null): void {
+    try {
+        if (tabs.length === 0) {
+            localStorage.removeItem(STORAGE_KEY)
+        } else {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }))
+        }
+    } catch { }
+}
+
+function clearTabsFromStorage(): void {
+    try {
+        localStorage.removeItem(STORAGE_KEY)
+    } catch { }
+}
 
 // Generate default C++ template with author info
 const generateDefaultCode = (authorName: string): string => {
@@ -74,9 +105,34 @@ const getFileName = (filePath: string | null) => {
 
 export function useFileManager() {
     const [tabs, setTabs] = useState<FileTab[]>([])
-
-    // Active tab ID or null if no tabs
     const [activeTabId, setActiveTabId] = useState<string | null>(null)
+    const [hasRecoveryData, setHasRecoveryData] = useState(false)
+    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Load from localStorage on mount
+    useEffect(() => {
+        const saved = loadTabsFromStorage()
+        if (saved && saved.tabs.length > 0) {
+            setTabs(saved.tabs)
+            setActiveTabId(saved.activeTabId)
+            setHasRecoveryData(true)
+        }
+    }, [])
+
+    // Debounced save to localStorage
+    useEffect(() => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current)
+        }
+        saveTimeoutRef.current = setTimeout(() => {
+            saveTabsToStorage(tabs, activeTabId)
+        }, 1000)
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+            }
+        }
+    }, [tabs, activeTabId])
 
     // Get active tab
     const activeTab = tabs.find(tab => tab.id === activeTabId) || null
@@ -179,6 +235,30 @@ export function useFileManager() {
         return tabs.find(t => t.id === tabId)
     }, [tabs])
 
+    const acceptRecovery = useCallback(() => {
+        setHasRecoveryData(false)
+    }, [])
+
+    const dismissRecovery = useCallback(() => {
+        setHasRecoveryData(false)
+        clearTabsFromStorage()
+        setTabs([])
+        setActiveTabId(null)
+    }, [])
+
+    // Reload tab content from disk (for external file changes)
+    const reloadTabFromDisk = useCallback(async (filePath: string) => {
+        const content = await window.electronAPI.readFile(filePath)
+        if (content === null) return
+
+        setTabs(prev => prev.map(tab => {
+            if (tab.filePath === filePath) {
+                return { ...tab, content, isDirty: false }
+            }
+            return tab
+        }))
+    }, [])
+
     return {
         tabs,
         activeTab,
@@ -191,7 +271,11 @@ export function useFileManager() {
         switchToTab,
         hasUnsavedChanges,
         getTab,
-        setActiveTabId
+        setActiveTabId,
+        hasRecoveryData,
+        acceptRecovery,
+        dismissRecovery,
+        reloadTabFromDisk
     }
 }
 

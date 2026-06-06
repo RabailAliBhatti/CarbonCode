@@ -6,6 +6,7 @@ import { app } from 'electron'
 
 export interface Breakpoint {
     id: number
+    gdbNumber: number
     file: string
     line: number
 }
@@ -100,8 +101,9 @@ export class DebuggerService extends EventEmitter {
             this.emit('stateChanged', this.getState())
 
             return { success: true }
-        } catch (error: any) {
-            return { success: false, error: error.message }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error)
+            return { success: false, error: message }
         }
     }
 
@@ -110,6 +112,11 @@ export class DebuggerService extends EventEmitter {
             await this.sendCommand('-gdb-exit')
             this.gdbProcess.kill()
             this.gdbProcess = null
+        }
+        try {
+            fs.rmSync(this.tempDir, { recursive: true, force: true })
+        } catch {
+            // Ignore cleanup errors
         }
         this.state = {
             status: 'idle',
@@ -124,8 +131,11 @@ export class DebuggerService extends EventEmitter {
 
         const response = await this.sendCommand(`-break-insert ${file}:${line}`)
         if (response.includes('^done')) {
+            const numberMatch = response.match(/number="(\d+)"/)
+            const gdbNumber = numberMatch ? parseInt(numberMatch[1]) : ++this.breakpointCounter
             const bp: Breakpoint = {
                 id: ++this.breakpointCounter,
+                gdbNumber,
                 file,
                 line
             }
@@ -141,7 +151,7 @@ export class DebuggerService extends EventEmitter {
 
         const bp = this.state.breakpoints.find(b => b.id === id)
         if (bp) {
-            await this.sendCommand(`-break-delete ${id}`)
+            await this.sendCommand(`-break-delete ${bp.gdbNumber}`)
             this.state.breakpoints = this.state.breakpoints.filter(b => b.id !== id)
             this.emit('stateChanged', this.getState())
         }

@@ -30,3 +30,6 @@ npm-debug.log*
 # Temporary files
 temp/
 tmp/
+
+# Sync
+sync.ffs_db
