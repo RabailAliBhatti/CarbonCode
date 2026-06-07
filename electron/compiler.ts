@@ -476,11 +476,16 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
     }
 
     const tempDir = join(tmpdir(), `carboncode-java-${randomUUID()}`)
-    const sourceName = filePath && filePath.toLowerCase().endsWith('.java')
-        ? basename(filePath)
-        : 'Main.java'
+
+    // Extract the public class name from code to ensure filename matches
+    let mainClass = 'Main'
+    const classMatch = code.match(/\bpublic\s+class\s+(\w+)/)
+    if (classMatch) {
+        mainClass = classMatch[1]
+    }
+
+    const sourceName = `${mainClass}.java`
     const sourceFile = join(tempDir, sourceName)
-    const mainClass = basename(sourceName, extname(sourceName))
 
     const codeWithImports = code
 
