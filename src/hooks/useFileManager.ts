@@ -195,6 +195,7 @@ export function useFileManager() {
                     ...tab,
                     filePath,
                     fileName: getFileName(filePath),
+                    language: getLanguageFromFileName(filePath),
                     isDirty: false
                 }
             }

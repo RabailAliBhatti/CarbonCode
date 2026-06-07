@@ -277,8 +277,7 @@ ipcMain.handle('dialog:open-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: [
-            { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx'] },
-            { name: 'Java Files', extensions: ['java'] },
+            { name: 'Supported Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java'] },
             { name: 'All Files', extensions: ['*'] }
         ]
     })
@@ -417,6 +416,25 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     const request: RunRequest = typeof requestOrCode === 'string'
         ? { language: 'cpp', code: requestOrCode, cppStandard: legacyCppStandard }
         : requestOrCode
+
+    // Safety: detect language from file extension if not explicitly java
+    if (request.language !== 'java' && request.filePath && request.filePath.toLowerCase().endsWith('.java')) {
+        request.language = 'java'
+    }
+
+    // Safety: detect Java from code content if language was not set correctly
+    if (request.language !== 'java') {
+        const trimmed = request.code.trim()
+        if (
+            /^\s*import\s+java\./m.test(trimmed) ||
+            /\bpublic\s+class\b/.test(trimmed) ||
+            /\bextends\s+\w+/.test(trimmed) ||
+            /\bSystem\.out\./.test(trimmed) ||
+            /\bSystem\.in\./.test(trimmed)
+        ) {
+            request.language = 'java'
+        }
+    }
 
     if (request.language === 'java') {
         const compileResult = await compileJavaCode(request.code, request.filePath)
