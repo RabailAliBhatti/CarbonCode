@@ -634,22 +634,25 @@ ipcMain.handle('debugger:remove-breakpoint', async (_, id: number) => {
 })
 
 // Analytics IPC handlers
-ipcMain.handle('analytics:track', (_, eventName: string) => {
+ipcMain.handle('analytics:track', (_, eventName: string, params?: Record<string, unknown>) => {
     switch (eventName) {
         case 'file_created':
-            analytics.trackFileCreated()
+            analytics.trackFileCreated(params?.language as string || 'unknown')
             break
         case 'file_opened':
-            analytics.trackFileOpened()
+            analytics.trackFileOpened(params?.language as string || 'unknown')
             break
         case 'code_compiled':
-            analytics.trackCodeCompiled()
+            analytics.trackCodeCompiled(params?.language as string || 'unknown', params?.lineCount as number || 0)
             break
         case 'code_run':
-            analytics.trackCodeRun()
+            analytics.trackCodeRun(params?.language as string || 'unknown', params?.lineCount as number || 0)
+            break
+        case 'code_run_error':
+            analytics.trackCodeRunError(params?.language as string || 'unknown', params?.lineCount as number || 0, params?.errorMessage as string || '')
             break
         case 'debug_started':
-            analytics.trackDebugStarted()
+            analytics.trackDebugStarted(params?.language as string || 'unknown')
             break
     }
 })

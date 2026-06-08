@@ -159,22 +159,26 @@ export function trackAppLaunch(): void {
     trackEvent('app_launch')
 }
 
-export function trackFileCreated(): void {
-    trackEvent('file_created')
+export function trackFileCreated(language: string): void {
+    trackEvent('file_created', { language })
 }
 
-export function trackFileOpened(): void {
-    trackEvent('file_opened')
+export function trackFileOpened(language: string): void {
+    trackEvent('file_opened', { language })
 }
 
-export function trackCodeCompiled(): void {
-    trackEvent('code_compiled')
+export function trackCodeCompiled(language: string, lineCount: number): void {
+    trackEvent('code_compiled', { language, line_count: lineCount })
 }
 
-export function trackCodeRun(): void {
-    trackEvent('code_run')
+export function trackCodeRun(language: string, lineCount: number): void {
+    trackEvent('code_run', { language, line_count: lineCount })
 }
 
-export function trackDebugStarted(): void {
-    trackEvent('debug_started')
+export function trackCodeRunError(language: string, lineCount: number, errorMessage: string): void {
+    trackEvent('code_run_error', { language, line_count: lineCount, error_short: errorMessage.substring(0, 100) })
+}
+
+export function trackDebugStarted(language: string): void {
+    trackEvent('debug_started', { language })
 }

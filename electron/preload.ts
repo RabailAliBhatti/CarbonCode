@@ -173,7 +173,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // Analytics API
-    trackEvent: (eventName: string) => ipcRenderer.invoke('analytics:track', eventName),
+    trackEvent: (eventName: string, params?: Record<string, unknown>) => ipcRenderer.invoke('analytics:track', eventName, params),
     setAnalyticsConsent: (consent: boolean) => ipcRenderer.invoke('analytics:set-consent', consent),
     getAnalyticsConsent: () => ipcRenderer.invoke('analytics:get-consent'),
     hasBeenAskedAnalytics: () => ipcRenderer.invoke('analytics:has-been-asked'),
@@ -265,7 +265,7 @@ export interface ElectronAPI {
     onDebugToggleBreakpoint: (callback: () => void) => () => void
 
     // Analytics API
-    trackEvent: (eventName: string) => Promise<void>
+    trackEvent: (eventName: string, params?: Record<string, unknown>) => Promise<void>
     setAnalyticsConsent: (consent: boolean) => Promise<void>
     getAnalyticsConsent: () => Promise<boolean | null>
     hasBeenAskedAnalytics: () => Promise<boolean>

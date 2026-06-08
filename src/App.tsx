@@ -310,7 +310,7 @@ function App() {
     const handleNewFileSelect = useCallback((language: 'cpp' | 'java') => {
         setShowNewFileDialog(false)
         createNewTab(language, authorName || undefined)
-        window.electronAPI?.trackEvent?.('file_created')
+        window.electronAPI?.trackEvent?.('file_created', { language })
     }, [createNewTab, authorName])
 
     // Open file handler
@@ -319,7 +319,8 @@ function App() {
         if (file) {
             openFile(file.filePath, file.content)
             // Track analytics
-            window.electronAPI?.trackEvent?.('file_opened')
+            const fileLang = file.filePath?.toLowerCase().endsWith('.java') ? 'java' : 'cpp'
+            window.electronAPI?.trackEvent?.('file_opened', { language: fileLang })
             // Effect sends welcome screen away
 
             // Add to recent files (local storage logic could go here)
@@ -358,7 +359,7 @@ function App() {
         const result = await window.electronAPI.debugStart(code, bpArray)
         if (result.success) {
             // Track analytics - debug started
-            window.electronAPI?.trackEvent?.('debug_started')
+            window.electronAPI?.trackEvent?.('debug_started', { language: activeLanguage })
         } else {
             setCompilationResult({
                 success: false,
@@ -492,9 +493,10 @@ function App() {
         // Welcome screen logic handled by effect, but we can ensure it's hidden if running (should already be)
 
         const currentCode = editorRef.current?.getValue() || activeTab.content
+        const lineCount = currentCode.split('\n').length
 
         // Track analytics - code compiled
-        window.electronAPI?.trackEvent?.('code_compiled')
+        window.electronAPI?.trackEvent?.('code_compiled', { language: activeLanguage, lineCount })
 
         // Use new interactive process API
         const startResult = await window.electronAPI.startProcess({
@@ -509,7 +511,7 @@ function App() {
         if (startResult.success) {
             setIsRunning(true)
             // Track analytics - code run successfully
-            window.electronAPI?.trackEvent?.('code_run')
+            window.electronAPI?.trackEvent?.('code_run', { language: activeLanguage, lineCount })
             setCompilationResult({
                 success: true,
                 output: '',
@@ -517,6 +519,8 @@ function App() {
                 compileTime: startResult.compileTime
             })
         } else {
+            // Track analytics - code run error
+            window.electronAPI?.trackEvent?.('code_run_error', { language: activeLanguage, lineCount, errorMessage: startResult.error || 'Unknown error' })
             setCompilationResult({
                 success: false,
                 output: '',
