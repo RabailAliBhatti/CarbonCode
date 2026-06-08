@@ -108,13 +108,13 @@ export function useFileManager() {
     const [activeTabId, setActiveTabId] = useState<string | null>(null)
     const [hasRecoveryData, setHasRecoveryData] = useState(false)
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pendingRecoveryRef = useRef<{ tabs: FileTab[]; activeTabId: string | null } | null>(null)
 
-    // Load from localStorage on mount
+    // Load from localStorage on mount — store in ref, don't apply yet
     useEffect(() => {
         const saved = loadTabsFromStorage()
         if (saved && saved.tabs.length > 0) {
-            setTabs(saved.tabs)
-            setActiveTabId(saved.activeTabId)
+            pendingRecoveryRef.current = saved
             setHasRecoveryData(true)
         }
     }, [])
@@ -238,10 +238,24 @@ export function useFileManager() {
 
     const acceptRecovery = useCallback(() => {
         setHasRecoveryData(false)
+        if (pendingRecoveryRef.current) {
+            setTabs(pendingRecoveryRef.current.tabs)
+            setActiveTabId(pendingRecoveryRef.current.activeTabId)
+            pendingRecoveryRef.current = null
+        }
     }, [])
 
     const dismissRecovery = useCallback(() => {
         setHasRecoveryData(false)
+        pendingRecoveryRef.current = null
+        clearTabsFromStorage()
+        setTabs([])
+        setActiveTabId(null)
+    }, [])
+
+    // Force clear storage on "Don't Save" close
+    const discardAll = useCallback(() => {
+        pendingRecoveryRef.current = null
         clearTabsFromStorage()
         setTabs([])
         setActiveTabId(null)
@@ -276,6 +290,7 @@ export function useFileManager() {
         hasRecoveryData,
         acceptRecovery,
         dismissRecovery,
+        discardAll,
         reloadTabFromDisk
     }
 }

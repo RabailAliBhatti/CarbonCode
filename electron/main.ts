@@ -110,9 +110,10 @@ function createWindow() {
                     mainWindow?.close()
                 }, 100)
             } else if (result.response === 1) {
-                // Don't save
+                // Don't save - clear tab storage then close
+                mainWindow?.webContents.send('session:discard')
                 isDirty = false
-                mainWindow?.close()
+                setTimeout(() => mainWindow?.close(), 50)
             }
             // Cancel - do nothing
         }
@@ -437,6 +438,15 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     }
 
     if (request.language === 'java') {
+        // Static analysis: warn if Scanner is created but never read from
+        const code = request.code
+        const hasScanner = /new\s+Scanner\s*\(\s*System\.in\s*\)/.test(code)
+        const hasAnyScanRead = /(\w+)\.(next|nextLine|nextInt|nextDouble|nextFloat|nextBoolean|nextLong|nextByte|nextShort)\s*\(/.test(code)
+        let warningMsg = ''
+        if (hasScanner && !hasAnyScanRead) {
+            warningMsg = '\n\u26a0\ufe0f Warning: Your code creates a Scanner to read from System.in, but no read method (next(), nextLine(), etc.) was found. The Scanner is unused.\n\n'
+        }
+
         const compileResult = await compileJavaCode(request.code, request.filePath)
 
         if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir || !compileResult.mainClass) {
@@ -461,6 +471,11 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
                 mainWindow?.webContents.send('process:exit', code)
             }
         )
+
+        // Send Scanner warning before process output
+        if (warningMsg) {
+            mainWindow?.webContents.send('process:stdout', warningMsg)
+        }
 
         return {
             success: true,

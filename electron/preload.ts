@@ -186,6 +186,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (_event: Electron.IpcRendererEvent, filePath: string) => callback(filePath)
         ipcRenderer.on('file:changed', subscription)
         return () => ipcRenderer.removeListener('file:changed', subscription)
+    },
+
+    // Session management
+    onSessionDiscard: (callback: () => void) => {
+        ipcRenderer.on('session:discard', callback)
+        return () => ipcRenderer.removeListener('session:discard', callback)
     }
 })
 
@@ -269,6 +275,9 @@ export interface ElectronAPI {
     watchFile: (filePath: string) => Promise<void>
     unwatchFile: (filePath: string) => Promise<void>
     onFileChanged: (callback: (filePath: string) => void) => () => void
+
+    // Session management
+    onSessionDiscard: (callback: () => void) => () => void
 }
 
 declare global {

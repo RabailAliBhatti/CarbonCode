@@ -62,6 +62,7 @@ function App() {
         hasRecoveryData,
         acceptRecovery,
         dismissRecovery,
+        discardAll,
         reloadTabFromDisk
     } = fileManager
 
@@ -111,6 +112,7 @@ function App() {
     // Compiler state
     const [compilerInfo, setCompilerInfo] = useState<string | null>(null)
     const [javaRuntimeInfo, setJavaRuntimeInfo] = useState<RuntimeInfo | null>(null)
+    const [isDetecting, setIsDetecting] = useState<boolean>(true)
     const [isCompiling, setIsCompiling] = useState<boolean>(false)
     const [compilationResult, setCompilationResult] = useState<{
         success: boolean
@@ -227,10 +229,12 @@ function App() {
     // Check for compiler and fetch author name on mount
     useEffect(() => {
         const checkCompiler = async () => {
+            setIsDetecting(true)
             const compiler = await window.electronAPI.detectCompiler(settings.compilerPath || undefined)
             setCompilerInfo(compiler)
             const javaRuntime = await window.electronAPI.detectJavaRuntime(settings.javaHome || undefined, settings.javaCompilerPath || undefined)
             setJavaRuntimeInfo(javaRuntime)
+            setIsDetecting(false)
         }
         const fetchAuthorName = async () => {
             const name = await window.electronAPI.getAuthorName()
@@ -456,6 +460,15 @@ function App() {
     const handleRun = useCallback(async () => {
         if (!activeTab) return
 
+        if (isDetecting) {
+            setCompilationResult({
+                success: false,
+                output: '',
+                error: 'Detecting compilers, please wait...'
+            })
+            return
+        }
+
         if (!hasActiveRuntime) {
             setCompilationResult({
                 success: false,
@@ -512,7 +525,7 @@ function App() {
             })
         }
 
-    }, [activeTab, settings.cppStandard, hasActiveRuntime, activeLanguage, isRunning])
+    }, [activeTab, settings.cppStandard, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
 
     // Tab close handler
     const handleTabClose = useCallback(async (tabId: string, e: MouseEvent) => {
@@ -566,6 +579,11 @@ function App() {
         const cleanupDebugContinue = window.electronAPI.onDebugContinue(handleDebugContinue)
         const cleanupDebugToggleBp = window.electronAPI.onDebugToggleBreakpoint(handleToggleBreakpoint)
 
+        // Session discard listener (Don't Save on close)
+        const cleanupSessionDiscard = window.electronAPI.onSessionDiscard(() => {
+            discardAll()
+        })
+
         return () => {
             cleanupNewFile()
             cleanupOpenFile()
@@ -581,8 +599,9 @@ function App() {
             cleanupDebugStepOut()
             cleanupDebugContinue()
             cleanupDebugToggleBp()
+            cleanupSessionDiscard()
         }
-    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint])
+    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint, discardAll])
 
     // Keyboard shortcuts
     useEffect(() => {
