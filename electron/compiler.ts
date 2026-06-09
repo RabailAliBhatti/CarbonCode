@@ -552,6 +552,7 @@ export function startInteractiveProcess(
     const spawnOptions: SpawnOptions = {
         cwd,
         shell: false,
+        detached: true,
         windowsHide: true,
         ...(env ? { env } : {})
     }
@@ -602,6 +603,7 @@ function startInteractiveCommand(
     const spawnOptions: SpawnOptions = {
         cwd,
         shell: false,
+        detached: true,
         windowsHide: true,
         ...(env ? { env } : {})
     }
@@ -671,7 +673,28 @@ export function writeToProcess(input: string): boolean {
 
 export function killProcess(): boolean {
     if (currentProcess) {
-        currentProcess.kill('SIGTERM')
+        const pid = currentProcess.pid
+        if (pid) {
+            try {
+                // On Windows, kill the entire process tree (parent + children)
+                if (process.platform === 'win32') {
+                    spawn('taskkill', ['/F', '/T', '/PID', String(pid)], {
+                        stdio: 'ignore',
+                        detached: true,
+                        windowsHide: true
+                    }).unref()
+                } else {
+                    // On Unix, send SIGTERM to process group
+                    process.kill(-pid, 'SIGTERM')
+                }
+            } catch {
+                // Fallback: kill the direct process
+                try { currentProcess.kill('SIGKILL') } catch { }
+            }
+        } else {
+            currentProcess.kill('SIGKILL')
+        }
+        currentProcess = null
         return true
     }
     return false
