@@ -147,6 +147,9 @@ function App() {
     })
     const [breakpoints, setBreakpoints] = useState<number[]>([])
 
+    // Track execution start time
+    const executionStartRef = useRef<number>(0)
+
     // Listeners for process output
     useEffect(() => {
         const cleanStdout = window.electronAPI.onProcessStdout((data) => {
@@ -177,17 +180,20 @@ function App() {
 
         const cleanExit = window.electronAPI.onProcessExit((code) => {
             setIsRunning(false)
+            const elapsed = Date.now() - executionStartRef.current
             setCompilationResult(prev => {
                 if (code !== 0) {
                     return {
                         ...prev!,
                         success: false,
+                        executionTime: elapsed,
                         error: (prev?.error || '') + `\nProgram exited with code ${code}`
                     }
                 }
                 return {
                     ...prev!,
-                    success: true
+                    success: true,
+                    executionTime: elapsed
                 }
             })
         })
@@ -509,6 +515,7 @@ function App() {
         setIsCompiling(false)
 
         if (startResult.success) {
+            executionStartRef.current = Date.now()
             setIsRunning(true)
             // Track analytics - code run successfully
             window.electronAPI?.trackEvent?.('code_run', { language: activeLanguage, lineCount })

@@ -559,6 +559,15 @@ export function startInteractiveProcess(
 
     currentProcess = spawn(cmd, [], spawnOptions)
 
+    // Auto-kill after 30 seconds to prevent infinite loops from hanging
+    const timeout = setTimeout(() => {
+        if (currentProcess) {
+            onStderr('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            killProcess()
+            onExit(-1)
+        }
+    }, 30000)
+
     currentProcess.stdout?.on('data', (data) => {
         onStdout(data.toString())
     })
@@ -568,6 +577,7 @@ export function startInteractiveProcess(
     })
 
     currentProcess.on('close', (code) => {
+        clearTimeout(timeout)
         currentProcess = null
         onExit(code || 0)
         // Cleanup executable
@@ -610,6 +620,15 @@ function startInteractiveCommand(
 
     currentProcess = spawn(command, args, spawnOptions)
 
+    // Auto-kill after 30 seconds to prevent infinite loops from hanging
+    const timeout = setTimeout(() => {
+        if (currentProcess) {
+            onStderr('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            killProcess()
+            onExit(-1)
+        }
+    }, 30000)
+
     currentProcess.stdout?.on('data', (data) => {
         onStdout(data.toString())
     })
@@ -619,6 +638,7 @@ function startInteractiveCommand(
     })
 
     currentProcess.on('close', (code) => {
+        clearTimeout(timeout)
         currentProcess = null
         onExit(code || 0)
         setTimeout(() => {

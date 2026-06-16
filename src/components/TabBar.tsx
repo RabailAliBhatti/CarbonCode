@@ -27,6 +27,13 @@ function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onNewTab }: TabBarP
                     <button
                         key={tab.id}
                         onClick={() => onTabClick(tab.id)}
+                        onMouseDown={(e) => {
+                            // Middle-click closes the tab
+                            if (e.button === 1) {
+                                e.preventDefault()
+                                onTabClose(tab.id, e)
+                            }
+                        }}
                         className={`
               group flex items-center gap-2 px-4 py-2 text-sm font-medium border-r border-editor-border
               transition-colors min-w-0 shrink-0
