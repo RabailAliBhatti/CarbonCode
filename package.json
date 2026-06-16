@@ -1,6 +1,6 @@
 {
   "name": "carboncode",
-  "version": "3.1.0",
+  "version": "3.3.5",
   "description": "CarbonCode - A lightweight, offline C++ IDE built with Electron, React, and Monaco Editor",
   "main": "dist-electron/main.js",
   "author": "Rabail Ali Bhatti",
