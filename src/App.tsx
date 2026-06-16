@@ -616,10 +616,17 @@ function App() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // F5 - Run code
-            if (e.key === 'F5') {
+            if (e.key === 'F5' && !e.shiftKey) {
                 e.preventDefault()
                 if (!isCompiling && !isRunning && hasActiveRuntime) {
                     handleRun()
+                }
+            }
+            // Shift+F5 - Stop execution
+            if (e.shiftKey && e.key === 'F5') {
+                e.preventDefault()
+                if (isRunning) {
+                    handleStop()
                 }
             }
             // Ctrl+B - Toggle explorer
@@ -639,7 +646,7 @@ function App() {
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, showFind])
+    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, handleStop, showFind])
 
     // Start coding (dismiss welcome screen)
     const handleStartCoding = () => {
