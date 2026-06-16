@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 
 interface CompilationResult {
     success: boolean
@@ -17,6 +17,8 @@ interface OutputPanelProps {
     fontSize?: number
 }
 
+const MAX_VISIBLE_LINES = 500
+
 function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize = 13 }: OutputPanelProps) {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
     const [inputValue, setInputValue] = useState('')
@@ -28,6 +30,18 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize
 
     // Auto-switch to errors tab if there are errors and no output (only initially)
     const effectiveTab = hasErrors && !hasOutput && !isRunning ? 'errors' : activeTab
+
+    // Virtualize output: only render last N lines
+    const { visibleLines, totalLines, startIndex } = useMemo(() => {
+        if (!result?.output) return { visibleLines: [], totalLines: 0, startIndex: 0 }
+        const lines = result.output.split('\n')
+        const total = lines.length
+        if (total <= MAX_VISIBLE_LINES) {
+            return { visibleLines: lines, totalLines: total, startIndex: 0 }
+        }
+        const start = total - MAX_VISIBLE_LINES
+        return { visibleLines: lines.slice(start), totalLines: total, startIndex: start }
+    }, [result?.output])
 
     // Auto-scroll to bottom when output changes
     useEffect(() => {
@@ -151,8 +165,16 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize
                                 <>
                                     {(hasOutput || isRunning) ? (
                                         <div className="text-text-primary whitespace-pre-wrap break-words leading-relaxed">
-                                            {/* Output text */}
-                                            <span>{result.output}</span>
+                                            {/* Truncation notice */}
+                                            {totalLines > MAX_VISIBLE_LINES && (
+                                                <div className="text-text-secondary text-xs italic mb-2">
+                                                    Showing last {MAX_VISIBLE_LINES} of {totalLines} lines
+                                                </div>
+                                            )}
+                                            {/* Virtualized output lines */}
+                                            {visibleLines.map((line, i) => (
+                                                <div key={startIndex + i}>{line}</div>
+                                            ))}
                                             {/* Inline input when running */}
                                             {isRunning && (
                                                 <span className="inline-flex items-center">

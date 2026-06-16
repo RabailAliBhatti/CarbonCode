@@ -32,6 +32,17 @@ interface RuntimeInfo {
     version?: string
 }
 
+// Cap accumulated output to prevent the renderer from running out of memory
+// when a program prints in a tight infinite loop.
+const MAX_OUTPUT_LENGTH = 500 * 1024 // 500 KB
+
+function appendOutput(existing: string, chunk: string): string {
+    const combined = existing + chunk
+    if (combined.length <= MAX_OUTPUT_LENGTH) return combined
+    const tail = combined.slice(-MAX_OUTPUT_LENGTH)
+    return `\n... output truncated to last ${MAX_OUTPUT_LENGTH} characters ...\n` + tail
+}
+
 function App() {
     // Settings
     const { settings, updateSetting } = useSettings()
@@ -153,29 +164,20 @@ function App() {
     // Listeners for process output
     useEffect(() => {
         const cleanStdout = window.electronAPI.onProcessStdout((data) => {
-            setCompilationResult(prev => {
-                const newOutput = (prev?.output || '') + data
-                return {
-                    success: true, // Optimistic
-                    output: newOutput,
-                    error: prev?.error || '',
-                    compileTime: prev?.compileTime,
-                    executionTime: prev?.executionTime
-                }
-            })
+            setCompilationResult(prev => ({
+                success: true, // Optimistic
+                output: appendOutput(prev?.output || '', data),
+                error: prev?.error || '',
+                compileTime: prev?.compileTime,
+                executionTime: prev?.executionTime
+            }))
         })
 
         const cleanStderr = window.electronAPI.onProcessStderr((data) => {
-            setCompilationResult(prev => {
-                // stderr for running process might just be info/errors
-                // we can append to error, or output depending on preference.
-                // Usually stderr is separate.
-                const newError = (prev?.error || '') + data
-                return {
-                    ...prev!,
-                    error: newError
-                }
-            })
+            setCompilationResult(prev => ({
+                ...prev!,
+                error: appendOutput(prev?.error || '', data)
+            }))
         })
 
         const cleanExit = window.electronAPI.onProcessExit((code) => {
@@ -212,14 +214,10 @@ function App() {
 
     const handleInput = useCallback((data: string) => {
         window.electronAPI.writeProcess(data)
-        // Echo input to output? Usually terminals echo input.
-        // If the process echoes, we don't need to.
-        // Assuming process handles echo if it's a TTY, but we are capturing pipes.
-        // We might want to manually echo to UX if the process doesn't.
-        // For now, let's append input to output for clarity.
+        // Echo input to output for clarity.
         setCompilationResult(prev => ({
             ...prev!,
-            output: (prev?.output || '') + data
+            output: appendOutput(prev?.output || '', data)
         }))
     }, [])
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
@@ -437,7 +435,7 @@ function App() {
             // Save to existing path
             const result = await window.electronAPI.saveFile(contentToSave, activeTab.filePath, activeTab.language)
             if (result && result.success) {
-                markTabSaved(activeTab.id, result.filePath)
+                markTabSaved(activeTab.id, activeTab.filePath)
             }
         }
     }, [activeTab, markTabSaved])

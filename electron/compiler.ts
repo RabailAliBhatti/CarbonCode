@@ -534,6 +534,42 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
 }
 
 /**
+ * Buffers and throttles a child-process stream so that output is forwarded to the
+ * renderer in batches rather than one IPC message per tiny flush.
+ */
+function createThrottledStreamHandler(
+    onData: (data: string) => void,
+    flushIntervalMs = 100,
+    maxBufferSize = 4096
+) {
+    let buffer = ''
+    let timer: NodeJS.Timeout | null = null
+
+    const flush = () => {
+        if (timer) {
+            clearTimeout(timer)
+            timer = null
+        }
+        if (buffer) {
+            onData(buffer)
+            buffer = ''
+        }
+    }
+
+    return {
+        write: (chunk: string) => {
+            buffer += chunk
+            if (buffer.length >= maxBufferSize) {
+                flush()
+            } else if (!timer) {
+                timer = setTimeout(flush, flushIntervalMs)
+            }
+        },
+        flush
+    }
+}
+
+/**
  * Start the executable in interactive mode
  */
 export function startInteractiveProcess(
@@ -559,25 +595,32 @@ export function startInteractiveProcess(
 
     currentProcess = spawn(cmd, [], spawnOptions)
 
+    // Buffer and throttle stdout/stderr to avoid flooding the renderer with IPC
+    const stdoutHandler = createThrottledStreamHandler(onStdout)
+    const stderrHandler = createThrottledStreamHandler(onStderr)
+
     // Auto-kill after 30 seconds to prevent infinite loops from hanging
     const timeout = setTimeout(() => {
         if (currentProcess) {
-            onStderr('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            stderrHandler.write('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            stderrHandler.flush()
             killProcess()
             onExit(-1)
         }
     }, 30000)
 
     currentProcess.stdout?.on('data', (data) => {
-        onStdout(data.toString())
+        stdoutHandler.write(data.toString())
     })
 
     currentProcess.stderr?.on('data', (data) => {
-        onStderr(data.toString())
+        stderrHandler.write(data.toString())
     })
 
     currentProcess.on('close', (code) => {
         clearTimeout(timeout)
+        stdoutHandler.flush()
+        stderrHandler.flush()
         currentProcess = null
         onExit(code || 0)
         // Cleanup executable
@@ -620,25 +663,32 @@ function startInteractiveCommand(
 
     currentProcess = spawn(command, args, spawnOptions)
 
+    // Buffer and throttle stdout/stderr to avoid flooding the renderer with IPC
+    const stdoutHandler = createThrottledStreamHandler(onStdout)
+    const stderrHandler = createThrottledStreamHandler(onStderr)
+
     // Auto-kill after 30 seconds to prevent infinite loops from hanging
     const timeout = setTimeout(() => {
         if (currentProcess) {
-            onStderr('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            stderrHandler.write('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            stderrHandler.flush()
             killProcess()
             onExit(-1)
         }
     }, 30000)
 
     currentProcess.stdout?.on('data', (data) => {
-        onStdout(data.toString())
+        stdoutHandler.write(data.toString())
     })
 
     currentProcess.stderr?.on('data', (data) => {
-        onStderr(data.toString())
+        stderrHandler.write(data.toString())
     })
 
     currentProcess.on('close', (code) => {
         clearTimeout(timeout)
+        stdoutHandler.flush()
+        stderrHandler.flush()
         currentProcess = null
         onExit(code || 0)
         setTimeout(() => {
@@ -782,4 +832,3 @@ function runCompilationProcess(
         })
     })
 }
-

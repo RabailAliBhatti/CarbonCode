@@ -85,6 +85,37 @@ function createWindow() {
         }
     })
 
+    // Handle renderer crash
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+        console.error('Renderer process gone:', details.reason)
+        killProcess()
+        dialog.showMessageBox(mainWindow!, {
+            type: 'error',
+            title: 'CarbonCode Crashed',
+            message: 'The application encountered a critical error and needs to reload.',
+            detail: `Reason: ${details.reason}`,
+            buttons: ['Reload', 'Close']
+        }).then(({ response }) => {
+            if (response === 0) {
+                mainWindow?.reload()
+            } else {
+                mainWindow?.close()
+            }
+        })
+    })
+
+    mainWindow.webContents.on('unresponsive', () => {
+        dialog.showMessageBox(mainWindow!, {
+            type: 'warning',
+            title: 'CarbonCode Not Responding',
+            message: 'The application is not responding. Do you want to reload?',
+            buttons: ['Reload', 'Wait', 'Close']
+        }).then(({ response }) => {
+            if (response === 0) mainWindow?.reload()
+            else if (response === 2) mainWindow?.close()
+        })
+    })
+
     // Create application menu
     createApplicationMenu()
 
@@ -521,6 +552,11 @@ ipcMain.handle('process:write', (_, data: string) => {
 
 // Stop process
 ipcMain.handle('process:stop', () => {
+    killProcess()
+})
+
+// Force stop process (used by crash recovery)
+ipcMain.on('process:force-stop', () => {
     killProcess()
 })
 
