@@ -228,6 +228,39 @@ export function useFileManager() {
         setActiveTabId(tabId)
     }, [])
 
+    // Close all tabs except the given one (no save prompt — caller is responsible)
+    const closeOtherTabs = useCallback(async (keepTabId: string) => {
+        const ids = tabs.filter(t => t.id !== keepTabId).map(t => t.id)
+        for (const id of ids) {
+            await closeTab(id)
+        }
+    }, [tabs, closeTab])
+
+    // Close every tab (no save prompt — caller is responsible)
+    const closeAllTabs = useCallback(async () => {
+        const ids = tabs.map(t => t.id)
+        for (const id of ids) {
+            await closeTab(id)
+        }
+    }, [tabs, closeTab])
+
+    // Duplicate a tab: create a new untitled tab with the same content and language
+    const duplicateTab = useCallback((tabId: string): FileTab | null => {
+        const src = tabs.find(t => t.id === tabId)
+        if (!src) return null
+        const dup: FileTab = {
+            id: generateId(),
+            fileName: src.fileName,
+            filePath: null,
+            content: src.content,
+            isDirty: true,
+            language: src.language,
+        }
+        setTabs(prev => [...prev, dup])
+        setActiveTabId(dup.id)
+        return dup
+    }, [tabs])
+
     // Check if any tab has unsaved changes
     const hasUnsavedChanges = tabs.some(tab => tab.isDirty)
 
@@ -283,6 +316,9 @@ export function useFileManager() {
         updateTabContent,
         markTabSaved,
         closeTab,
+        closeOtherTabs,
+        closeAllTabs,
+        duplicateTab,
         switchToTab,
         hasUnsavedChanges,
         getTab,

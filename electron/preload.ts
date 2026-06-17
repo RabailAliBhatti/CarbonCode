@@ -178,6 +178,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAnalyticsConsent: () => ipcRenderer.invoke('analytics:get-consent'),
     hasBeenAskedAnalytics: () => ipcRenderer.invoke('analytics:has-been-asked'),
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+    showItemInFolder: (filePath: string) => ipcRenderer.invoke('shell:show-item-in-folder', filePath),
 
     // File watch API
     watchFile: (filePath: string) => ipcRenderer.invoke('file:watch-start', filePath),
@@ -270,6 +271,7 @@ export interface ElectronAPI {
     getAnalyticsConsent: () => Promise<boolean | null>
     hasBeenAskedAnalytics: () => Promise<boolean>
     openExternal: (url: string) => Promise<void>
+    showItemInFolder: (filePath: string) => Promise<void>
 
     // File watch API
     watchFile: (filePath: string) => Promise<void>

@@ -742,6 +742,11 @@ ipcMain.handle('shell:open-external', (_, url: string) => {
     shell.openExternal(url)
 })
 
+ipcMain.handle('shell:show-item-in-folder', (_, filePath: string) => {
+    if (!filePath) return
+    shell.showItemInFolder(filePath)
+})
+
 // App lifecycle
 app.whenReady().then(() => {
     // Force app name for Windows taskbar

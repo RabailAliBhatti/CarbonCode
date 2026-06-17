@@ -6,6 +6,7 @@ import OutputPanel from './components/OutputPanel'
 import StatusBar from './components/StatusBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import TabBar from './components/TabBar'
+import TabContextMenu from './components/TabContextMenu'
 import FileExplorer from './components/FileExplorer'
 import FindReplace from './components/FindReplace'
 import SettingsModal from './components/SettingsModal'
@@ -69,6 +70,7 @@ function App() {
         updateTabContent,
         markTabSaved,
         closeTab,
+        duplicateTab,
         switchToTab,
         hasRecoveryData,
         acceptRecovery,
@@ -420,25 +422,29 @@ function App() {
     }, [])
 
     // Save file handler
-    const handleSave = useCallback(async () => {
-        if (!activeTab) return
+    const handleSave = useCallback(async (tabId?: string) => {
+        const target = tabId ? tabs.find(t => t.id === tabId) : activeTab
+        if (!target) return
 
-        let contentToSave = editorRef.current?.getValue() || activeTab.content
+        // Read live Monaco buffer only when saving the active tab; otherwise use stored content.
+        const contentToSave = (tabId === undefined || tabId === activeTabId)
+            ? (editorRef.current?.getValue() || target.content)
+            : target.content
 
-        if (!activeTab.filePath) {
+        if (!target.filePath) {
             // Save As
-            const result = await window.electronAPI.saveFile(contentToSave, undefined, activeTab.language)
+            const result = await window.electronAPI.saveFile(contentToSave, undefined, target.language)
             if (result && result.success) {
-                markTabSaved(activeTab.id, result.filePath)
+                markTabSaved(target.id, result.filePath)
             }
         } else {
             // Save to existing path
-            const result = await window.electronAPI.saveFile(contentToSave, activeTab.filePath, activeTab.language)
+            const result = await window.electronAPI.saveFile(contentToSave, target.filePath, target.language)
             if (result && result.success) {
-                markTabSaved(activeTab.id, activeTab.filePath)
+                markTabSaved(target.id, target.filePath)
             }
         }
-    }, [activeTab, markTabSaved])
+    }, [activeTab, activeTabId, tabs, markTabSaved])
 
     // Auto-save with debounce
     useEffect(() => {
@@ -452,14 +458,17 @@ function App() {
     }, [settings.autoSave, activeTab?.isDirty, activeTab?.content, handleSave])
 
     // Save As handler
-    const handleSaveAs = useCallback(async () => {
-        if (!activeTab) return
-        const currentCode = editorRef.current?.getValue() || activeTab.content
-        const result = await window.electronAPI.saveFile(currentCode, undefined, activeTab.language)
+    const handleSaveAs = useCallback(async (tabId?: string) => {
+        const target = tabId ? tabs.find(t => t.id === tabId) : activeTab
+        if (!target) return
+        const currentCode = (tabId === undefined || tabId === activeTabId)
+            ? (editorRef.current?.getValue() || target.content)
+            : target.content
+        const result = await window.electronAPI.saveFile(currentCode, undefined, target.language)
         if (result) {
-            markTabSaved(activeTab.id, result.filePath)
+            markTabSaved(target.id, result.filePath)
         }
-    }, [activeTab, markTabSaved])
+    }, [activeTab, activeTabId, tabs, markTabSaved])
 
     // Run compilation handler
     const handleRun = useCallback(async () => {
@@ -536,9 +545,9 @@ function App() {
 
     }, [activeTab, settings.cppStandard, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
 
-    // Tab close handler
-    const handleTabClose = useCallback(async (tabId: string, e: MouseEvent) => {
-        e.stopPropagation()
+    // Close a tab, prompting the user to save if dirty. Returns true if the tab
+    // was closed (or the user chose Don't Save), false if the user cancelled.
+    const closeWithPrompt = useCallback(async (tabId: string): Promise<boolean> => {
         const tab = tabs.find(t => t.id === tabId)
 
         if (tab?.isDirty) {
@@ -551,23 +560,31 @@ function App() {
                 message: `Do you want to save changes to ${tab.fileName}?`
             })
 
+            if (result.response === 2) {
+                // Cancel
+                return false
+            }
             if (result.response === 0) {
                 // Save first
-                const currentCode = editorRef.current?.getValue() || tab.content
+                const currentCode = (tabId === activeTabId)
+                    ? (editorRef.current?.getValue() || tab.content)
+                    : tab.content
                 const saveResult = await window.electronAPI.saveFile(currentCode, tab.filePath || undefined, tab.language)
                 if (saveResult) {
                     markTabSaved(tabId, saveResult.filePath)
                 }
-                closeTab(tabId)
-            } else if (result.response === 1) {
-                // Don't save
-                closeTab(tabId)
             }
-            // Cancel - do nothing
-        } else {
-            closeTab(tabId)
+            // response === 1 ("Don't Save") falls through
         }
-    }, [tabs, closeTab, markTabSaved])
+        await closeTab(tabId)
+        return true
+    }, [tabs, activeTabId, markTabSaved, closeTab])
+
+    // Tab close handler (preserves the (tabId, MouseEvent) signature used by TabBar)
+    const handleTabClose = useCallback(async (tabId: string, e?: MouseEvent) => {
+        e?.stopPropagation?.()
+        await closeWithPrompt(tabId)
+    }, [closeWithPrompt])
 
     // Register menu event listeners
     useEffect(() => {
@@ -611,6 +628,60 @@ function App() {
             cleanupSessionDiscard()
         }
     }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint, discardAll])
+
+    // Tab context menu state
+    const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
+    const closeTabMenu = useCallback(() => setTabMenu(null), [])
+
+    const handleTabContextMenu = useCallback((tabId: string, x: number, y: number) => {
+        setTabMenu({ tabId, x, y })
+    }, [])
+
+    const handleCloseOthers = useCallback(async (tabId: string) => {
+        const others = tabs.filter(t => t.id !== tabId)
+        for (const t of others) {
+            const ok = await closeWithPrompt(t.id)
+            if (!ok) break
+        }
+    }, [tabs, closeWithPrompt])
+
+    const handleCloseAllFromMenu = useCallback(async () => {
+        for (const t of [...tabs]) {
+            const ok = await closeWithPrompt(t.id)
+            if (!ok) break
+        }
+    }, [tabs, closeWithPrompt])
+
+    const handleCloseSaved = useCallback(() => {
+        for (const t of tabs.filter(t => !t.isDirty)) {
+            closeTab(t.id)
+        }
+    }, [tabs, closeTab])
+
+    const handleRevealInExplorer = useCallback((tabId: string) => {
+        const tab = tabs.find(t => t.id === tabId)
+        if (tab?.filePath) {
+            void window.electronAPI.showItemInFolder(tab.filePath)
+        }
+    }, [tabs])
+
+    const handleCopyPath = useCallback((tabId: string) => {
+        const tab = tabs.find(t => t.id === tabId)
+        if (tab?.filePath) {
+            void navigator.clipboard.writeText(tab.filePath)
+        }
+    }, [tabs])
+
+    const handleCopyFileName = useCallback((tabId: string) => {
+        const tab = tabs.find(t => t.id === tabId)
+        if (tab) {
+            void navigator.clipboard.writeText(tab.fileName)
+        }
+    }, [tabs])
+
+    const handleDuplicateFromMenu = useCallback((tabId: string) => {
+        duplicateTab(tabId)
+    }, [duplicateTab])
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -726,8 +797,35 @@ function App() {
                     onTabClick={switchToTab}
                     onTabClose={handleTabClose}
                     onNewTab={handleNewFile}
+                    onContextMenu={handleTabContextMenu}
                 />
             )}
+
+            {/* Tab Context Menu */}
+            {tabMenu && (() => {
+                const menuTab = tabs.find(t => t.id === tabMenu.tabId)
+                if (!menuTab) return null
+                return (
+                    <TabContextMenu
+                        x={tabMenu.x}
+                        y={tabMenu.y}
+                        tab={menuTab}
+                        totalTabs={tabs.length}
+                        hasSavedTabs={tabs.some(t => !t.isDirty)}
+                        onClose={closeTabMenu}
+                        onCloseTab={() => handleTabClose(menuTab.id)}
+                        onCloseOthers={() => handleCloseOthers(menuTab.id)}
+                        onCloseAll={handleCloseAllFromMenu}
+                        onCloseSaved={handleCloseSaved}
+                        onSave={() => handleSave(menuTab.id)}
+                        onSaveAs={() => handleSaveAs(menuTab.id)}
+                        onReveal={() => handleRevealInExplorer(menuTab.id)}
+                        onCopyPath={() => handleCopyPath(menuTab.id)}
+                        onCopyFileName={() => handleCopyFileName(menuTab.id)}
+                        onDuplicate={() => handleDuplicateFromMenu(menuTab.id)}
+                    />
+                )
+            })()}
 
             {/* Main Content */}
             <main className="flex-1 flex min-h-0 relative">

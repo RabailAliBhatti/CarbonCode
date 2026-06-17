@@ -16,9 +16,10 @@ interface TabBarProps {
     onTabClick: (tabId: string) => void
     onTabClose: (tabId: string, e: MouseEvent) => void
     onNewTab: () => void
+    onContextMenu: (tabId: string, x: number, y: number) => void
 }
 
-function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onNewTab }: TabBarProps) {
+function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onNewTab, onContextMenu }: TabBarProps) {
     return (
         <div className="flex items-center bg-editor-sidebar border-b border-editor-border overflow-x-auto">
             {/* Tabs */}
@@ -27,6 +28,10 @@ function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onNewTab }: TabBarP
                     <button
                         key={tab.id}
                         onClick={() => onTabClick(tab.id)}
+                        onContextMenu={(e) => {
+                            e.preventDefault()
+                            onContextMenu(tab.id, e.clientX, e.clientY)
+                        }}
                         onMouseDown={(e) => {
                             // Middle-click closes the tab
                             if (e.button === 1) {

@@ -73,14 +73,16 @@ declare global {
             onDebugStepOut: (callback: () => void) => () => void
             onDebugContinue: (callback: () => void) => () => void
             onDebugToggleBreakpoint: (callback: () => void) => () => void
-            trackEvent: (eventName: string) => Promise<void>
+            trackEvent: (eventName: string, params?: Record<string, unknown>) => Promise<void>
             setAnalyticsConsent: (consent: boolean) => Promise<void>
             getAnalyticsConsent: () => Promise<boolean | null>
             hasBeenAskedAnalytics: () => Promise<boolean>
             openExternal: (url: string) => Promise<void>
+            showItemInFolder: (filePath: string) => Promise<void>
             watchFile: (filePath: string) => Promise<void>
             unwatchFile: (filePath: string) => Promise<void>
             onFileChanged: (callback: (filePath: string) => void) => () => void
+            onSessionDiscard: (callback: () => void) => () => void
         }
     }
 }
