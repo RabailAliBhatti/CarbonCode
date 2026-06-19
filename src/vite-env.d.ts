@@ -7,6 +7,7 @@ declare global {
             saveFile: (content: string, existingPath?: string, language?: string) => Promise<{ filePath: string; success: boolean } | null>
             readFile: (filePath: string) => Promise<string | null>
             openFolder: () => Promise<string | null>
+            openFolderByPath: (folderPath: string) => Promise<string | null>
             readDirectory: (dirPath: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
             setDirty: (dirty: boolean) => Promise<void>
             detectCompiler: (customPath?: string) => Promise<string | null>
@@ -30,6 +31,9 @@ declare global {
             }) => Promise<{ success: boolean; error?: string; compileTime?: number }>
             writeProcess: (data: string) => Promise<void>
             stopProcess: () => Promise<void>
+            getRecentFolders: () => Promise<string[]>
+            addRecentFolder: (folderPath: string) => Promise<string[]>
+            removeRecentFolder: (folderPath: string) => Promise<string[]>
             onProcessStdout: (callback: (data: string) => void) => () => void
             onProcessStderr: (callback: (data: string) => void) => () => void
             onProcessExit: (callback: (code: number) => void) => () => void
@@ -81,6 +85,12 @@ declare global {
             showItemInFolder: (filePath: string) => Promise<void>
             watchFile: (filePath: string) => Promise<void>
             unwatchFile: (filePath: string) => Promise<void>
+            findInFiles: (rootPath: string, query: string, options?: {
+                caseSensitive?: boolean
+                wholeWord?: boolean
+                regex?: boolean
+                includePattern?: string
+            }) => Promise<{ results: { file: string; line: number; column: number; matchText: string; lineContent: string }[]; truncated: boolean }>
             onFileChanged: (callback: (filePath: string) => void) => () => void
             onSessionDiscard: (callback: () => void) => () => void
         }

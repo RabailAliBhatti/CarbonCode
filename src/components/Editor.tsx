@@ -7,6 +7,7 @@ import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { SupportedLanguage } from '../types/language'
+import type { CompileError } from '../utils/parseCompileErrors'
 
 // Configure Monaco to use local workers (for offline support)
 self.MonacoEnvironment = {
@@ -41,6 +42,7 @@ interface EditorProps {
     minimap?: boolean
     wordWrap?: boolean
     onRun?: () => void
+    parsedErrors?: CompileError[]
 }
 
 // VS Code Dark+ theme colors
@@ -119,7 +121,7 @@ const editorThemeLight = {
     }
 }
 
-function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onRun }: EditorProps) {
+function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onRun, parsedErrors = [] }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
 
@@ -978,6 +980,24 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             clearInterval(interval)
         }
     }, [])
+
+    // Set compile error markers
+    useEffect(() => {
+        const model = editorRef.current?.getModel()
+        if (!model || !monacoRef.current) return
+
+        const markers: monacoEditor.editor.IMarkerData[] = parsedErrors.map(err => ({
+            severity: err.severity === 'error' ? monacoEditor.MarkerSeverity.Error : monacoEditor.MarkerSeverity.Warning,
+            message: err.message,
+            startLineNumber: err.line,
+            startColumn: err.column || 1,
+            endLineNumber: err.line,
+            endColumn: err.column ? err.column + 10 : 1000,
+            source: 'compiler'
+        }))
+
+        monacoRef.current.editor.setModelMarkers(model, 'compiler', markers)
+    }, [parsedErrors])
 
     return (
         <div className="h-full w-full">

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, readdirSync, statSync, watch, type FSWatcher } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, type FSWatcher } from 'fs'
 import os from 'os'
 import { detectCompiler, detectJavaRuntime, compileCode, compileJavaCode, startInteractiveProcess, startJavaProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
@@ -577,6 +577,18 @@ ipcMain.handle('file:read', async (_, filePath: string) => {
     }
 })
 
+// Open a folder by path (for recent folders)
+ipcMain.handle('folder:open-by-path', async (_, folderPath: string) => {
+    try {
+        if (statSync(folderPath).isDirectory()) {
+            return folderPath
+        }
+    } catch {
+        // fall through
+    }
+    return null
+})
+
 // Open folder dialog
 ipcMain.handle('dialog:open-folder', async () => {
     if (!mainWindow) return null
@@ -615,6 +627,51 @@ ipcMain.handle('file:read-directory', async (_, dirPath: string) => {
         console.error('Failed to read directory:', error)
         return []
     }
+})
+
+// Recent folders management
+const RECENT_FOLDERS_PATH = join(app.getPath('userData'), 'recent-folders.json')
+const MAX_RECENT_FOLDERS = 10
+
+function loadRecentFolders(): string[] {
+    try {
+        if (existsSync(RECENT_FOLDERS_PATH)) {
+            const data = readFileSync(RECENT_FOLDERS_PATH, 'utf-8')
+            return JSON.parse(data)
+        }
+    } catch (err) {
+        console.error('Failed to load recent folders:', err)
+    }
+    return []
+}
+
+function saveRecentFolders(folders: string[]): void {
+    try {
+        writeFileSync(RECENT_FOLDERS_PATH, JSON.stringify(folders, null, 2), 'utf-8')
+    } catch (err) {
+        console.error('Failed to save recent folders:', err)
+    }
+}
+
+ipcMain.handle('recent-folders:get', () => {
+    return loadRecentFolders()
+})
+
+ipcMain.handle('recent-folders:add', (_, folderPath: string) => {
+    const folders = loadRecentFolders()
+    // Remove duplicate, prepend to front
+    const filtered = folders.filter(f => f !== folderPath)
+    filtered.unshift(folderPath)
+    // Trim to max
+    const trimmed = filtered.slice(0, MAX_RECENT_FOLDERS)
+    saveRecentFolders(trimmed)
+    return trimmed
+})
+
+ipcMain.handle('recent-folders:remove', (_, folderPath: string) => {
+    const folders = loadRecentFolders().filter(f => f !== folderPath)
+    saveRecentFolders(folders)
+    return folders
 })
 
 // Debugger IPC Handlers
@@ -745,6 +802,132 @@ ipcMain.handle('shell:open-external', (_, url: string) => {
 ipcMain.handle('shell:show-item-in-folder', (_, filePath: string) => {
     if (!filePath) return
     shell.showItemInFolder(filePath)
+})
+
+// Find in files
+const DEFAULT_SEARCH_EXCLUDE = ['node_modules', '.git', 'build', 'dist', 'release', '.vscode', '.idea', '__pycache__']
+const MAX_SEARCH_RESULTS = 1000
+
+function escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+interface SearchOptions {
+    caseSensitive?: boolean
+    wholeWord?: boolean
+    regex?: boolean
+    includePattern?: string
+}
+
+interface SearchResult {
+    file: string
+    line: number
+    column: number
+    matchText: string
+    lineContent: string
+}
+
+function matchesIncludePattern(fileName: string, pattern?: string): boolean {
+    if (!pattern) return true
+    // Simple glob-to-regex conversion for basic patterns like "*.cpp" or "*.{cpp,h}"
+    const rxStr = pattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\{/g, '(')
+        .replace(/}/g, ')')
+        .replace(/,/g, '|')
+    return new RegExp(`^${rxStr}$`, 'i').test(fileName)
+}
+
+ipcMain.handle('fs:find-in-files', async (_, rootPath: string, query: string, options?: SearchOptions): Promise<{ results: SearchResult[]; truncated: boolean }> => {
+    if (!query || !rootPath || !existsSync(rootPath)) {
+        return { results: [], truncated: false }
+    }
+
+    const caseSensitive = options?.caseSensitive ?? false
+    const wholeWord = options?.wholeWord ?? false
+    const isRegex = options?.regex ?? false
+    const includePattern = options?.includePattern
+
+    // Build the regex
+    let pattern: string
+    if (isRegex) {
+        pattern = query
+    } else {
+        pattern = escapeRegex(query)
+    }
+    if (wholeWord) {
+        pattern = `\\b${pattern}\\b`
+    }
+    const flags = caseSensitive ? 'g' : 'gi'
+    let rx: RegExp
+    try {
+        rx = new RegExp(pattern, flags)
+    } catch {
+        return { results: [], truncated: false }
+    }
+
+    const results: SearchResult[] = []
+    let truncated = false
+
+    // Walk file tree recursively
+    function walkDir(dir: string): void {
+        if (truncated) return
+        let entries: string[]
+        try {
+            entries = readdirSync(dir)
+        } catch {
+            return
+        }
+        for (const entry of entries) {
+            if (truncated) return
+            const fullPath = join(dir, entry)
+            try {
+                const st = statSync(fullPath)
+                if (st.isDirectory()) {
+                    if (!DEFAULT_SEARCH_EXCLUDE.includes(entry) && !entry.startsWith('.') && fullPath !== rootPath) {
+                        walkDir(fullPath)
+                    }
+                } else if (st.isFile()) {
+                    // Check include pattern
+                    if (!matchesIncludePattern(entry, includePattern)) continue
+                    // Skip binary-ish files
+                    const ext = entry.split('.').pop()?.toLowerCase() || ''
+                    if (['exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o', 'class', 'jar', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'svg', 'woff', 'woff2', 'ttf', 'eot', 'zip', 'tar', 'gz', '7z', 'rar'].includes(ext)) continue
+
+                    try {
+                        const content = readFileSync(fullPath, 'utf-8')
+                        const lines = content.split('\n')
+                        for (let i = 0; i < lines.length; i++) {
+                            rx.lastIndex = 0
+                            const match = rx.exec(lines[i])
+                            if (match) {
+                                const column = (match.index || 0) + 1
+                                results.push({
+                                    file: fullPath,
+                                    line: i + 1,
+                                    column,
+                                    matchText: match[0],
+                                    lineContent: lines[i].trimEnd()
+                                })
+                                if (results.length >= MAX_SEARCH_RESULTS) {
+                                    truncated = true
+                                    return
+                                }
+                            }
+                        }
+                    } catch {
+                        // Skip unreadable files
+                    }
+                }
+            } catch {
+                // Skip inaccessible entries
+            }
+        }
+    }
+
+    walkDir(rootPath)
+    return { results, truncated }
 })
 
 // App lifecycle

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Folder operations
     openFolder: () => ipcRenderer.invoke('dialog:open-folder'),
+    openFolderByPath: (folderPath: string) => ipcRenderer.invoke('folder:open-by-path', folderPath),
     readDirectory: (dirPath: string) => ipcRenderer.invoke('file:read-directory', dirPath),
 
     // State management
@@ -57,6 +58,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('process:start', request),
     writeProcess: (data: string) => ipcRenderer.invoke('process:write', data),
     stopProcess: () => ipcRenderer.invoke('process:stop'),
+
+    // Recent folders
+    getRecentFolders: () => ipcRenderer.invoke('recent-folders:get'),
+    addRecentFolder: (folderPath: string) => ipcRenderer.invoke('recent-folders:add', folderPath),
+    removeRecentFolder: (folderPath: string) => ipcRenderer.invoke('recent-folders:remove', folderPath),
 
     // Process Listeners
     onProcessStdout: (callback: (data: string) => void) => {
@@ -180,6 +186,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
     showItemInFolder: (filePath: string) => ipcRenderer.invoke('shell:show-item-in-folder', filePath),
 
+    // Find in files
+    findInFiles: (rootPath: string, query: string, options?: {
+        caseSensitive?: boolean
+        wholeWord?: boolean
+        regex?: boolean
+        includePattern?: string
+    }) => ipcRenderer.invoke('fs:find-in-files', rootPath, query, options),
+
     // File watch API
     watchFile: (filePath: string) => ipcRenderer.invoke('file:watch-start', filePath),
     unwatchFile: (filePath: string) => ipcRenderer.invoke('file:watch-stop', filePath),
@@ -272,6 +286,14 @@ export interface ElectronAPI {
     hasBeenAskedAnalytics: () => Promise<boolean>
     openExternal: (url: string) => Promise<void>
     showItemInFolder: (filePath: string) => Promise<void>
+
+    // Find in files
+    findInFiles: (rootPath: string, query: string, options?: {
+        caseSensitive?: boolean
+        wholeWord?: boolean
+        regex?: boolean
+        includePattern?: string
+    }) => Promise<{ results: { file: string; line: number; column: number; matchText: string; lineContent: string }[]; truncated: boolean }>
 
     // File watch API
     watchFile: (filePath: string) => Promise<void>

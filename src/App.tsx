@@ -9,13 +9,17 @@ import TabBar from './components/TabBar'
 import TabContextMenu from './components/TabContextMenu'
 import FileExplorer from './components/FileExplorer'
 import FindReplace from './components/FindReplace'
+import SearchPanel from './components/SearchPanel'
 import SettingsModal from './components/SettingsModal'
 import DebugPanel from './components/DebugPanel'
 import AnalyticsConsentDialog from './components/AnalyticsConsentDialog'
 import NewFileDialog from './components/NewFileDialog'
 import { useFileManager } from './hooks/useFileManager'
 import { SupportedLanguage } from './types/language'
-import { useSettings } from './hooks/useSettings'
+import { useSettings, CppStandard } from './hooks/useSettings'
+import { parseCompileErrors } from './utils/parseCompileErrors'
+import type { CompileError } from './utils/parseCompileErrors'
+import { loadProjectSettings } from './utils/loadProjectSettings'
 
 interface DebugState {
     status: 'idle' | 'running' | 'stopped' | 'exited'
@@ -109,6 +113,7 @@ function App() {
     const [showWelcome, setShowWelcome] = useState<boolean>(true)
     const [showExplorer, setShowExplorer] = useState<boolean>(false)
     const [showFind, setShowFind] = useState<boolean>(false)
+    const [showSearch, setShowSearch] = useState<boolean>(false)
 
     // Sync Welcome Screen with Tabs
     useEffect(() => {
@@ -134,6 +139,7 @@ function App() {
         compileTime?: number
         executionTime?: number
     } | null>(null)
+    const [parsedErrors, setParsedErrors] = useState<CompileError[]>([])
 
     // UI state
     const [outputHeight, setOutputHeight] = useState<number>(200)
@@ -340,6 +346,8 @@ function App() {
             setRootPath(path)
             setShowExplorer(true)
             setShowWelcome(false)
+            // Save to recent folders (fire and forget)
+            window.electronAPI.addRecentFolder(path)
         }
     }, [])
 
@@ -351,6 +359,22 @@ function App() {
             setShowWelcome(true)
         }
     }, [tabs.length])
+
+    // Open a recent folder by path
+    const handleOpenRecentFolder = useCallback(async (folderPath: string) => {
+        const path = await window.electronAPI.openFolderByPath(folderPath)
+        if (path) {
+            setRootPath(path)
+            setShowExplorer(true)
+            setShowWelcome(false)
+            window.electronAPI.addRecentFolder(path)
+            // Load .carboncode project settings
+            loadProjectSettings(path).then(projectSettings => {
+                if (projectSettings?.cppStandard) updateSetting('cppStandard', projectSettings.cppStandard as CppStandard)
+                if (projectSettings?.compilerPath) updateSetting('compilerPath', projectSettings.compilerPath)
+            })
+        }
+    }, [updateSetting])
 
     // Debug handlers
     const handleDebugStart = useCallback(async () => {
@@ -503,6 +527,7 @@ function App() {
 
         setIsCompiling(true)
         setCompilationResult(null)
+        setParsedErrors([])
         // Welcome screen logic handled by effect, but we can ensure it's hidden if running (should already be)
 
         const currentCode = editorRef.current?.getValue() || activeTab.content
@@ -532,7 +557,11 @@ function App() {
                 error: '',
                 compileTime: startResult.compileTime
             })
+            setParsedErrors([])
         } else {
+            // Parse errors for clickable display
+            const parsed = parseCompileErrors(startResult.error || '', activeTab?.filePath || undefined)
+            setParsedErrors(parsed)
             // Track analytics - code run error
             window.electronAPI?.trackEvent?.('code_run_error', { language: activeLanguage, lineCount, errorMessage: startResult.error || 'Unknown error' })
             setCompilationResult({
@@ -683,6 +712,30 @@ function App() {
         duplicateTab(tabId)
     }, [duplicateTab])
 
+    // Shared navigation helper for error-clicks and search-result-clicks
+    const pathsEqual = useCallback((a: string, b: string) => {
+        return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
+    }, [])
+
+    const handleLocationClick = useCallback(async (file: string | null, line: number, column?: number) => {
+        if (!file) return
+        const existing = tabs.find(t => t.filePath && pathsEqual(t.filePath, file))
+        if (existing) {
+            switchToTab(existing.id)
+        } else {
+            const content = await window.electronAPI.readFile(file)
+            if (content !== null) openFile(file, content)
+            else return
+        }
+        // Small delay to let React render the tab switch
+        setTimeout(() => {
+            if (!editorRef.current) return
+            editorRef.current.revealLineInCenter(line)
+            editorRef.current.setPosition({ lineNumber: line, column: column ?? 1 })
+            editorRef.current.focus()
+        }, 50)
+    }, [tabs, switchToTab, openFile, pathsEqual])
+
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -710,14 +763,21 @@ function App() {
                 e.preventDefault()
                 setShowFind(true)
             }
+            // Ctrl+Shift+F - Search in files
+            if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+                e.preventDefault()
+                setShowSearch(prev => !prev)
+                if (showSearch) setShowFind(false)
+            }
             // Escape - Close dialogs
             if (e.key === 'Escape') {
                 if (showFind) setShowFind(false)
+                if (showSearch) setShowSearch(false)
             }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, handleStop, showFind])
+    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, handleStop, showFind, showSearch])
 
     // Start coding (dismiss welcome screen)
     const handleStartCoding = () => {
@@ -883,6 +943,15 @@ function App() {
                     />
                 )}
 
+                {/* Search in Files */}
+                {showSearch && !showWelcome && rootPath && (
+                    <SearchPanel
+                        rootPath={rootPath}
+                        onResultClick={handleLocationClick}
+                        onClose={() => setShowSearch(false)}
+                    />
+                )}
+
                 {/* Settings Modal */}
                 <SettingsModal
                     isVisible={showSettings}
@@ -901,6 +970,7 @@ function App() {
                             onOpenFile={handleOpenFile}
                             onOpenFolder={handleOpenFolder}
                             onStartCoding={handleStartCoding}
+                            onOpenRecentFolder={handleOpenRecentFolder}
                         />
                     ) : (
                         <>
@@ -928,6 +998,7 @@ function App() {
                                         wordWrap={settings.wordWrap}
                                         theme={settings.theme}
                                         onRun={handleRun}
+                                        parsedErrors={parsedErrors}
                                     />
                                 </div>
 
@@ -1008,6 +1079,15 @@ function App() {
                                     onInput={handleInput}
                                     onStop={handleStop}
                                     fontSize={settings.outputFontSize}
+                                    parsedErrors={parsedErrors}
+                                    onErrorClick={(_file, line, column) => {
+                                        // Navigate to the error line in editor
+                                        if (editorRef.current) {
+                                            editorRef.current.revealLineInCenter(line)
+                                            editorRef.current.setPosition({ lineNumber: line, column: column || 1 })
+                                            editorRef.current.focus()
+                                        }
+                                    }}
                                 />
                             </div>
                         </>

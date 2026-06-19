@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import type { CompileError } from '../utils/parseCompileErrors'
 
 interface CompilationResult {
     success: boolean
@@ -15,11 +16,13 @@ interface OutputPanelProps {
     onInput: (data: string) => void
     onStop: () => void
     fontSize?: number
+    parsedErrors?: CompileError[]
+    onErrorClick?: (file: string | null, line: number, column?: number) => void
 }
 
 const MAX_VISIBLE_LINES = 500
 
-function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize = 13 }: OutputPanelProps) {
+function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize = 13, parsedErrors = [], onErrorClick }: OutputPanelProps) {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
     const [inputValue, setInputValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
@@ -207,9 +210,54 @@ function OutputPanel({ result, isCompiling, isRunning, onInput, onStop, fontSize
                                 </>
                             ) : (
                                 hasErrors ? (
-                                    <pre className="text-error whitespace-pre-wrap break-words leading-relaxed">
-                                        {result.error}
-                                    </pre>
+                                    parsedErrors.length > 0 ? (
+                                        <div className="space-y-1">
+                                            {parsedErrors.map((err, i) => {
+                                                const isClickable = err.file !== null
+                                                const isError = err.severity === 'error'
+                                                return (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => {
+                                                            if (isClickable && onErrorClick) {
+                                                                onErrorClick(err.file, err.line, err.column)
+                                                            }
+                                                        }}
+                                                        disabled={!isClickable}
+                                                        className={`w-full text-left px-3 py-2 rounded border transition-colors
+                                                            ${isError
+                                                                ? 'border-error/30 bg-error/5 hover:bg-error/10'
+                                                                : 'border-warning/30 bg-warning/5 hover:bg-warning/10'
+                                                            }
+                                                            ${!isClickable ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                                                        `}
+                                                    >
+                                                        <div className="flex items-baseline gap-2">
+                                                            {isError ? (
+                                                                <svg className="w-4 h-4 text-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg className="w-4 h-4 text-warning shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                                </svg>
+                                                            )}
+                                                            <span className="text-xs text-text-secondary font-mono">
+                                                                {err.file
+                                                                    ? err.file.split(/[\\/]/).pop() + `:${err.line}${err.column ? `:${err.column}` : ''}`
+                                                                    : 'compile output'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm mt-1 text-text-primary">{err.message}</div>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <pre className="text-error whitespace-pre-wrap break-words leading-relaxed">
+                                            {result.error}
+                                        </pre>
+                                    )
                                 ) : (
                                     <div className="flex items-center gap-2 text-success">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 interface WelcomeScreenProps {
     compilerInfo: string | null
     javaRuntimeInfo: string | null
@@ -5,6 +7,7 @@ interface WelcomeScreenProps {
     onOpenFile: () => void
     onOpenFolder: () => void
     onStartCoding: () => void
+    onOpenRecentFolder?: (path: string) => void
 }
 
 function WelcomeScreen({
@@ -13,8 +16,15 @@ function WelcomeScreen({
     onNewFile,
     onOpenFile,
     onOpenFolder,
-    onStartCoding
+    onStartCoding,
+    onOpenRecentFolder
 }: WelcomeScreenProps) {
+    const [recentFolders, setRecentFolders] = useState<string[]>([])
+
+    useEffect(() => {
+        window.electronAPI.getRecentFolders().then(setRecentFolders)
+    }, [])
+
     return (
         <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-editor-bg via-editor-sidebar to-editor-bg">
             <div className="min-h-full flex items-center justify-center py-12">
@@ -52,7 +62,7 @@ function WelcomeScreen({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
+                    <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
                         <button
                             onClick={onNewFile}
                             className="flex items-center justify-center gap-3 px-6 py-3 bg-accent hover:bg-accent-hover text-white rounded-xl font-medium transition-all shadow-glow hover:shadow-lg active:scale-95 min-w-[140px]"
@@ -95,6 +105,42 @@ function WelcomeScreen({
                             Start Coding
                         </button>
                     </div>
+
+                    {/* Recent Folders */}
+                    {recentFolders.length > 0 && (
+                        <div className="bg-editor-sidebar/50 rounded-xl p-6 border border-editor-border shadow-sm max-w-2xl mx-auto mb-8">
+                            <h3 className="text-text-bright font-medium mb-4 text-left">Recent Folders</h3>
+                            <div className="space-y-2">
+                                {recentFolders.map((folder) => (
+                                    <button
+                                        key={folder}
+                                        onClick={() => onOpenRecentFolder?.(folder)}
+                                        className="w-full flex items-center gap-3 px-4 py-3 bg-editor-bg rounded-lg border border-editor-border/50 hover:border-accent/50 hover:bg-editor-sidebar transition-all text-left group"
+                                    >
+                                        <svg className="w-5 h-5 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                        </svg>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm text-text-primary truncate block">{folder.split(/[\\/]/).pop()}</span>
+                                            <span className="text-xs text-text-secondary/60 truncate block">{folder}</span>
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                window.electronAPI.removeRecentFolder(folder).then(setRecentFolders)
+                                            }}
+                                            className="p-1 rounded hover:bg-editor-border opacity-0 group-hover:opacity-100 transition-all"
+                                            title="Remove from recent"
+                                        >
+                                            <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Keyboard Shortcuts */}
                     <div className="bg-editor-sidebar/50 rounded-xl p-6 border border-editor-border shadow-sm max-w-4xl mx-auto">
