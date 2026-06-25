@@ -376,7 +376,7 @@ function App() {
         }
     }, [updateSetting])
 
-    // Debug handlers
+    // Debug handlers — ponytail: 5 identical wrappers → one-liners
     const handleDebugStart = useCallback(async () => {
         if (!activeTab) return
         if (activeTab.language === 'java') {
@@ -388,7 +388,6 @@ function App() {
         const bpArray = breakpoints.map(line => ({ line }))
         const result = await window.electronAPI.debugStart(code, bpArray)
         if (result.success) {
-            // Track analytics - debug started
             window.electronAPI?.trackEvent?.('debug_started', { language: activeLanguage })
         } else {
             setCompilationResult({
@@ -398,26 +397,11 @@ function App() {
             })
         }
     }, [activeTab, breakpoints])
-
-    const handleDebugStop = useCallback(async () => {
-        await window.electronAPI.debugStop()
-    }, [])
-
-    const handleDebugStepOver = useCallback(async () => {
-        await window.electronAPI.debugStepOver()
-    }, [])
-
-    const handleDebugStepInto = useCallback(async () => {
-        await window.electronAPI.debugStepInto()
-    }, [])
-
-    const handleDebugStepOut = useCallback(async () => {
-        await window.electronAPI.debugStepOut()
-    }, [])
-
-    const handleDebugContinue = useCallback(async () => {
-        await window.electronAPI.debugContinue()
-    }, [])
+    const handleDebugStop = useCallback(async () => { await window.electronAPI.debugStop() }, [])
+    const handleDebugStepOver = useCallback(async () => { await window.electronAPI.debugStepOver() }, [])
+    const handleDebugStepInto = useCallback(async () => { await window.electronAPI.debugStepInto() }, [])
+    const handleDebugStepOut = useCallback(async () => { await window.electronAPI.debugStepOut() }, [])
+    const handleDebugContinue = useCallback(async () => { await window.electronAPI.debugContinue() }, [])
 
     const handleToggleBreakpoint = useCallback(() => {
         if (!editorRef.current) return

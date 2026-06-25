@@ -32,7 +32,6 @@ export class DebuggerService extends EventEmitter {
         breakpoints: [],
         locals: []
     }
-    private outputBuffer = ''
     private breakpointCounter = 0
     private tempDir: string
     private executablePath: string | null = null
@@ -210,7 +209,6 @@ export class DebuggerService extends EventEmitter {
     }
 
     private handleOutput(data: string): void {
-        this.outputBuffer += data
         this.emit('stdout', data)
 
         // Check for stop events

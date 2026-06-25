@@ -33,64 +33,29 @@ let detectedJavaRuntimePath: string | null = null
 // Whether the detected compiler is the bundled one
 let isBundledCompiler = false
 
-/**
- * Get the path to the bundled MinGW compiler (shipped with the app)
- */
-function getBundledCompilerPath(): string | null {
+// ponytail: one helper replaces 7 identical try/rmSync/catch blocks
+function cleanupDir(dir: string) {
     try {
-        const resourcesPath = process.resourcesPath
-        const gppPath = join(resourcesPath, 'mingw64', 'bin', 'g++.exe')
-        if (existsSync(gppPath)) {
-            return gppPath
-        }
-    } catch {
-        // process.resourcesPath may not exist in dev mode
-    }
+        if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+    } catch { }
+}
 
-    // Also check vendor/ for development mode
-    try {
-        const devPath = join(app.getAppPath(), 'vendor', 'mingw64', 'bin', 'g++.exe')
-        if (existsSync(devPath)) {
-            return devPath
-        }
-    } catch {
-        // Ignore
+// ponytail: merged getBundledCompilerPath + getBundledMingwBinDir into one lookup
+function findBundledMingw(): string | null {
+    const candidates = [
+        join(process.resourcesPath, 'mingw64', 'bin'),
+        join(app.getAppPath(), 'vendor', 'mingw64', 'bin')
+    ]
+    for (const dir of candidates) {
+        try { if (existsSync(dir)) return dir } catch { }
     }
-
     return null
 }
 
-/**
- * Get the MinGW bin directory path (for PATH injection)
- */
-function getBundledMingwBinDir(): string | null {
-    try {
-        const resourcesPath = process.resourcesPath
-        const binDir = join(resourcesPath, 'mingw64', 'bin')
-        if (existsSync(binDir)) {
-            return binDir
-        }
-    } catch { }
-
-    try {
-        const devBinDir = join(app.getAppPath(), 'vendor', 'mingw64', 'bin')
-        if (existsSync(devBinDir)) {
-            return devBinDir
-        }
-    } catch { }
-
-    return null
-}
-
-/**
- * Build an env object with the bundled MinGW bin dir prepended to PATH
- */
 function getBundledMingwEnv(): NodeJS.ProcessEnv {
     const env = { ...process.env }
-    const mingwBinDir = getBundledMingwBinDir()
-    if (mingwBinDir) {
-        env.PATH = `${mingwBinDir};${env.PATH || ''}`
-    }
+    const binDir = findBundledMingw()
+    if (binDir) env.PATH = `${binDir};${env.PATH || ''}`
     return env
 }
 
@@ -142,10 +107,7 @@ export function setCustomJavaPath(javaPath: string): void {
 
 function normalizeJavaToolPath(basePath: string, tool: 'java' | 'javac') {
     const exe = process.platform === 'win32' ? `${tool}.exe` : tool
-    if (basePath.toLowerCase().endsWith(exe.toLowerCase())) {
-        return basePath
-    }
-    return join(basePath, 'bin', exe)
+    return basePath.toLowerCase().endsWith(exe.toLowerCase()) ? basePath : join(basePath, 'bin', exe)
 }
 
 function getBundledJdkPath(tool: 'java' | 'javac'): string | null {
@@ -412,12 +374,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
         const compileTime = Date.now() - compileStart
 
         if (!compileResult.success) {
-            // Cleanup on failure
-            try {
-                if (existsSync(tempDir)) {
-                    rmSync(tempDir, { recursive: true, force: true })
-                }
-            } catch { }
+            cleanupDir(tempDir)
 
             return {
                 success: false,
@@ -428,11 +385,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
 
         // Check if executable was created
         if (!existsSync(executableFile)) {
-            try {
-                if (existsSync(tempDir)) {
-                    rmSync(tempDir, { recursive: true, force: true })
-                }
-            } catch { }
+            cleanupDir(tempDir)
 
             return {
                 success: false,
@@ -449,12 +402,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
         }
 
     } catch (e: unknown) {
-        // Cleanup on unexpected error
-        try {
-            if (existsSync(tempDir)) {
-                rmSync(tempDir, { recursive: true, force: true })
-            }
-        } catch { }
+        cleanupDir(tempDir)
         const message = e instanceof Error ? e.message : String(e)
         return {
             success: false,
@@ -487,11 +435,9 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
     const sourceName = `${mainClass}.java`
     const sourceFile = join(tempDir, sourceName)
 
-    const codeWithImports = code
-
     try {
         mkdirSync(tempDir, { recursive: true })
-        writeFileSync(sourceFile, codeWithImports, 'utf-8')
+        writeFileSync(sourceFile, code, 'utf-8')
 
         const javacCmd = runtime.compilerPath
         const compileStart = Date.now()
@@ -499,11 +445,7 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
         const compileTime = Date.now() - compileStart
 
         if (!compileResult.success) {
-            try {
-                if (existsSync(tempDir)) {
-                    rmSync(tempDir, { recursive: true, force: true })
-                }
-            } catch { }
+            cleanupDir(tempDir)
 
             return {
                 success: false,
@@ -520,11 +462,7 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
             mainClass
         }
     } catch (e: unknown) {
-        try {
-            if (existsSync(tempDir)) {
-                rmSync(tempDir, { recursive: true, force: true })
-            }
-        } catch { }
+        cleanupDir(tempDir)
         const message = e instanceof Error ? e.message : String(e)
         return {
             success: false,
@@ -569,70 +507,38 @@ function createThrottledStreamHandler(
     }
 }
 
-/**
- * Start the executable in interactive mode
- */
-export function startInteractiveProcess(
-    executablePath: string,
-    tempDir: string,
-    onStdout: (data: string) => void,
-    onStderr: (data: string) => void,
-    onExit: (code: number) => void
+// ponytail: merged startInteractiveProcess + startInteractiveCommand into one
+function spawnProcess(
+    command: string, args: string[], cwd: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void,
+    env?: NodeJS.ProcessEnv
 ): ChildProcess {
-    const cwd = tempDir
-    const cmd = process.platform === 'win32' ? executablePath : `./${basename(executablePath)}`
+    currentProcess = spawn(command, args, {
+        cwd, shell: false, detached: true, windowsHide: true, ...(env ? { env } : {})
+    })
 
-    // Use bundled MinGW env so runtime DLLs can be found
-    const env = isBundledCompiler ? getBundledMingwEnv() : undefined
+    const stdoutH = createThrottledStreamHandler(onStdout)
+    const stderrH = createThrottledStreamHandler(onStderr)
 
-    const spawnOptions: SpawnOptions = {
-        cwd,
-        shell: false,
-        detached: true,
-        windowsHide: true,
-        ...(env ? { env } : {})
-    }
-
-    currentProcess = spawn(cmd, [], spawnOptions)
-
-    // Buffer and throttle stdout/stderr to avoid flooding the renderer with IPC
-    const stdoutHandler = createThrottledStreamHandler(onStdout)
-    const stderrHandler = createThrottledStreamHandler(onStderr)
-
-    // Auto-kill after 30 seconds to prevent infinite loops from hanging
     const timeout = setTimeout(() => {
         if (currentProcess) {
-            stderrHandler.write('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
-            stderrHandler.flush()
+            stderrH.write('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
+            stderrH.flush()
             killProcess()
             onExit(-1)
         }
     }, 30000)
 
-    currentProcess.stdout?.on('data', (data) => {
-        stdoutHandler.write(data.toString())
-    })
-
-    currentProcess.stderr?.on('data', (data) => {
-        stderrHandler.write(data.toString())
-    })
+    currentProcess.stdout?.on('data', (d) => stdoutH.write(d.toString()))
+    currentProcess.stderr?.on('data', (d) => stderrH.write(d.toString()))
 
     currentProcess.on('close', (code) => {
         clearTimeout(timeout)
-        stdoutHandler.flush()
-        stderrHandler.flush()
+        stdoutH.flush()
+        stderrH.flush()
         currentProcess = null
         onExit(code || 0)
-        // Cleanup executable
-        setTimeout(() => {
-            try {
-                if (existsSync(tempDir)) {
-                    rmSync(tempDir, { recursive: true, force: true })
-                }
-            } catch (err) {
-                console.error('Failed to cleanup temp dir:', err)
-            }
-        }, 500) // Delay cleanup slightly
+        setTimeout(() => cleanupDir(cwd), 500)
     })
 
     currentProcess.on('error', (err) => {
@@ -644,83 +550,20 @@ export function startInteractiveProcess(
     return currentProcess
 }
 
-function startInteractiveCommand(
-    command: string,
-    args: string[],
-    cwd: string,
-    onStdout: (data: string) => void,
-    onStderr: (data: string) => void,
-    onExit: (code: number) => void,
-    env?: NodeJS.ProcessEnv
+export function startInteractiveProcess(
+    executablePath: string, tempDir: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
 ): ChildProcess {
-    const spawnOptions: SpawnOptions = {
-        cwd,
-        shell: false,
-        detached: true,
-        windowsHide: true,
-        ...(env ? { env } : {})
-    }
-
-    currentProcess = spawn(command, args, spawnOptions)
-
-    // Buffer and throttle stdout/stderr to avoid flooding the renderer with IPC
-    const stdoutHandler = createThrottledStreamHandler(onStdout)
-    const stderrHandler = createThrottledStreamHandler(onStderr)
-
-    // Auto-kill after 30 seconds to prevent infinite loops from hanging
-    const timeout = setTimeout(() => {
-        if (currentProcess) {
-            stderrHandler.write('\n⏱ Execution timed out after 30 seconds. Process was killed.\n')
-            stderrHandler.flush()
-            killProcess()
-            onExit(-1)
-        }
-    }, 30000)
-
-    currentProcess.stdout?.on('data', (data) => {
-        stdoutHandler.write(data.toString())
-    })
-
-    currentProcess.stderr?.on('data', (data) => {
-        stderrHandler.write(data.toString())
-    })
-
-    currentProcess.on('close', (code) => {
-        clearTimeout(timeout)
-        stdoutHandler.flush()
-        stderrHandler.flush()
-        currentProcess = null
-        onExit(code || 0)
-        setTimeout(() => {
-            try {
-                if (existsSync(cwd)) {
-                    rmSync(cwd, { recursive: true, force: true })
-                }
-            } catch (err) {
-                console.error('Failed to cleanup temp dir:', err)
-            }
-        }, 500)
-    })
-
-    currentProcess.on('error', (err) => {
-        onStderr(`Spawn Error: ${err.message}`)
-        currentProcess = null
-        onExit(1)
-    })
-
-    return currentProcess
+    const cmd = process.platform === 'win32' ? executablePath : `./${basename(executablePath)}`
+    const env = isBundledCompiler ? getBundledMingwEnv() : undefined
+    return spawnProcess(cmd, [], tempDir, onStdout, onStderr, onExit, env)
 }
 
 export function startJavaProcess(
-    javaPath: string,
-    tempDir: string,
-    mainClass: string,
-    onStdout: (data: string) => void,
-    onStderr: (data: string) => void,
-    onExit: (code: number) => void
+    javaPath: string, tempDir: string, mainClass: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
 ): ChildProcess {
-    const cmd = javaPath
-    return startInteractiveCommand(cmd, ['-cp', tempDir, mainClass], tempDir, onStdout, onStderr, onExit)
+    return spawnProcess(javaPath, ['-cp', tempDir, mainClass], tempDir, onStdout, onStderr, onExit)
 }
 
 /**

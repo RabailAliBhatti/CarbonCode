@@ -94,7 +94,7 @@ const getDefaultContent = (language: SupportedLanguage, authorName?: string) => 
 }
 
 // Generate unique ID
-const generateId = () => `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+const generateId = () => crypto.randomUUID()
 
 // Get file name from path
 const getFileName = (filePath: string | null) => {
@@ -264,11 +264,6 @@ export function useFileManager() {
     // Check if any tab has unsaved changes
     const hasUnsavedChanges = tabs.some(tab => tab.isDirty)
 
-    // Get tab by ID
-    const getTab = useCallback((tabId: string) => {
-        return tabs.find(t => t.id === tabId)
-    }, [tabs])
-
     const acceptRecovery = useCallback(() => {
         setHasRecoveryData(false)
         if (pendingRecoveryRef.current) {
@@ -321,7 +316,6 @@ export function useFileManager() {
         duplicateTab,
         switchToTab,
         hasUnsavedChanges,
-        getTab,
         setActiveTabId,
         hasRecoveryData,
         acceptRecovery,
