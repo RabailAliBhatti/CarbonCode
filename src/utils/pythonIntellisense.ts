@@ -615,8 +615,8 @@ export function getPythonCompletionItems(model: any, position: any, monaco: any)
                 label: m.label,
                 kind: m.kind === 'Function' ? monaco.languages.CompletionItemKind.Function
                     : m.kind === 'Class' ? monaco.languages.CompletionItemKind.Class
-                    : m.kind === 'Constant' ? monaco.languages.CompletionItemKind.Constant
-                    : monaco.languages.CompletionItemKind.Variable,
+                        : m.kind === 'Constant' ? monaco.languages.CompletionItemKind.Constant
+                            : monaco.languages.CompletionItemKind.Variable,
                 detail: m.detail,
                 documentation: m.documentation,
                 insertText: m.label,
@@ -655,8 +655,8 @@ export function getPythonCompletionItems(model: any, position: any, monaco: any)
                     label: m.label,
                     kind: m.kind === 'Function' ? monaco.languages.CompletionItemKind.Function
                         : m.kind === 'Class' ? monaco.languages.CompletionItemKind.Class
-                        : m.kind === 'Constant' ? monaco.languages.CompletionItemKind.Constant
-                        : monaco.languages.CompletionItemKind.Variable,
+                            : m.kind === 'Constant' ? monaco.languages.CompletionItemKind.Constant
+                                : monaco.languages.CompletionItemKind.Variable,
                     detail: m.detail,
                     documentation: m.documentation,
                     insertText: m.label,
@@ -717,7 +717,7 @@ export function getPythonCompletionItems(model: any, position: any, monaco: any)
             label: b.label,
             kind: isFunc ? monaco.languages.CompletionItemKind.Function
                 : b.kind === 'Class' ? monaco.languages.CompletionItemKind.Class
-                : monaco.languages.CompletionItemKind.Constant,
+                    : monaco.languages.CompletionItemKind.Constant,
             detail: b.detail,
             documentation: b.documentation,
             insertText: isFunc ? `${b.label}(\${1})` : b.label,

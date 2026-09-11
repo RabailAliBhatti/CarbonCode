@@ -487,17 +487,20 @@ function App() {
     }, [])
 
     // Save file handler
-    const handleSave = useCallback(async (tabId?: string) => {
+    const handleSave = useCallback(async (tabId?: string, isAutoSave = false) => {
         const target = tabId ? tabs.find(t => t.id === tabId) : activeTab
         if (!target) return
+
+        // Auto-save must NEVER pop up an interactive Save As dialog for untitled files
+        if (isAutoSave && !target.filePath) return
 
         // Read live Monaco buffer only when saving the active tab; otherwise use stored content.
         let contentToSave = (tabId === undefined || tabId === activeTabId)
             ? (editorRef.current?.getValue() || target.content)
             : target.content
 
-        // Format on save if enabled
-        if (settings.formatOnSave && target.language) {
+        // Format on save if enabled (skip during auto-save while compiling/running to avoid mutating running buffer)
+        if (settings.formatOnSave && target.language && (!isAutoSave || (!isCompiling && !isRunning))) {
             const formatted = formatDocument(contentToSave, target.language, settings.tabSize)
             if (formatted !== contentToSave) {
                 contentToSave = formatted
@@ -511,7 +514,7 @@ function App() {
         }
 
         if (!target.filePath) {
-            // Save As
+            // Save As (explicit user-requested save on untitled tab)
             const result = await window.electronAPI.saveFile(contentToSave, undefined, target.language)
             if (result && result.success) {
                 markTabSaved(target.id, result.filePath)
@@ -525,18 +528,18 @@ function App() {
                 addRecentFile(target.filePath, target.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
             }
         }
-    }, [activeTab, activeTabId, tabs, markTabSaved, settings.formatOnSave, settings.tabSize, updateTabContent])
+    }, [activeTab, activeTabId, tabs, markTabSaved, settings.formatOnSave, settings.tabSize, updateTabContent, isCompiling, isRunning])
 
-    // Auto-save with debounce
+    // Auto-save with debounce (only saves tabs that already exist on disk, pauses during compilation/execution)
     useEffect(() => {
-        if (!settings.autoSave || !activeTab?.isDirty) return
+        if (!settings.autoSave || !activeTab?.isDirty || !activeTab?.filePath || isCompiling || isRunning) return
 
         const timer = setTimeout(() => {
-            handleSave()
+            handleSave(undefined, true)
         }, 2000)
 
         return () => clearTimeout(timer)
-    }, [settings.autoSave, activeTab?.isDirty, activeTab?.content, handleSave])
+    }, [settings.autoSave, activeTab?.isDirty, activeTab?.filePath, activeTab?.content, handleSave, isCompiling, isRunning])
 
     // Save As handler
     const handleSaveAs = useCallback(async (tabId?: string) => {
