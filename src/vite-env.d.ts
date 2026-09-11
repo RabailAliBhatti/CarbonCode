@@ -15,7 +15,7 @@ declare global {
             setCustomCompilerPath: (customPath: string) => Promise<void>
             getCompilerInfo: () => Promise<{ path: string | null; source: string }>
             detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) => Promise<{
-                language: 'cpp' | 'java'
+                language: 'c' | 'cpp' | 'java'
                 compilerPath: string | null
                 runtimePath?: string | null
                 source: 'custom' | 'bundled' | 'system' | 'none'
@@ -24,10 +24,11 @@ declare global {
             browseJavaCompiler: () => Promise<string | null>
             setCustomJavaPath: (customPath: string) => Promise<void>
             startProcess: (request: {
-                language: 'cpp' | 'java'
+                language: 'c' | 'cpp' | 'java'
                 code: string
                 filePath?: string | null
                 cppStandard?: string
+                cStandard?: string
             }) => Promise<{ success: boolean; error?: string; compileTime?: number }>
             writeProcess: (data: string) => Promise<void>
             stopProcess: () => Promise<void>
@@ -37,7 +38,7 @@ declare global {
             onProcessStdout: (callback: (data: string) => void) => () => void
             onProcessStderr: (callback: (data: string) => void) => () => void
             onProcessExit: (callback: (code: number) => void) => () => void
-            debugStart: (code: string, breakpoints: { line: number }[]) => Promise<{ success: boolean; error?: string }>
+            debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') => Promise<{ success: boolean; error?: string }>
             debugStop: () => Promise<void>
             debugStepOver: () => Promise<void>
             debugStepInto: () => Promise<void>

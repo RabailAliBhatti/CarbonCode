@@ -1,4 +1,4 @@
-export type SupportedLanguage = 'cpp' | 'java'
+export type SupportedLanguage = 'c' | 'cpp' | 'java'
 
 export const getLanguageFromFileName = (fileName: string | null | undefined): SupportedLanguage => {
     const ext = fileName?.split('.').pop()?.toLowerCase()
@@ -7,9 +7,20 @@ export const getLanguageFromFileName = (fileName: string | null | undefined): Su
         return 'java'
     }
 
+    if (ext === 'c' || ext === 'h') {
+        return 'c'
+    }
+
     return 'cpp'
 }
 
 export const getLanguageLabel = (language: SupportedLanguage) => {
-    return language === 'java' ? 'Java' : 'C++'
+    switch (language) {
+        case 'c':
+            return 'C'
+        case 'java':
+            return 'Java'
+        default:
+            return 'C++'
+    }
 }

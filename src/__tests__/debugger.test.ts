@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('electron', () => ({
     app: {
@@ -98,7 +98,7 @@ describe('DebuggerService', () => {
         it('should parse locals response with single variable', () => {
             const response = '^done,locals=[{name="x",value="42",type="int"}]'
 
-            const match = response.match(/locals=\[(.*?)\]/s)
+            const match = response.match(/locals=\[([\s\S]*?)\]/)
             expect(match).toBeTruthy()
 
             if (match) {
@@ -123,7 +123,7 @@ describe('DebuggerService', () => {
         it('should parse locals response with multiple variables', () => {
             const response = '^done,locals=[{name="x",value="42",type="int"},{name="name",value="hello",type="std::string"},{name="count",value="0",type="size_t"}]'
 
-            const match = response.match(/locals=\[(.*?)\]/s)
+            const match = response.match(/locals=\[([\s\S]*?)\]/)
             expect(match).toBeTruthy()
 
             if (match) {
@@ -154,7 +154,7 @@ describe('DebuggerService', () => {
         it('should handle empty locals response', () => {
             const response = '^done,locals=[]'
 
-            const match = response.match(/locals=\[(.*?)\]/s)
+            const match = response.match(/locals=\[([\s\S]*?)\]/)
             expect(match).toBeTruthy()
 
             if (match) {
@@ -176,7 +176,7 @@ describe('DebuggerService', () => {
         it('should handle variables without type information', () => {
             const response = '^done,locals=[{name="ptr",value="0x7fffffffde80"}]'
 
-            const match = response.match(/locals=\[(.*?)\]/s)
+            const match = response.match(/locals=\[([\s\S]*?)\]/)
             expect(match).toBeTruthy()
 
             if (match) {
@@ -307,8 +307,8 @@ describe('DebuggerService', () => {
 
             const state = debuggerService.getState()
             state.breakpoints.push(
-                { id: 1, file: 'test.cpp', line: 5 },
-                { id: 2, file: 'test.cpp', line: 10 }
+                { id: 1, gdbNumber: 1, file: 'test.cpp', line: 5 },
+                { id: 2, gdbNumber: 2, file: 'test.cpp', line: 10 }
             )
 
             expect(state.breakpoints.length).toBe(2)
@@ -327,4 +327,37 @@ describe('DebuggerService', () => {
             expect(state.locals).toEqual([])
         })
     })
+
+    describe('C language debugging', () => {
+        it('should write debug_main.c and support language c in start', async () => {
+            const { writeFileSync, existsSync } = await import('fs')
+            const mockWrite = vi.mocked(writeFileSync)
+            const mockExists = vi.mocked(existsSync)
+
+            mockExists.mockImplementation((path: unknown) => {
+                const p = String(path)
+                if (p.includes('gcc.exe') || p.includes('gcc')) return true
+                if (p.includes('gdb.exe') || p.includes('gdb')) return true
+                return true
+            })
+
+            const debuggerService = await createDebuggerWithMock()
+
+            vi.spyOn(debuggerService as unknown as { compile: () => Promise<{ success: boolean }> }, 'compile').mockResolvedValue({ success: true })
+            vi.spyOn(debuggerService as unknown as { waitForPrompt: () => Promise<void> }, 'waitForPrompt').mockResolvedValue(undefined)
+            vi.spyOn(debuggerService as unknown as { sendCommand: () => Promise<string> }, 'sendCommand').mockResolvedValue('^done')
+
+            const result = await debuggerService.start(
+                '#include <stdio.h>\nint main() { return 0; }',
+                [{ line: 2 }],
+                'c'
+            )
+
+            expect(result.success).toBe(true)
+            const writeCall = mockWrite.mock.calls.find(call => String(call[0]).includes('debug_main.c'))
+            expect(writeCall).toBeDefined()
+            await debuggerService.stop()
+        })
+    })
 })
+

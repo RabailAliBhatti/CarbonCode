@@ -57,7 +57,7 @@ describe('Compiler Pipeline', () => {
                     kill: vi.fn(),
                     stdin: { write: vi.fn() }
                 }
-            }) as ReturnType<typeof spawn>)
+            }) as any)
 
             const { compileCode } = await import('../../electron/compiler')
 
@@ -95,7 +95,7 @@ describe('Compiler Pipeline', () => {
                 }),
                 kill: vi.fn(),
                 stdin: { write: vi.fn() }
-            })) as ReturnType<typeof spawn>)
+            })) as any)
 
             const { compileCode } = await import('../../electron/compiler')
 
@@ -126,7 +126,7 @@ describe('Compiler Pipeline', () => {
                 }),
                 kill: vi.fn(),
                 stdin: { write: vi.fn() }
-            })) as ReturnType<typeof spawn>)
+            })) as any)
 
             const { compileCode, setCustomCompilerPath } = await import('../../electron/compiler')
 
@@ -142,6 +142,132 @@ describe('Compiler Pipeline', () => {
                 const args = spawnCall[1] as string[]
                 expect(args.some(arg => String(arg) === '/EHsc')).toBe(true)
                 expect(args.some(arg => String(arg).includes('/std:'))).toBe(true)
+                expect(args.some(arg => String(arg) === '/W4')).toBe(true)
+                expect(args.some(arg => String(arg).includes('/Fe:'))).toBe(true)
+            }
+        })
+    })
+
+    describe('C compile argument building', () => {
+        it('should produce correct gcc arguments for C17 standard', async () => {
+            const { spawn } = await import('child_process')
+            const mockSpawn = vi.mocked(spawn)
+            const { existsSync } = await import('fs')
+
+            vi.mocked(existsSync).mockImplementation((path: unknown) => {
+                const p = String(path)
+                if (p.includes('gcc.exe') || p.includes('gcc')) return true
+                if (p.includes('bin') && p.includes('mingw')) return true
+                return false
+            })
+
+            mockSpawn.mockImplementation((() => ({
+                stdout: { on: vi.fn() },
+                stderr: { on: vi.fn() },
+                on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+                    if (event === 'close') setTimeout(() => cb(0), 0)
+                }),
+                kill: vi.fn(),
+                stdin: { write: vi.fn() }
+            })) as any)
+
+            const { compileCCode } = await import('../../electron/compiler')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+
+            await compileCCode('#include <stdio.h>\nint main() { return 0; }', 'c17')
+
+            expect(mockSpawn).toHaveBeenCalled()
+
+            const spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('gcc')
+            )
+
+            if (spawnCall) {
+                const capturedArgs = spawnCall[1] as string[]
+                expect(capturedArgs.some(arg => String(arg).includes('-std=c17'))).toBe(true)
+                expect(capturedArgs.some(arg => String(arg) === '-Wall')).toBe(true)
+                expect(capturedArgs.some(arg => String(arg) === '-Wextra')).toBe(true)
+                expect(capturedArgs.some(arg => String(arg) === '-o')).toBe(true)
+                expect(capturedArgs.some(arg => String(arg).includes('main.c'))).toBe(true)
+            }
+        })
+
+        it('should produce correct gcc arguments for C99 and C23 standards', async () => {
+            const { spawn } = await import('child_process')
+            const mockSpawn = vi.mocked(spawn)
+            const { existsSync } = await import('fs')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+
+            mockSpawn.mockImplementation((() => ({
+                stdout: { on: vi.fn() },
+                stderr: { on: vi.fn() },
+                on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+                    if (event === 'close') setTimeout(() => cb(0), 0)
+                }),
+                kill: vi.fn(),
+                stdin: { write: vi.fn() }
+            })) as any)
+
+            const { compileCCode } = await import('../../electron/compiler')
+
+            await compileCCode('#include <stdio.h>', 'c99')
+
+            let spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('gcc')
+            )
+
+            if (spawnCall) {
+                const args = spawnCall[1] as string[]
+                expect(args.some(arg => String(arg).includes('-std=c99'))).toBe(true)
+            }
+
+            mockSpawn.mockClear()
+
+            await compileCCode('#include <stdio.h>', 'c23')
+
+            spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('gcc')
+            )
+
+            if (spawnCall) {
+                const args = spawnCall[1] as string[]
+                expect(args.some(arg => String(arg).includes('-std=c23'))).toBe(true)
+            }
+        })
+
+        it('should handle MSVC (cl.exe) arguments for C', async () => {
+            const { spawn } = await import('child_process')
+            const mockSpawn = vi.mocked(spawn)
+            const { existsSync } = await import('fs')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+
+            mockSpawn.mockImplementation((() => ({
+                stdout: { on: vi.fn() },
+                stderr: { on: vi.fn() },
+                on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+                    if (event === 'close') setTimeout(() => cb(0), 0)
+                }),
+                kill: vi.fn(),
+                stdin: { write: vi.fn() }
+            })) as any)
+
+            const { compileCCode, setCustomCompilerPath } = await import('../../electron/compiler')
+
+            setCustomCompilerPath('cl.exe')
+
+            await compileCCode('#include <stdio.h>', 'c17')
+
+            const spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('cl.exe')
+            )
+
+            if (spawnCall) {
+                const args = spawnCall[1] as string[]
+                expect(args.some(arg => String(arg) === '/EHsc')).toBe(true)
+                expect(args.some(arg => String(arg).includes('/std:c17'))).toBe(true)
                 expect(args.some(arg => String(arg) === '/W4')).toBe(true)
                 expect(args.some(arg => String(arg).includes('/Fe:'))).toBe(true)
             }
@@ -166,7 +292,7 @@ describe('Compiler Pipeline', () => {
                 }),
                 kill: vi.fn(),
                 stdin: { write: vi.fn() }
-            })) as ReturnType<typeof spawn>)
+            })) as any)
 
             const { compileJavaCode, setCustomJavaPath } = await import('../../electron/compiler')
 
@@ -202,7 +328,7 @@ describe('Compiler Pipeline', () => {
                 }),
                 kill: vi.fn(),
                 stdin: { write: vi.fn() }
-            })) as ReturnType<typeof spawn>)
+            })) as any)
 
             const { compileJavaCode, setCustomJavaPath } = await import('../../electron/compiler')
 
@@ -232,7 +358,7 @@ describe('Compiler Pipeline', () => {
                 }),
                 kill: vi.fn(),
                 stdin: { write: vi.fn() }
-            })) as ReturnType<typeof spawn>)
+            })) as any)
 
             const { compileJavaCode, setCustomJavaPath } = await import('../../electron/compiler')
 
@@ -281,6 +407,23 @@ describe('Compiler Pipeline', () => {
             expect(result.success).toBe(false)
             expect(result.error).toContain('No Java JDK found')
         })
+
+        it('should return error when no C compiler is found', async () => {
+            const { existsSync } = await import('fs')
+            const { execSync } = await import('child_process')
+
+            vi.mocked(existsSync).mockReturnValue(false)
+            vi.mocked(execSync).mockImplementation(() => {
+                throw new Error('command not found')
+            })
+
+            const { compileCCode } = await import('../../electron/compiler')
+
+            const result = await compileCCode('int main() { return 0; }', 'c17')
+
+            expect(result.success).toBe(false)
+            expect(result.error).toContain('No C compiler found')
+        })
     })
 
     describe('Compiler detection priority', () => {
@@ -319,6 +462,22 @@ describe('Compiler Pipeline', () => {
             const result = await detectCompiler()
 
             expect(result).toBeTruthy()
+        })
+
+        it('should prefer custom path for C compiler', async () => {
+            const { existsSync } = await import('fs')
+            const { execSync } = await import('child_process')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+            vi.mocked(execSync).mockReturnValue(Buffer.from('gcc (GCC) 13.2.0'))
+
+            const { detectCCompiler, setCustomCompilerPath } = await import('../../electron/compiler')
+
+            setCustomCompilerPath('/custom/gcc')
+
+            const result = await detectCCompiler('/custom/gcc')
+
+            expect(result).toBe('/custom/gcc')
         })
     })
 })

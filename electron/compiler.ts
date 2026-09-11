@@ -5,7 +5,7 @@ import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 
-export type SupportedLanguage = 'cpp' | 'java'
+export type SupportedLanguage = 'c' | 'cpp' | 'java'
 
 export interface RuntimeInfo {
     language: SupportedLanguage
@@ -20,6 +20,7 @@ export interface RunRequest {
     code: string
     filePath?: string | null
     cppStandard?: string
+    cStandard?: string
 }
 
 // Store running processes for potential cancellation
@@ -27,6 +28,7 @@ let currentProcess: ChildProcess | null = null
 
 // Store the detected compiler path
 let detectedCompilerPath: string | null = null
+let detectedCCompilerPath: string | null = null
 let detectedJavaCompilerPath: string | null = null
 let detectedJavaRuntimePath: string | null = null
 
@@ -42,14 +44,34 @@ function cleanupDir(dir: string) {
 
 // ponytail: merged getBundledCompilerPath + getBundledMingwBinDir into one lookup
 function findBundledMingw(): string | null {
-    const candidates = [
-        join(process.resourcesPath, 'mingw64', 'bin'),
-        join(app.getAppPath(), 'vendor', 'mingw64', 'bin')
-    ]
+    const candidates: string[] = []
+    if (process.resourcesPath) {
+        candidates.push(join(process.resourcesPath, 'mingw64', 'bin'))
+    }
+    try {
+        if (app?.getAppPath) {
+            candidates.push(join(app.getAppPath(), 'vendor', 'mingw64', 'bin'))
+        }
+    } catch { }
+
     for (const dir of candidates) {
         try { if (existsSync(dir)) return dir } catch { }
     }
     return null
+}
+
+function getBundledCompilerPath(): string | null {
+    const binDir = findBundledMingw()
+    if (!binDir) return null
+    const gpp = join(binDir, 'g++.exe')
+    return existsSync(gpp) ? gpp : null
+}
+
+function getBundledCCompilerPath(): string | null {
+    const binDir = findBundledMingw()
+    if (!binDir) return null
+    const gcc = join(binDir, 'gcc.exe')
+    return existsSync(gcc) ? gcc : null
 }
 
 function getBundledMingwEnv(): NodeJS.ProcessEnv {
@@ -71,12 +93,14 @@ let javaVersion: string | undefined
 export function setCustomCompilerPath(customPath: string): void {
     // Reset cache to force re-detection
     detectedCompilerPath = null
+    detectedCCompilerPath = null
     isBundledCompiler = false
     compilerSource = 'none'
 
     if (customPath && existsSync(customPath)) {
         console.log('Custom compiler path set:', customPath)
         detectedCompilerPath = customPath
+        detectedCCompilerPath = customPath
         isBundledCompiler = false
         compilerSource = 'custom'
     }
@@ -295,6 +319,56 @@ export async function detectCompiler(customPath?: string): Promise<string | null
 }
 
 /**
+ * Detect available C compiler
+ * Priority: Custom user path > Bundled MinGW gcc > System PATH (gcc, clang, cl.exe)
+ */
+export async function detectCCompiler(customPath?: string): Promise<string | null> {
+    if (detectedCCompilerPath) return detectedCCompilerPath
+
+    if (customPath && existsSync(customPath)) {
+        console.log('Using custom C compiler from settings:', customPath)
+        detectedCCompilerPath = customPath
+        isBundledCompiler = false
+        compilerSource = 'custom'
+        return customPath
+    }
+
+    const bundledPath = getBundledCCompilerPath()
+    if (bundledPath) {
+        console.log('Using bundled MinGW C compiler:', bundledPath)
+        detectedCCompilerPath = bundledPath
+        isBundledCompiler = true
+        compilerSource = 'bundled'
+        return bundledPath
+    }
+
+    const compilers = [
+        { cmd: 'gcc', args: ['--version'] },
+        { cmd: 'clang', args: ['--version'] },
+        { cmd: 'cl.exe', args: [] }
+    ]
+
+    for (const compiler of compilers) {
+        try {
+            execSync(`${compiler.cmd} ${compiler.args.join(' ')}`, {
+                stdio: 'pipe',
+                timeout: 5000,
+                windowsHide: true
+            })
+            console.log('Found system C compiler:', compiler.cmd)
+            detectedCCompilerPath = compiler.cmd
+            isBundledCompiler = false
+            compilerSource = 'system'
+            return compiler.cmd
+        } catch {
+            // Try next
+        }
+    }
+
+    return null
+}
+
+/**
  * Get the actual compiler path to use for compilation
  */
 function getCompilerPath(): string | null {
@@ -411,6 +485,103 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
     }
 }
 
+/**
+ * Compile C code only
+ */
+export async function compileCCode(code: string, cStandard: string): Promise<CompileResult> {
+    const compiler = await detectCCompiler()
+
+    if (!compiler) {
+        return {
+            success: false,
+            error: '❌ No C compiler found!\n\nThe bundled compiler was not detected. Please reinstall CarbonCode or install MinGW-w64 / GCC manually.'
+        }
+    }
+
+    // Create unique temporary directory
+    const tempDir = join(tmpdir(), `c-ide-${randomUUID()}`)
+    const sourceFile = join(tempDir, 'main.c')
+    const exeExtension = process.platform === 'win32' ? '.exe' : ''
+    const executableFile = join(tempDir, `main${exeExtension}`)
+
+    try {
+        // Create temp directory
+        mkdirSync(tempDir, { recursive: true })
+
+        // Write source code to temp file
+        writeFileSync(sourceFile, code, 'utf-8')
+
+        let compileCmd: string
+        let compileArgs: string[]
+
+        const compilerPath = detectedCCompilerPath || compiler
+
+        if (compiler === 'cl.exe' || compilerPath.toLowerCase().endsWith('cl.exe')) {
+            // MSVC C compiler
+            const msvcStd = (cStandard === 'c11' || cStandard === 'c17') ? `/std:${cStandard}` : '/std:c11'
+            compileArgs = [
+                '/EHsc',
+                msvcStd,
+                '/W4',
+                `/Fe:${executableFile}`,
+                sourceFile
+            ]
+            compileCmd = compilerPath
+        } else {
+            // GCC / Clang
+            compileArgs = [
+                `-std=${cStandard || 'c17'}`,
+                '-Wall',
+                '-Wextra',
+                '-o', executableFile,
+                sourceFile
+            ]
+            compileCmd = compilerPath
+        }
+
+        const compileEnv = isBundledCompiler ? getBundledMingwEnv() : undefined
+
+        const compileStart = Date.now()
+        const compileResult = await runCompilationProcess(compileCmd, compileArgs, tempDir, 30000, compileEnv)
+        const compileTime = Date.now() - compileStart
+
+        if (!compileResult.success) {
+            cleanupDir(tempDir)
+
+            return {
+                success: false,
+                error: `🔧 Compilation Error:\n\n${compileResult.stderr || compileResult.stdout}`,
+                compileTime
+            }
+        }
+
+        if (!existsSync(executableFile)) {
+            cleanupDir(tempDir)
+
+            return {
+                success: false,
+                error: '❌ Compilation failed: Executable not created',
+                compileTime
+            }
+        }
+
+        return {
+            success: true,
+            executablePath: executableFile,
+            tempDir,
+            compileTime
+        }
+
+    } catch (e: unknown) {
+        cleanupDir(tempDir)
+        const message = e instanceof Error ? e.message : String(e)
+        return {
+            success: false,
+            error: `❌ Unexpected error: ${message}`
+        }
+    }
+}
+
 
 
 export async function compileJavaCode(code: string, filePath?: string | null): Promise<CompileResult & { mainClass?: string }> {
@@ -430,6 +601,8 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
     const classMatch = code.match(/\bpublic\s+class\s+(\w+)/)
     if (classMatch) {
         mainClass = classMatch[1]
+    } else if (filePath) {
+        mainClass = basename(filePath, extname(filePath))
     }
 
     const sourceName = `${mainClass}.java`

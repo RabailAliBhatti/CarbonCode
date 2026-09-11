@@ -1,14 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 // ponytail: IPC listener helper — one function instead of 20 identical blocks
-function onIpc(channel: string, callback: (...args: unknown[]) => void) {
+function onIpc(channel: string, callback: (...args: any[]) => void) {
     const handler = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)
     ipcRenderer.on(channel, handler)
     return () => ipcRenderer.removeListener(channel, handler)
 }
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+console.log('[Preload] Initializing ContextBridge electronAPI...')
 contextBridge.exposeInMainWorld('electronAPI', {
     // File operations
     openFile: () => ipcRenderer.invoke('dialog:open-file'),
@@ -51,8 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onProcessExit: (cb: (code: number) => void) => onIpc('process:exit', cb),
 
     // Debugger API
-    debugStart: (code: string, breakpoints: { line: number }[]) =>
-        ipcRenderer.invoke('debugger:start', code, breakpoints),
+    debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') =>
+        ipcRenderer.invoke('debugger:start', code, breakpoints, language),
     debugStop: () => ipcRenderer.invoke('debugger:stop'),
     debugStepOver: () => ipcRenderer.invoke('debugger:step-over'),
     debugStepInto: () => ipcRenderer.invoke('debugger:step-into'),

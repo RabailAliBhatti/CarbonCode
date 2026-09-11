@@ -1,4 +1,4 @@
-import { Settings, CppStandard } from '../hooks/useSettings'
+import { Settings, CppStandard, CStandard } from '../hooks/useSettings'
 
 interface SettingsModalProps {
     isVisible: boolean
@@ -100,19 +100,35 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                     <section className="space-y-4">
                         <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Compilers</h3>
 
-                        <div className="space-y-1">
-                            <label className="text-sm text-text-primary">Default C++ Standard</label>
-                            <select
-                                value={settings.cppStandard}
-                                onChange={(e) => onUpdateSetting('cppStandard', e.target.value as CppStandard)}
-                                className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
-                            >
-                                <option value="c++11">C++ 11 (2011)</option>
-                                <option value="c++14">C++ 14 (2014)</option>
-                                <option value="c++17">C++ 17 (2017)</option>
-                                <option value="c++20">C++ 20 (2020)</option>
-                                <option value="c++23">C++ 23 (Experimental)</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">Default C Standard</label>
+                                <select
+                                    value={settings.cStandard}
+                                    onChange={(e) => onUpdateSetting('cStandard', e.target.value as CStandard)}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                >
+                                    <option value="c99">C99 (ISO 1999)</option>
+                                    <option value="c11">C11 (ISO 2011)</option>
+                                    <option value="c17">C17 (Recommended)</option>
+                                    <option value="c23">C23 (Modern)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">Default C++ Standard</label>
+                                <select
+                                    value={settings.cppStandard}
+                                    onChange={(e) => onUpdateSetting('cppStandard', e.target.value as CppStandard)}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                >
+                                    <option value="c++11">C++ 11 (2011)</option>
+                                    <option value="c++14">C++ 14 (2014)</option>
+                                    <option value="c++17">C++ 17 (2017)</option>
+                                    <option value="c++20">C++ 20 (2020)</option>
+                                    <option value="c++23">C++ 23 (Experimental)</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div className="space-y-1">

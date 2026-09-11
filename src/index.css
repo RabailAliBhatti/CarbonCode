@@ -1,79 +1,115 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Dark Theme (Default) */
-    --color-editor-bg: #1e1e1e;
-    --color-editor-sidebar: #252526;
-    --color-editor-border: #3c3c3c;
-    --color-editor-highlight: #264f78;
-    --color-editor-selection: #add6ff33;
-    --color-toolbar-bg: #323233;
-    --color-output-bg: #1e1e1e;
-    --color-accent: #007acc;
-    --color-accent-hover: #1e90ff;
-    --color-success: #4ec9b0;
-    --color-error: #f14c4c;
-    --color-warning: #cca700;
-    --color-text-primary: #cccccc;
-    --color-text-secondary: #858585;
-    --color-text-bright: #ffffff;
+    /* CarbonCode Primary Design Tokens (from new-design/design.md) */
+    --color-bg-app: #080D17;
+    --color-bg-secondary: #0C1422;
+    --color-bg-surface: #0F1929;
+    --color-bg-elevated: #111D30;
+    --color-border: #203452;
+    --color-border-subtle: #17263B;
+
+    --color-accent: #1688F5;
+    --color-accent-secondary: #315FEA;
+    --color-accent-highlight: #25B8FF;
+
+    --color-text-primary: #F4F7FB;
+    --color-text-secondary: #A9B7CC;
+    --color-text-muted: #6F8099;
+    --color-text-bright: #FFFFFF;
+
+    --color-success: #20D4B0;
+    --color-warning: #F4B740;
+    --color-error: #FF667A;
+
+    /* Legacy and Editor Semantic Mapping */
+    --color-editor-bg: #080D17;
+    --color-editor-sidebar: #0F1929;
+    --color-editor-border: #203452;
+    --color-editor-highlight: #111D30;
+    --color-editor-selection: rgba(22, 136, 245, 0.25);
+    --color-toolbar-bg: #0C1422;
+    --color-output-bg: #080D17;
+    --color-accent-hover: #25B8FF;
+
     /* Shadows */
-    --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.3);
-    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.2);
-    --shadow-glow: 0 0 20px rgba(0, 122, 204, 0.3);
+    --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --shadow-hover: 0 2px 10px rgba(22, 136, 245, 0.15);
+    --shadow-glow: 0 0 20px rgba(22, 136, 245, 0.35);
+    --shadow-glow-success: 0 0 20px rgba(32, 212, 176, 0.35);
+
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
   }
 
   :root[data-theme="light"] {
-    /* Light Theme */
-    --color-editor-bg: #fffffe;
-    --color-editor-sidebar: #f3f3f3;
-    --color-editor-border: #e4e4e4;
-    --color-editor-highlight: #e4e6f1;
-    --color-editor-selection: #add6ff4d;
-    --color-toolbar-bg: #f3f3f3;
-    --color-output-bg: #ffffff;
-    --color-accent: #0078d4;
-    --color-accent-hover: #106ebe;
-    --color-success: #388a34;
-    --color-error: #e51400;
-    --color-warning: #795e00;
-    --color-text-primary: #24292e;
-    --color-text-secondary: #6e7681;
+    /* CarbonCode Light Theme Alternative */
+    --color-bg-app: #F4F7FB;
+    --color-bg-secondary: #EAEEF5;
+    --color-bg-surface: #FFFFFF;
+    --color-bg-elevated: #F0F4FA;
+    --color-border: #D0DBEA;
+    --color-border-subtle: #E2E8F0;
+
+    --color-accent: #1688F5;
+    --color-accent-secondary: #315FEA;
+    --color-accent-highlight: #0070E0;
+
+    --color-text-primary: #0F1929;
+    --color-text-secondary: #4A5B73;
+    --color-text-muted: #8596B0;
     --color-text-bright: #000000;
-    /* Shadows for light theme */
-    --shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.08);
-    --shadow-glow: 0 0 20px rgba(0, 120, 212, 0.2);
+
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+
+    --color-editor-bg: #FFFFFF;
+    --color-editor-sidebar: #F8FAFC;
+    --color-editor-border: #D0DBEA;
+    --color-editor-highlight: #EAEEF5;
+    --color-editor-selection: rgba(22, 136, 245, 0.15);
+    --color-toolbar-bg: #F4F7FB;
+    --color-output-bg: #F8FAFC;
+    --color-accent-hover: #106EBE;
+
+    --shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-glow: 0 0 20px rgba(22, 136, 245, 0.2);
+    --shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.2);
   }
 
   /* Modern UI font */
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Inter', Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    background-color: var(--color-bg-app);
+    color: var(--color-text-primary);
   }
 }
 
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: var(--color-bg-app);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #424242;
-  border-radius: 5px;
+  background: var(--color-border);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f4f4f;
+  background: var(--color-accent);
 }
 
 /* Thin scrollbar for tabs */
@@ -86,8 +122,12 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: var(--color-border);
   border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
 }
 
 /* Selection color */

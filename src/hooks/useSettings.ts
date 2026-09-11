@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
+export type CStandard = 'c99' | 'c11' | 'c17' | 'c23'
 
 export interface Settings {
     fontSize: number
     tabSize: number
     autoSave: boolean
+    cStandard: CStandard
     cppStandard: CppStandard
     compilerPath: string
     javaCompilerPath: string
@@ -23,6 +25,7 @@ const DEFAULT_SETTINGS: Settings = {
     fontSize: 14,
     tabSize: 4,
     autoSave: false,
+    cStandard: 'c17',
     cppStandard: 'c++17',
     compilerPath: '',
     javaCompilerPath: '',

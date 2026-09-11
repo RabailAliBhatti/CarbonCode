@@ -11,6 +11,7 @@ function loadTabsFromStorage(): { tabs: FileTab[]; activeTabId: string | null } 
             const parsed = JSON.parse(data)
             if (parsed.tabs && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
                 return parsed
+
             }
         }
     } catch { }
@@ -65,6 +66,21 @@ public class Main {
 `
 }
 
+const generateDefaultCCode = (authorName: string): string => {
+    const date = new Date().toLocaleDateString()
+    return `// Author: ${authorName}
+// Date: ${date}
+
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, World!\\n");
+    printf("Welcome to CarbonCode!\\n");
+    return 0;
+}
+`
+}
+
 // Fallback template when author name is not available
 const DEFAULT_CODE = `#include <iostream>
 using namespace std;
@@ -73,6 +89,15 @@ int main() {
     cout << "Hello, World!" << endl;
     cout << "Welcome to CarbonCode!" << endl;
      
+    return 0;
+}
+`
+
+const DEFAULT_C_CODE = `#include <stdio.h>
+
+int main(void) {
+    printf("Hello, World!\\n");
+    printf("Welcome to CarbonCode!\\n");
     return 0;
 }
 `
@@ -88,6 +113,9 @@ const DEFAULT_JAVA_CODE = `public class Main {
 const getDefaultContent = (language: SupportedLanguage, authorName?: string) => {
     if (language === 'java') {
         return authorName ? generateDefaultJavaCode(authorName) : DEFAULT_JAVA_CODE
+    }
+    if (language === 'c') {
+        return authorName ? generateDefaultCCode(authorName) : DEFAULT_C_CODE
     }
 
     return authorName ? generateDefaultCode(authorName) : DEFAULT_CODE
@@ -140,9 +168,10 @@ export function useFileManager() {
     // Create new tab with optional author name for template
     const createNewTab = useCallback((language: SupportedLanguage = 'cpp', authorName?: string) => {
         const content = getDefaultContent(language, authorName)
+        const fileName = language === 'java' ? 'Untitled.java' : language === 'c' ? 'Untitled.c' : 'Untitled.cpp'
         const newTab: FileTab = {
             id: generateId(),
-            fileName: language === 'java' ? 'Untitled.java' : 'Untitled.cpp',
+            fileName,
             filePath: null,
             content: content,
             isDirty: false,

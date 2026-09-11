@@ -1,4 +1,4 @@
-export type SupportedLanguage = 'cpp' | 'java'
+export type SupportedLanguage = 'c' | 'cpp' | 'java'
 
 export type CompilerSource = 'custom' | 'bundled' | 'system' | 'none'
 
@@ -15,6 +15,7 @@ export interface RunRequest {
     code: string
     filePath?: string | null
     cppStandard?: string
+    cStandard?: string
 }
 
 export interface CompilationResult {

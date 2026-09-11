@@ -1,25 +1,24 @@
 import { useState, useEffect, useCallback, useRef, MouseEvent } from 'react'
 import type { editor } from 'monaco-editor'
-import Editor from './components/Editor'
 import Toolbar from './components/Toolbar'
-import OutputPanel from './components/OutputPanel'
 import StatusBar from './components/StatusBar'
 import WelcomeScreen from './components/WelcomeScreen'
-import TabBar from './components/TabBar'
 import TabContextMenu from './components/TabContextMenu'
-import FileExplorer from './components/FileExplorer'
 import FindReplace from './components/FindReplace'
 import SearchPanel from './components/SearchPanel'
 import SettingsModal from './components/SettingsModal'
-import DebugPanel from './components/DebugPanel'
 import AnalyticsConsentDialog from './components/AnalyticsConsentDialog'
 import NewFileDialog from './components/NewFileDialog'
+import NavigationRail, { NavItem } from './components/NavigationRail'
+import CodingScreen from './components/CodingScreen'
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
 import { useFileManager } from './hooks/useFileManager'
 import { SupportedLanguage } from './types/language'
-import { useSettings, CppStandard } from './hooks/useSettings'
+import { useSettings, CppStandard, CStandard } from './hooks/useSettings'
 import { parseCompileErrors } from './utils/parseCompileErrors'
 import type { CompileError } from './utils/parseCompileErrors'
 import { loadProjectSettings } from './utils/loadProjectSettings'
+import { addRecentFile } from './utils/recentFiles'
 
 interface DebugState {
     status: 'idle' | 'running' | 'stopped' | 'exited'
@@ -85,6 +84,7 @@ function App() {
 
     // Tab recovery: prompt user if previous session data exists
     useEffect(() => {
+        if (!window.electronAPI) return
         if (hasRecoveryData) {
             const promptRecovery = async () => {
                 try {
@@ -110,17 +110,16 @@ function App() {
     }, [hasRecoveryData, acceptRecovery, dismissRecovery])
 
     // UI state
-    const [showWelcome, setShowWelcome] = useState<boolean>(true)
-    const [showExplorer, setShowExplorer] = useState<boolean>(false)
+    const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard')
+    const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false)
+    const [showExplorer, setShowExplorer] = useState<boolean>(true)
     const [showFind, setShowFind] = useState<boolean>(false)
     const [showSearch, setShowSearch] = useState<boolean>(false)
 
-    // Sync Welcome Screen with Tabs
+    // Sync Dashboard/Editor View with Tabs
     useEffect(() => {
         if (tabs.length === 0) {
-            setShowWelcome(true)
-        } else {
-            setShowWelcome(false)
+            setCurrentView('dashboard')
         }
     }, [tabs.length])
 
@@ -142,7 +141,6 @@ function App() {
     const [parsedErrors, setParsedErrors] = useState<CompileError[]>([])
 
     // UI state
-    const [outputHeight, setOutputHeight] = useState<number>(200)
     const [outputWidth, setOutputWidth] = useState<number>(400)
     const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 })
     const [rootPath, setRootPath] = useState<string | null>(null)
@@ -171,6 +169,8 @@ function App() {
 
     // Listeners for process output
     useEffect(() => {
+        if (!window.electronAPI) return
+
         const cleanStdout = window.electronAPI.onProcessStdout((data) => {
             setCompilationResult(prev => ({
                 success: true, // Optimistic
@@ -209,9 +209,9 @@ function App() {
         })
 
         return () => {
-            cleanStdout()
-            cleanStderr()
-            cleanExit()
+            cleanStdout?.()
+            cleanStderr?.()
+            cleanExit?.()
         }
     }, [])
 
@@ -239,31 +239,37 @@ function App() {
         : !!compilerInfo
 
     // Check for compiler and fetch author name on mount
+    // Check for compiler and fetch author name on mount concurrently
     useEffect(() => {
-        const checkCompiler = async () => {
+        if (!window.electronAPI) return
+        const initStartupData = async () => {
             setIsDetecting(true)
-            const compiler = await window.electronAPI.detectCompiler(settings.compilerPath || undefined)
-            setCompilerInfo(compiler)
-            const javaRuntime = await window.electronAPI.detectJavaRuntime(settings.javaHome || undefined, settings.javaCompilerPath || undefined)
-            setJavaRuntimeInfo(javaRuntime)
-            setIsDetecting(false)
+            try {
+                const [compiler, javaRuntime, name] = await Promise.all([
+                    window.electronAPI.detectCompiler(settings.compilerPath || undefined),
+                    window.electronAPI.detectJavaRuntime(settings.javaHome || undefined, settings.javaCompilerPath || undefined),
+                    window.electronAPI.getAuthorName()
+                ])
+                setCompilerInfo(compiler)
+                setJavaRuntimeInfo(javaRuntime)
+                setAuthorName(name)
+            } finally {
+                setIsDetecting(false)
+            }
         }
-        const fetchAuthorName = async () => {
-            const name = await window.electronAPI.getAuthorName()
-            setAuthorName(name)
-        }
-        checkCompiler()
-        fetchAuthorName()
+        initStartupData()
     }, [settings.compilerPath, settings.javaHome, settings.javaCompilerPath])
 
     // Update dirty state in main process
     useEffect(() => {
+        if (!window.electronAPI) return
         const hasUnsaved = tabs.some(tab => tab.isDirty)
         window.electronAPI.setDirty(hasUnsaved)
     }, [tabs])
 
     // Watch files when tabs are opened, unwatch on close
     useEffect(() => {
+        if (!window.electronAPI) return
         const filePaths = tabs.filter(t => t.filePath).map(t => t.filePath!)
         // Watch new files
         for (const fp of filePaths) {
@@ -303,8 +309,11 @@ function App() {
 
     // Listen for file change events
     useEffect(() => {
+        if (!window.electronAPI) return
         const cleanup = window.electronAPI.onFileChanged(handleFileChanged)
-        return cleanup
+        return () => {
+            cleanup?.()
+        }
     }, [handleFileChanged])
 
     // Handle code changes
@@ -319,9 +328,10 @@ function App() {
         setShowNewFileDialog(true)
     }, [])
 
-    const handleNewFileSelect = useCallback((language: 'cpp' | 'java') => {
+    const handleNewFileSelect = useCallback((language: 'c' | 'cpp' | 'java') => {
         setShowNewFileDialog(false)
         createNewTab(language, authorName || undefined)
+        setCurrentView('editor')
         window.electronAPI?.trackEvent?.('file_created', { language })
     }, [createNewTab, authorName])
 
@@ -330,12 +340,23 @@ function App() {
         const file = await window.electronAPI.openFile()
         if (file) {
             openFile(file.filePath, file.content)
-            // Track analytics
-            const fileLang = file.filePath?.toLowerCase().endsWith('.java') ? 'java' : 'cpp'
+            const ext = file.filePath?.split('.').pop()?.toLowerCase()
+            const fileLang = ext === 'java' ? 'java' : ext === 'c' ? 'c' : 'cpp'
             window.electronAPI?.trackEvent?.('file_opened', { language: fileLang })
-            // Effect sends welcome screen away
+            addRecentFile(file.filePath, file.filePath.split(/[/\\]/).pop() || 'file', fileLang)
+            setCurrentView('editor')
+        }
+    }, [openFile])
 
-            // Add to recent files (local storage logic could go here)
+    // Open specific file by path (from Recent Files card or Explorer)
+    const handleOpenFileByPath = useCallback(async (filePath: string) => {
+        const content = await window.electronAPI.readFile(filePath)
+        if (content !== null) {
+            openFile(filePath, content)
+            const ext = filePath.split('.').pop()?.toLowerCase()
+            const fileLang = ext === 'java' ? 'java' : ext === 'c' ? 'c' : 'cpp'
+            addRecentFile(filePath, filePath.split(/[/\\]/).pop() || 'file', fileLang)
+            setCurrentView('editor')
         }
     }, [openFile])
 
@@ -345,7 +366,7 @@ function App() {
         if (path) {
             setRootPath(path)
             setShowExplorer(true)
-            setShowWelcome(false)
+            setCurrentView('editor')
             // Save to recent folders (fire and forget)
             window.electronAPI.addRecentFolder(path)
         }
@@ -356,7 +377,7 @@ function App() {
         setRootPath(null)
         setShowExplorer(false)
         if (tabs.length === 0) {
-            setShowWelcome(true)
+            setCurrentView('dashboard')
         }
     }, [tabs.length])
 
@@ -366,10 +387,11 @@ function App() {
         if (path) {
             setRootPath(path)
             setShowExplorer(true)
-            setShowWelcome(false)
+            setCurrentView('editor')
             window.electronAPI.addRecentFolder(path)
             // Load .carboncode project settings
             loadProjectSettings(path).then(projectSettings => {
+                if (projectSettings?.cStandard) updateSetting('cStandard', projectSettings.cStandard as CStandard)
                 if (projectSettings?.cppStandard) updateSetting('cppStandard', projectSettings.cppStandard as CppStandard)
                 if (projectSettings?.compilerPath) updateSetting('compilerPath', projectSettings.compilerPath)
             })
@@ -386,7 +408,8 @@ function App() {
         setJavaDebugUnsupported(false)
         const code = editorRef.current?.getValue() || activeTab.content
         const bpArray = breakpoints.map(line => ({ line }))
-        const result = await window.electronAPI.debugStart(code, bpArray)
+        const debugLang = (activeTab.language === 'c' ? 'c' : 'cpp') as 'c' | 'cpp'
+        const result = await window.electronAPI.debugStart(code, bpArray, debugLang)
         if (result.success) {
             window.electronAPI?.trackEvent?.('debug_started', { language: activeLanguage })
         } else {
@@ -396,7 +419,7 @@ function App() {
                 error: result.error || 'Failed to start debugging'
             })
         }
-    }, [activeTab, breakpoints])
+    }, [activeTab, breakpoints, activeLanguage])
     const handleDebugStop = useCallback(async () => { await window.electronAPI.debugStop() }, [])
     const handleDebugStepOver = useCallback(async () => { await window.electronAPI.debugStepOver() }, [])
     const handleDebugStepInto = useCallback(async () => { await window.electronAPI.debugStepInto() }, [])
@@ -423,10 +446,13 @@ function App() {
 
     // Listen for debug state changes
     useEffect(() => {
+        if (!window.electronAPI) return
         const cleanup = window.electronAPI.onDebugStateChanged((state) => {
             setDebugState(state)
         })
-        return cleanup
+        return () => {
+            cleanup?.()
+        }
     }, [])
 
     // Save file handler
@@ -444,12 +470,14 @@ function App() {
             const result = await window.electronAPI.saveFile(contentToSave, undefined, target.language)
             if (result && result.success) {
                 markTabSaved(target.id, result.filePath)
+                addRecentFile(result.filePath, result.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
             }
         } else {
             // Save to existing path
             const result = await window.electronAPI.saveFile(contentToSave, target.filePath, target.language)
             if (result && result.success) {
                 markTabSaved(target.id, target.filePath)
+                addRecentFile(target.filePath, target.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
             }
         }
     }, [activeTab, activeTabId, tabs, markTabSaved])
@@ -473,8 +501,9 @@ function App() {
             ? (editorRef.current?.getValue() || target.content)
             : target.content
         const result = await window.electronAPI.saveFile(currentCode, undefined, target.language)
-        if (result) {
+        if (result && result.filePath) {
             markTabSaved(target.id, result.filePath)
+            addRecentFile(result.filePath, result.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
         }
     }, [activeTab, activeTabId, tabs, markTabSaved])
 
@@ -497,7 +526,9 @@ function App() {
                 output: '',
                 error: activeLanguage === 'java'
                     ? 'No Java JDK detected!\n\nInstall a JDK with javac, set JAVA_HOME, or configure Java in Settings.'
-                    : 'No C++ compiler detected!\n\nPlease install a C++ compiler and restart the application.'
+                    : activeLanguage === 'c'
+                        ? 'No C compiler detected!\n\nPlease install a C compiler (gcc) and restart the application.'
+                        : 'No C++ compiler detected!\n\nPlease install a C++ compiler and restart the application.'
             })
             return
         }
@@ -525,7 +556,8 @@ function App() {
             language: activeLanguage,
             code: currentCode,
             filePath: activeTab.filePath,
-            cppStandard: settings.cppStandard
+            cppStandard: settings.cppStandard,
+            cStandard: settings.cStandard
         })
 
         setIsCompiling(false)
@@ -556,7 +588,7 @@ function App() {
             })
         }
 
-    }, [activeTab, settings.cppStandard, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
+    }, [activeTab, settings.cppStandard, settings.cStandard, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
 
     // Close a tab, prompting the user to save if dirty. Returns true if the tab
     // was closed (or the user chose Don't Save), false if the user cancelled.
@@ -601,6 +633,7 @@ function App() {
 
     // Register menu event listeners
     useEffect(() => {
+        if (!window.electronAPI) return
         const cleanupNewFile = window.electronAPI.onNewFile(handleNewFile)
         const cleanupOpenFile = window.electronAPI.onOpenFile(handleOpenFile)
         const cleanupCloseFolder = window.electronAPI.onCloseFolder(handleCloseFolder)
@@ -624,21 +657,21 @@ function App() {
         })
 
         return () => {
-            cleanupNewFile()
-            cleanupOpenFile()
-            cleanupCloseFolder()
-            cleanupSave()
-            cleanupSaveAs()
-            cleanupRun()
-            cleanupStop()
-            cleanupDebugStart()
-            cleanupDebugStop()
-            cleanupDebugStepOver()
-            cleanupDebugStepInto()
-            cleanupDebugStepOut()
-            cleanupDebugContinue()
-            cleanupDebugToggleBp()
-            cleanupSessionDiscard()
+            cleanupNewFile?.()
+            cleanupOpenFile?.()
+            cleanupCloseFolder?.()
+            cleanupSave?.()
+            cleanupSaveAs?.()
+            cleanupRun?.()
+            cleanupStop?.()
+            cleanupDebugStart?.()
+            cleanupDebugStop?.()
+            cleanupDebugStepOver?.()
+            cleanupDebugStepInto?.()
+            cleanupDebugStepOut?.()
+            cleanupDebugContinue?.()
+            cleanupDebugToggleBp?.()
+            cleanupSessionDiscard?.()
         }
     }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint, discardAll])
 
@@ -763,89 +796,190 @@ function App() {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isCompiling, isRunning, hasActiveRuntime, handleRun, handleStop, showFind, showSearch])
 
-    // Start coding (dismiss welcome screen)
-    const handleStartCoding = () => {
-        setShowWelcome(false)
-    }
+    // Start coding (dismiss welcome screen, create first tab if none)
+    const handleStartCoding = useCallback(() => {
+        if (tabs.length === 0) {
+            createNewTab('cpp', authorName || undefined)
+        }
+        setCurrentView('editor')
+    }, [tabs.length, createNewTab, authorName])
+
+    // Navigation rail item select handler
+    const handleNavSelect = useCallback((item: NavItem) => {
+        if (item === 'home') {
+            setCurrentView('dashboard')
+        } else if (item === 'editor') {
+            if (tabs.length === 0) {
+                createNewTab('cpp', authorName || undefined)
+            }
+            setCurrentView('editor')
+        } else if (item === 'files') {
+            if (currentView === 'dashboard') {
+                if (tabs.length === 0) {
+                    createNewTab('cpp', authorName || undefined)
+                }
+                setCurrentView('editor')
+                setShowExplorer(true)
+            } else {
+                setShowExplorer(prev => !prev)
+            }
+        } else if (item === 'search') {
+            if (currentView === 'dashboard') {
+                if (tabs.length === 0) {
+                    createNewTab('cpp', authorName || undefined)
+                }
+                setCurrentView('editor')
+            }
+            setShowSearch(prev => !prev)
+        } else if (item === 'debug') {
+            if (currentView === 'dashboard') {
+                if (tabs.length === 0) {
+                    createNewTab('cpp', authorName || undefined)
+                }
+                setCurrentView('editor')
+            }
+            handleDebugStart()
+        } else if (item === 'settings') {
+            setShowSettings(true)
+        }
+    }, [currentView, tabs.length, createNewTab, authorName, handleDebugStart])
 
     return (
-        <div className="h-screen flex flex-col bg-editor-bg overflow-hidden">
-            {/* Header Bar */}
-            <header className="flex items-center justify-between bg-toolbar-bg border-b border-editor-border px-4 py-2 shrink-0">
-                <div className="flex items-center gap-3">
-                    {/* Settings */}
-                    <button
-                        onClick={() => setShowSettings(true)}
-                        className="p-2 rounded text-text-secondary hover:text-text-primary hover:bg-editor-border/50 transition-colors"
-                        title="Settings"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                    </button>
-
-                    {/* Explorer Toggle */}
-                    <button
-                        onClick={() => setShowExplorer(prev => !prev)}
-                        className={`p-2 rounded transition-colors ${showExplorer ? 'bg-editor-highlight text-accent' : 'text-text-secondary hover:text-text-primary hover:bg-editor-border/50'}`}
-                        title="Toggle Explorer (Ctrl+B)"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                            />
-                        </svg>
-                    </button>
-
-                    {/* Logo */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center shadow-glow">
-                            <span className="text-white font-bold text-sm">&lt;/&gt;</span>
-                        </div>
-                        <span className="text-text-bright font-semibold text-lg hidden sm:inline">CarbonCode</span>
-                    </div>
-                </div>
-
-                {/* Right side actions */}
-                <div className="flex items-center gap-2">
-                    {!compilerInfo && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-error/20 border border-error/50 rounded-md">
-                            <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <span className="text-error text-sm">No compiler</span>
-                        </div>
-                    )}
-                </div>
-            </header>
-
-            {/* Toolbar */}
+        <div className="h-screen w-screen flex flex-col bg-carbon-bg text-carbon-text-primary overflow-hidden select-none">
+            {/* Top Unified Command Bar (from Dashboard Design New.png and Coding Screen.png) */}
             <Toolbar
                 language={activeLanguage}
                 cppStandard={settings.cppStandard}
                 onCppStandardChange={(std) => updateSetting('cppStandard', std)}
+                cStandard={settings.cStandard}
+                onCStandardChange={(std) => updateSetting('cStandard', std)}
                 onRun={handleRun}
                 onNewFile={handleNewFile}
                 onOpenFile={handleOpenFile}
                 onSave={handleSave}
-                isCompiling={isCompiling} // Could also indicate isRunning visually in Toolbar if needed
+                isCompiling={isCompiling}
                 hasCompiler={hasActiveRuntime}
+                onOpenSettings={() => setShowSettings(true)}
             />
 
-            {/* Tab Bar */}
-            {!showWelcome && activeTabId && (
-                <TabBar
-                    tabs={tabs}
-                    activeTabId={activeTabId}
-                    onTabClick={switchToTab}
-                    onTabClose={handleTabClose}
-                    onNewTab={handleNewFile}
-                    onContextMenu={handleTabContextMenu}
+            {/* Main Application Area: Navigation Rail + Main Workspace */}
+            <div className="flex-1 flex min-h-0 min-w-0 relative">
+                {/* Left Navigation Rail (expanded in Dashboard, compact in Editor) */}
+                <NavigationRail
+                    mode={currentView === 'dashboard' ? 'expanded' : 'compact'}
+                    activeItem={currentView === 'dashboard' ? 'home' : (showExplorer ? 'files' : (showSearch ? 'search' : 'editor'))}
+                    onSelect={handleNavSelect}
+                    theme={settings.theme}
+                    onToggleTheme={() => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark')}
+                />
+
+                {/* Workspace Container */}
+                <main className="flex-1 flex min-h-0 min-w-0 relative overflow-hidden">
+                    {/* Find & Replace Overlay */}
+                    {showFind && currentView === 'editor' && (
+                        <FindReplace
+                            editor={editorInstance}
+                            isVisible={showFind}
+                            onClose={() => setShowFind(false)}
+                        />
+                    )}
+
+                    {/* Search in Files Overlay */}
+                    {showSearch && currentView === 'editor' && rootPath && (
+                        <SearchPanel
+                            rootPath={rootPath}
+                            onResultClick={handleLocationClick}
+                            onClose={() => setShowSearch(false)}
+                        />
+                    )}
+
+                    {/* View Switcher: Dashboard or CodingScreen */}
+                    {currentView === 'dashboard' ? (
+                        <WelcomeScreen
+                            compilerInfo={compilerInfo}
+                            javaRuntimeInfo={javaRuntimeInfo ? (javaRuntimeInfo.version || javaRuntimeInfo.compilerPath) : null}
+                            language={activeLanguage}
+                            cppStandard={settings.cppStandard}
+                            cStandard={settings.cStandard}
+                            onNewFile={handleNewFile}
+                            onOpenFile={handleOpenFile}
+                            onOpenFolder={handleOpenFolder}
+                            onStartCoding={handleStartCoding}
+                            onOpenRecentFolder={handleOpenRecentFolder}
+                            onOpenFileByPath={handleOpenFileByPath}
+                            onOpenShortcutsModal={() => setShowShortcutsModal(true)}
+                        />
+                    ) : (
+                        <CodingScreen
+                            tabs={tabs}
+                            activeTabId={activeTabId}
+                            activeTab={activeTab}
+                            onTabClick={switchToTab}
+                            onTabClose={handleTabClose}
+                            onNewTab={handleNewFile}
+                            onContextMenu={handleTabContextMenu}
+                            activeLanguage={activeLanguage}
+                            onCodeChange={handleCodeChange}
+                            onEditorMount={(editor) => {
+                                editorRef.current = editor
+                                setEditorInstance(editor)
+                                editor.onDidChangeCursorPosition((e: any) => {
+                                    setCursorPosition({
+                                        line: e.position.lineNumber,
+                                        column: e.position.column
+                                    })
+                                })
+                            }}
+                            cursorPosition={cursorPosition}
+                            settings={settings}
+                            onRun={handleRun}
+                            parsedErrors={parsedErrors}
+                            showExplorer={showExplorer}
+                            onToggleExplorer={() => setShowExplorer(prev => !prev)}
+                            rootPath={rootPath}
+                            onOpenFolder={handleOpenFolder}
+                            onFileSelect={handleOpenFileByPath}
+                            onToggleTheme={() => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark')}
+                            debugState={debugState}
+                            javaDebugUnsupported={javaDebugUnsupported}
+                            onDebugStart={handleDebugStart}
+                            onDebugStop={handleDebugStop}
+                            onDebugStepOver={handleDebugStepOver}
+                            onDebugStepInto={handleDebugStepInto}
+                            onDebugStepOut={handleDebugStepOut}
+                            onDebugContinue={handleDebugContinue}
+                            compilationResult={compilationResult}
+                            isCompiling={isCompiling}
+                            isRunning={isRunning}
+                            onInput={handleInput}
+                            onStop={handleStop}
+                            onErrorClick={handleLocationClick}
+                            outputWidth={outputWidth}
+                            onOutputWidthChange={setOutputWidth}
+                            onClearOutput={() => setCompilationResult(null)}
+                            onUpdateExplorerWidth={(w) => updateSetting('explorerWidth', w)}
+                        />
+                    )}
+                </main>
+            </div>
+
+            {/* Bottom Status Bar - Shown on Dashboard view per design spec */}
+            {currentView === 'dashboard' && (
+                <StatusBar
+                    filePath={activeTab?.filePath || null}
+                    language={activeLanguage}
+                    cppStandard={settings.cppStandard}
+                    cStandard={settings.cStandard}
+                    runtimeInfo={activeRuntimeInfo}
+                    isCompiling={isCompiling}
+                    compilationResult={compilationResult}
+                    cursorPosition={cursorPosition}
+                    outputPosition={settings.outputPosition}
+                    onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
                 />
             )}
 
-            {/* Tab Context Menu */}
+            {/* Context Menu for Tabs */}
             {tabMenu && (() => {
                 const menuTab = tabs.find(t => t.id === tabMenu.tabId)
                 if (!menuTab) return null
@@ -871,225 +1005,12 @@ function App() {
                 )
             })()}
 
-            {/* Main Content */}
-            <main className="flex-1 flex min-h-0 relative">
-                {/* File Explorer */}
-                {!showWelcome && (
-                    <>
-                        <FileExplorer
-                            isVisible={showExplorer}
-                            onToggle={() => setShowExplorer(false)}
-                            onFileSelect={async (filePath) => {
-                                const content = await window.electronAPI.readFile(filePath)
-                                if (content !== null) {
-                                    openFile(filePath, content)
-                                }
-                            }}
-                            currentFilePath={activeTab?.filePath || null}
-                            rootPath={rootPath}
-                            onOpenFolder={handleOpenFolder}
-                            width={settings.explorerWidth}
-                        />
-                        {/* Explorer Resize Handle */}
-                        {showExplorer && (
-                            <div
-                                className="w-1 bg-editor-border cursor-ew-resize hover:bg-accent transition-colors shrink-0"
-                                onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    const startX = e.clientX
-                                    const startWidth = settings.explorerWidth
-
-                                    const onMouseMove = (e: globalThis.MouseEvent) => {
-                                        const delta = e.clientX - startX
-                                        const newWidth = Math.min(Math.max(150, startWidth + delta), 500)
-                                        updateSetting('explorerWidth', newWidth)
-                                    }
-
-                                    const onMouseUp = () => {
-                                        document.removeEventListener('mousemove', onMouseMove)
-                                        document.removeEventListener('mouseup', onMouseUp)
-                                    }
-
-                                    document.addEventListener('mousemove', onMouseMove)
-                                    document.addEventListener('mouseup', onMouseUp)
-                                }}
-                            />
-                        )}
-                    </>
-                )}
-
-                {/* Find & Replace */}
-                {showFind && !showWelcome && (
-                    <FindReplace
-                        editor={editorInstance}
-                        isVisible={showFind}
-                        onClose={() => setShowFind(false)}
-                    />
-                )}
-
-                {/* Search in Files */}
-                {showSearch && !showWelcome && rootPath && (
-                    <SearchPanel
-                        rootPath={rootPath}
-                        onResultClick={handleLocationClick}
-                        onClose={() => setShowSearch(false)}
-                    />
-                )}
-
-                {/* Settings Modal */}
-                <SettingsModal
-                    isVisible={showSettings}
-                    onClose={() => setShowSettings(false)}
-                    settings={settings}
-                    onUpdateSetting={updateSetting}
-                />
-
-                {/* Editor Area */}
-                <div className={`flex-1 flex min-h-0 min-w-0 overflow-hidden ${settings.outputPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
-                    {showWelcome ? (
-                        <WelcomeScreen
-                            compilerInfo={compilerInfo}
-                            javaRuntimeInfo={javaRuntimeInfo ? javaRuntimeInfo.version || javaRuntimeInfo.compilerPath : null}
-                            onNewFile={handleNewFile}
-                            onOpenFile={handleOpenFile}
-                            onOpenFolder={handleOpenFolder}
-                            onStartCoding={handleStartCoding}
-                            onOpenRecentFolder={handleOpenRecentFolder}
-                        />
-                    ) : (
-                        <>
-                            {/* Editor + Debug Panel Container */}
-                            <div className="flex-1 flex flex-col min-h-0 min-w-0">
-                                {/* Editor */}
-                                <div className="flex-1 min-h-0">
-                                    <Editor
-                                        value={activeTab?.content || ''}
-                                        language={activeLanguage}
-                                        onChange={handleCodeChange}
-                                        onEditorMount={(editor) => {
-                                            editorRef.current = editor
-                                            setEditorInstance(editor)
-                                            editor.onDidChangeCursorPosition((e) => {
-                                                setCursorPosition({
-                                                    line: e.position.lineNumber,
-                                                    column: e.position.column
-                                                })
-                                            })
-                                        }}
-                                        fontSize={settings.fontSize}
-                                        tabSize={settings.tabSize}
-                                        minimap={settings.minimap}
-                                        wordWrap={settings.wordWrap}
-                                        theme={settings.theme}
-                                        onRun={handleRun}
-                                        parsedErrors={parsedErrors}
-                                    />
-                                </div>
-
-                                {/* Debug Panel */}
-                                <DebugPanel
-                                    debugState={debugState}
-                                    javaDebugUnsupported={javaDebugUnsupported}
-                                    onStart={handleDebugStart}
-                                    onStop={handleDebugStop}
-                                    onStepOver={handleDebugStepOver}
-                                    onStepInto={handleDebugStepInto}
-                                    onStepOut={handleDebugStepOut}
-                                    onContinue={handleDebugContinue}
-                                />
-                            </div>
-
-                            {/* Resize Handle - Horizontal for right, Vertical for bottom */}
-                            {settings.outputPosition === 'right' ? (
-                                <div
-                                    className="w-1 bg-editor-border cursor-ew-resize hover:bg-accent transition-colors shrink-0"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault()
-                                        const startX = e.clientX
-                                        const startWidth = outputWidth
-
-                                        const onMouseMove = (e: globalThis.MouseEvent) => {
-                                            const delta = startX - e.clientX
-                                            const newWidth = Math.min(Math.max(200, startWidth + delta), 800)
-                                            setOutputWidth(newWidth)
-                                        }
-
-                                        const onMouseUp = () => {
-                                            document.removeEventListener('mousemove', onMouseMove)
-                                            document.removeEventListener('mouseup', onMouseUp)
-                                        }
-
-                                        document.addEventListener('mousemove', onMouseMove)
-                                        document.addEventListener('mouseup', onMouseUp)
-                                    }}
-                                />
-                            ) : (
-                                <div
-                                    className="h-1 bg-editor-border cursor-ns-resize hover:bg-accent transition-colors shrink-0"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault()
-                                        const startY = e.clientY
-                                        const startHeight = outputHeight
-
-                                        const onMouseMove = (e: globalThis.MouseEvent) => {
-                                            const delta = startY - e.clientY
-                                            const newHeight = Math.min(Math.max(100, startHeight + delta), 500)
-                                            setOutputHeight(newHeight)
-                                        }
-
-                                        const onMouseUp = () => {
-                                            document.removeEventListener('mousemove', onMouseMove)
-                                            document.removeEventListener('mouseup', onMouseUp)
-                                        }
-
-                                        document.addEventListener('mousemove', onMouseMove)
-                                        document.addEventListener('mouseup', onMouseUp)
-                                    }}
-                                />
-                            )}
-
-                            {/* Output Panel */}
-                            <div
-                                style={settings.outputPosition === 'right'
-                                    ? { width: outputWidth }
-                                    : { height: outputHeight }
-                                }
-                                className={`shrink-0 ${settings.outputPosition === 'right' ? 'border-l' : 'border-t'} border-editor-border`}
-                            >
-                                <OutputPanel
-                                    result={compilationResult}
-                                    isCompiling={isCompiling}
-                                    isRunning={isRunning}
-                                    onInput={handleInput}
-                                    onStop={handleStop}
-                                    fontSize={settings.outputFontSize}
-                                    parsedErrors={parsedErrors}
-                                    onErrorClick={(_file, line, column) => {
-                                        // Navigate to the error line in editor
-                                        if (editorRef.current) {
-                                            editorRef.current.revealLineInCenter(line)
-                                            editorRef.current.setPosition({ lineNumber: line, column: column || 1 })
-                                            editorRef.current.focus()
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </>
-                    )}
-                </div>
-            </main>
-
-            {/* Status Bar */}
-            <StatusBar
-                filePath={activeTab?.filePath || null}
-                language={activeLanguage}
-                cppStandard={settings.cppStandard}
-                runtimeInfo={activeRuntimeInfo}
-                isCompiling={isCompiling}
-                compilationResult={compilationResult}
-                cursorPosition={cursorPosition}
-                outputPosition={settings.outputPosition}
-                onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
+            {/* Settings Modal */}
+            <SettingsModal
+                isVisible={showSettings}
+                onClose={() => setShowSettings(false)}
+                settings={settings}
+                onUpdateSetting={updateSetting}
             />
 
             {/* Analytics Consent Dialog */}
@@ -1107,6 +1028,12 @@ function App() {
                 isOpen={showNewFileDialog}
                 onSelect={handleNewFileSelect}
                 onCancel={() => setShowNewFileDialog(false)}
+            />
+
+            {/* Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal
+                isOpen={showShortcutsModal}
+                onClose={() => setShowShortcutsModal(false)}
             />
         </div>
     )

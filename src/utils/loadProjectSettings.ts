@@ -1,5 +1,6 @@
 export interface ProjectSettings {
-    language?: 'cpp' | 'java'
+    language?: 'c' | 'cpp' | 'java'
+    cStandard?: string
     cppStandard?: string
     compilerPath?: string
 }
@@ -17,8 +18,11 @@ export async function loadProjectSettings(folderPath: string): Promise<ProjectSe
 
         const settings: ProjectSettings = {}
 
-        if (parsed.language === 'cpp' || parsed.language === 'java') {
+        if (parsed.language === 'c' || parsed.language === 'cpp' || parsed.language === 'java') {
             settings.language = parsed.language
+        }
+        if (typeof parsed.cStandard === 'string') {
+            settings.cStandard = parsed.cStandard
         }
         if (typeof parsed.cppStandard === 'string') {
             settings.cppStandard = parsed.cppStandard

@@ -45,45 +45,45 @@ interface EditorProps {
     parsedErrors?: CompileError[]
 }
 
-// VS Code Dark+ theme colors
+// CarbonCode Dark theme colors
 const editorThemeDark = {
     base: 'vs-dark' as const,
     inherit: true,
     rules: [
-        { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
-        { token: 'keyword', foreground: '569CD6' },
-        { token: 'string', foreground: 'CE9178' },
-        { token: 'number', foreground: 'B5CEA8' },
-        { token: 'type', foreground: '4EC9B0' },
-        { token: 'function', foreground: 'DCDCAA' },
-        { token: 'variable', foreground: '9CDCFE' },
-        { token: 'operator', foreground: 'D4D4D4' },
-        { token: 'delimiter', foreground: 'D4D4D4' },
-        { token: 'preprocessor', foreground: 'C586C0' },
+        { token: 'comment', foreground: '6F8099', fontStyle: 'italic' },
+        { token: 'keyword', foreground: '25B8FF' },
+        { token: 'string', foreground: '20D4B0' },
+        { token: 'number', foreground: 'F4B740' },
+        { token: 'type', foreground: '38BDF8' },
+        { token: 'function', foreground: '60A5FA' },
+        { token: 'variable', foreground: 'F4F7FB' },
+        { token: 'operator', foreground: 'A9B7CC' },
+        { token: 'delimiter', foreground: 'A9B7CC' },
+        { token: 'preprocessor', foreground: 'C084FC' },
     ],
     colors: {
-        'editor.background': '#1E1E1E',
-        'editor.foreground': '#D4D4D4',
-        'editor.lineHighlightBackground': '#2A2D2E',
-        'editor.selectionBackground': '#264F78',
-        'editor.inactiveSelectionBackground': '#3A3D41',
-        'editorCursor.foreground': '#AEAFAD',
-        'editorWhitespace.foreground': '#3B3B3B',
-        'editorIndentGuide.background': '#404040',
-        'editorIndentGuide.activeBackground': '#707070',
-        'editor.selectionHighlightBackground': '#ADD6FF26',
-        'editorLineNumber.foreground': '#858585',
-        'editorLineNumber.activeForeground': '#C6C6C6',
-        'editorGutter.background': '#1E1E1E',
-        'editorBracketMatch.background': '#0D3A58',
-        'editorBracketMatch.border': '#888888',
-        'scrollbarSlider.background': '#79797966',
-        'scrollbarSlider.hoverBackground': '#646464B2',
-        'scrollbarSlider.activeBackground': '#BFBFBF66',
+        'editor.background': '#080D17',
+        'editor.foreground': '#F4F7FB',
+        'editor.lineHighlightBackground': '#0F1929',
+        'editor.selectionBackground': '#203452',
+        'editor.inactiveSelectionBackground': '#17263B',
+        'editorCursor.foreground': '#25B8FF',
+        'editorWhitespace.foreground': '#17263B',
+        'editorIndentGuide.background': '#17263B',
+        'editorIndentGuide.activeBackground': '#203452',
+        'editor.selectionHighlightBackground': '#1688F526',
+        'editorLineNumber.foreground': '#6F8099',
+        'editorLineNumber.activeForeground': '#F4F7FB',
+        'editorGutter.background': '#080D17',
+        'editorBracketMatch.background': '#111D30',
+        'editorBracketMatch.border': '#1688F5',
+        'scrollbarSlider.background': '#20345266',
+        'scrollbarSlider.hoverBackground': '#1688F588',
+        'scrollbarSlider.activeBackground': '#1688F5CC',
     }
 }
 
-// VS Code Light+ theme colors
+// Light theme colors
 const editorThemeLight = {
     base: 'vs' as const,
     inherit: true,
@@ -167,7 +167,6 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
         })
 
         // Enhanced C++ IntelliSense
-        // Enhanced C++ IntelliSense
         monaco.languages.registerCompletionItemProvider('cpp', {
             provideCompletionItems: (model, position) => {
                 const word = model.getWordUntilPosition(position);
@@ -195,9 +194,9 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                         range: range
                     })),
 
-                    // Common Headers (as Snippets for convenience)
-                    ...['iostream', 'vector', 'string', 'map', 'set', 'algorithm', 'cmath', 'cstdio', 'cstdlib', 'fstream', 'iomanip', 'memory', 'thread', 'mutex', 'chrono', 'filesystem'].map(h => ({
-                        label: `#include <${h}>`,
+                    // Common Headers
+                    ...['iostream', 'vector', 'string', 'algorithm', 'cmath', 'cstdio', 'memory', 'map', 'set', 'fstream', 'thread', 'chrono', 'sstream', 'queue', 'stack', 'deque', 'list', 'tuple', 'utility', 'functional', 'numeric', 'iterator', 'climits', 'cstdint', 'cstring', 'cctype', 'cassert', 'iomanip'].map(h => ({
+                        label: `<${h}>`,
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: `#include <${h}>`,
                         range: range,
@@ -372,6 +371,268 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                 return { suggestions: suggestions };
             }
         });
+
+        // Configure C language settings
+        monaco.languages.setLanguageConfiguration('c', {
+            comments: {
+                lineComment: '//',
+                blockComment: ['/*', '*/']
+            },
+            brackets: [
+                ['{', '}'],
+                ['[', ']'],
+                ['(', ')']
+            ],
+            autoClosingPairs: [
+                { open: '{', close: '}' },
+                { open: '[', close: ']' },
+                { open: '(', close: ')' },
+                { open: '"', close: '"' },
+                { open: "'", close: "'" }
+            ],
+            surroundingPairs: [
+                { open: '{', close: '}' },
+                { open: '[', close: ']' },
+                { open: '(', close: ')' },
+                { open: '"', close: '"' },
+                { open: "'", close: "'" }
+            ],
+            indentationRules: {
+                increaseIndentPattern: /^.*\{[^}"']*$/,
+                decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/
+            }
+        })
+
+        // Enhanced C IntelliSense & Snippets
+        monaco.languages.registerCompletionItemProvider('c', {
+            provideCompletionItems: (model, position) => {
+                const word = model.getWordUntilPosition(position)
+                const range = {
+                    startLineNumber: position.lineNumber,
+                    endLineNumber: position.lineNumber,
+                    startColumn: word.startColumn,
+                    endColumn: word.endColumn
+                }
+
+                const suggestions = [
+                    // Keywords
+                    ...['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool', '_Complex', '_Imaginary', '_Atomic', '_Generic', '_Static_assert', '_Thread_local', 'bool', 'true', 'false', 'NULL'].map(k => ({
+                        label: k,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: k,
+                        range
+                    })),
+
+                    // Standard Types
+                    ...['size_t', 'ssize_t', 'ptrdiff_t', 'intptr_t', 'uintptr_t', 'FILE', 'time_t', 'clock_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t'].map(t => ({
+                        label: t,
+                        kind: monaco.languages.CompletionItemKind.TypeParameter,
+                        insertText: t,
+                        range,
+                        detail: 'Standard C type'
+                    })),
+
+                    // Standard Library Functions
+                    ...['printf', 'scanf', 'fprintf', 'sprintf', 'snprintf', 'fopen', 'fclose', 'fread', 'fwrite', 'fgets', 'fputs', 'getchar', 'putchar', 'perror', 'fflush', 'remove', 'rename', 'rewind', 'fseek', 'ftell', 'feof'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${f}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range,
+                        detail: 'stdio.h function'
+                    })),
+
+                    ...['malloc', 'calloc', 'realloc', 'free', 'exit', 'abort', 'atoi', 'atof', 'atol', 'strtol', 'strtod', 'qsort', 'bsearch', 'rand', 'srand', 'abs', 'labs', 'system', 'getenv'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${f}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range,
+                        detail: 'stdlib.h function'
+                    })),
+
+                    ...['strlen', 'strcpy', 'strncpy', 'strcat', 'strncat', 'strcmp', 'strncmp', 'strchr', 'strrchr', 'strstr', 'strtok', 'memset', 'memcpy', 'memmove', 'memcmp', 'strdup'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${f}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range,
+                        detail: 'string.h function'
+                    })),
+
+                    ...['sqrt', 'pow', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'exp', 'log', 'log10', 'floor', 'ceil', 'round', 'fabs', 'fmod'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${f}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range,
+                        detail: 'math.h function'
+                    })),
+
+                    ...['isalpha', 'isdigit', 'isalnum', 'isspace', 'isupper', 'islower', 'toupper', 'tolower'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${f}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range,
+                        detail: 'ctype.h function'
+                    })),
+
+                    // Header Includes
+                    ...['stdio.h', 'stdlib.h', 'string.h', 'stdbool.h', 'stdint.h', 'math.h', 'time.h', 'ctype.h', 'assert.h', 'limits.h', 'float.h'].map(h => ({
+                        label: `#include <${h}>`,
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: `#include <${h}>`,
+                        range,
+                        documentation: `Include <${h}>`
+                    })),
+
+                    // Code Snippets
+                    {
+                        label: 'main',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'int main(void) {',
+                            '\t$0',
+                            '\treturn 0;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Standard main function',
+                        range
+                    },
+                    {
+                        label: 'main-args',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'int main(int argc, char *argv[]) {',
+                            '\t$0',
+                            '\treturn 0;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Main function with command-line arguments',
+                        range
+                    },
+                    {
+                        label: 'printf',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: 'printf("${1:%s}\\n"${2});',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Formatted print statement',
+                        range
+                    },
+                    {
+                        label: 'scanf',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: 'scanf("${1:%d}", &${2:var});',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Formatted input statement',
+                        range
+                    },
+                    {
+                        label: 'for',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'for (int ${1:i} = 0; $1 < ${2:count}; $1++) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'For loop',
+                        range
+                    },
+                    {
+                        label: 'while',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'while (${1:condition}) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'While loop',
+                        range
+                    },
+                    {
+                        label: 'do-while',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'do {',
+                            '\t$0',
+                            '} while (${1:condition});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Do-while loop',
+                        range
+                    },
+                    {
+                        label: 'if',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'if (${1:condition}) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'If block',
+                        range
+                    },
+                    {
+                        label: 'ifelse',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'if (${1:condition}) {',
+                            '\t$2',
+                            '} else {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'If-else block',
+                        range
+                    },
+                    {
+                        label: 'switch',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'switch (${1:expression}) {',
+                            '\tcase ${2:value}:',
+                            '\t\t$0',
+                            '\t\tbreak;',
+                            '\tdefault:',
+                            '\t\tbreak;',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Switch statement',
+                        range
+                    },
+                    {
+                        label: 'struct',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'typedef struct {',
+                            '\t$0',
+                            '} ${1:Name};'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Typedef struct definition',
+                        range
+                    },
+                    {
+                        label: 'malloc',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: '${1:type}* ${2:ptr} = (${1:type}*)malloc(${3:size} * sizeof(${1:type}));',
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Dynamic memory allocation',
+                        range
+                    }
+                ]
+
+                return { suggestions }
+            }
+        })
 
         monaco.languages.setLanguageConfiguration('java', {
             comments: {
@@ -945,7 +1206,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
     useEffect(() => {
         const model = editorRef.current?.getModel()
         if (model && monacoRef.current) {
-            monacoRef.current.editor.setModelLanguage(model, language === 'java' ? 'java' : 'cpp')
+            monacoRef.current.editor.setModelLanguage(model, language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp')
         }
     }, [language])
 
@@ -970,10 +1231,10 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
 
         window.addEventListener('resize', handleResize)
 
-        // Also trigger layout update periodically to catch container changes
+        // Also check periodically for container size changes
         const interval = setInterval(() => {
             editorRef.current?.layout()
-        }, 500)
+        }, 1000)
 
         return () => {
             window.removeEventListener('resize', handleResize)
@@ -1003,7 +1264,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
         <div className="h-full w-full">
             <MonacoEditor
                 height="100%"
-                defaultLanguage={language === 'java' ? 'java' : 'cpp'}
+                defaultLanguage={language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp'}
                 theme="vs-dark"
                 value={value}
                 onChange={onChange}

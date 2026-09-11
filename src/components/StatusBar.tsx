@@ -1,6 +1,8 @@
+import React from 'react'
 import { SupportedLanguage, getLanguageLabel } from '../types/language'
+import { CStandard } from '../hooks/useSettings'
 
-type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
+export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
 
 interface CompilationResult {
     success: boolean
@@ -14,6 +16,7 @@ interface StatusBarProps {
     filePath: string | null
     language: SupportedLanguage
     cppStandard: CppStandard
+    cStandard?: CStandard
     runtimeInfo: string | null
     isCompiling: boolean
     compilationResult: CompilationResult | null
@@ -22,118 +25,142 @@ interface StatusBarProps {
     onToggleOutputPosition?: () => void
 }
 
-function StatusBar({
+export const StatusBar: React.FC<StatusBarProps> = ({
     filePath,
     language,
     cppStandard,
+    cStandard = 'c17',
     runtimeInfo,
     isCompiling,
     compilationResult,
     cursorPosition,
-    outputPosition = 'bottom',
+    outputPosition = 'right',
     onToggleOutputPosition
-}: StatusBarProps) {
-    // Get status text and color
+}) => {
+    // Get status display info
     const getStatus = () => {
         if (isCompiling) {
-            return { text: 'Compiling...', color: 'text-warning', bg: 'bg-warning' }
+            return {
+                text: 'Running',
+                dotColor: 'bg-carbon-warning',
+                textColor: 'text-carbon-warning',
+                pulse: true
+            }
         }
         if (compilationResult) {
             return compilationResult.success
-                ? { text: 'Success', color: 'text-success', bg: 'bg-success' }
-                : { text: 'Failed', color: 'text-error', bg: 'bg-error' }
+                ? {
+                    text: 'Success',
+                    dotColor: 'bg-carbon-success',
+                    textColor: 'text-carbon-success',
+                    pulse: false
+                }
+                : {
+                    text: 'Error',
+                    dotColor: 'bg-carbon-error',
+                    textColor: 'text-carbon-error',
+                    pulse: false
+                }
         }
-        return { text: 'Ready', color: 'text-text-secondary', bg: 'bg-text-secondary' }
+        return {
+            text: 'Ready',
+            dotColor: 'bg-carbon-success',
+            textColor: 'text-carbon-text-secondary',
+            pulse: false
+        }
     }
 
     const status = getStatus()
+    const fileName = filePath ? filePath.split(/[/\\]/).pop() || filePath : 'Untitled'
 
     return (
-        <footer className="flex items-center justify-between bg-accent/90 text-white text-xs px-4 py-1 shrink-0">
-            {/* Left side */}
-            <div className="flex items-center gap-4">
-                {/* Status indicator */}
-                <div className={`flex items-center gap-2 ${status.color}`}>
-                    <span className={`w-2 h-2 rounded-full ${status.bg} ${isCompiling ? 'animate-pulse' : ''}`} />
-                    <span className="text-white">{status.text}</span>
+        <footer className="h-7 bg-carbon-secondary border-t border-carbon-border text-[11px] px-3 flex items-center justify-between shrink-0 select-none z-20 text-carbon-text-secondary">
+            {/* Left side: Status dot + File name */}
+            <div className="flex items-center gap-3">
+                {/* Status Dot */}
+                <div className="flex items-center gap-1.5">
+                    <span
+                        className={`w-2 h-2 rounded-full ${status.dotColor} ${status.pulse ? 'animate-pulse' : ''}`}
+                    />
+                    <span className={`font-medium ${status.textColor}`}>{status.text}</span>
                 </div>
 
-                {/* File path */}
-                <div className="flex items-center gap-1.5 text-white/80">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-px h-3 bg-carbon-border" />
+
+                {/* File name */}
+                <div className="flex items-center gap-1.5 text-carbon-text-primary">
+                    <svg className="w-3 h-3 text-carbon-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span className="font-mono truncate max-w-[300px]" title={filePath || undefined}>
-                        {filePath || 'Untitled'}
+                    <span className="font-mono truncate max-w-[240px]" title={filePath || undefined}>
+                        {fileName}
                     </span>
                 </div>
             </div>
 
-            {/* Right side */}
-            <div className="flex items-center gap-4">
+            {/* Right side: Language, Compiler, Cursor, Output toggle, Timing */}
+            <div className="flex items-center gap-3.5">
+                {/* Cursor Position (if active) */}
+                {cursorPosition && (
+                    <div className="hidden sm:flex items-center gap-1 text-carbon-text-muted font-mono">
+                        <span>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>
+                    </div>
+                )}
+
+                {cursorPosition && <div className="hidden sm:block w-px h-3 bg-carbon-border" />}
+
                 {/* Output Position Toggle */}
                 {onToggleOutputPosition && (
                     <button
                         onClick={onToggleOutputPosition}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-white/10 transition-colors"
-                        title={`Output: ${outputPosition === 'bottom' ? 'Bottom' : 'Right'} (Click to toggle)`}
+                        className="hidden md:flex items-center gap-1 text-carbon-text-muted hover:text-carbon-text-primary transition-colors"
+                        title={`Toggle output panel position (currently ${outputPosition})`}
                     >
-                        {outputPosition === 'bottom' ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16v10H4V5z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 18h16" />
-                            </svg>
-                        ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h10v16H4V4z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 4v16" />
-                            </svg>
-                        )}
-                        <span className="text-white/80">{outputPosition === 'bottom' ? 'Bottom' : 'Right'}</span>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                        <span>Panel: {outputPosition}</span>
                     </button>
                 )}
 
-                <div className="w-px h-3 bg-white/20" />
+                {onToggleOutputPosition && <div className="hidden md:block w-px h-3 bg-carbon-border" />}
 
-                {/* Cursor Position */}
-                {cursorPosition && (
-                    <div className="flex items-center gap-1.5 min-w-[100px] justify-end">
-                        <span className="text-white/60">Ln</span>
-                        <span className="font-mono">{cursorPosition.line}</span>
-                        <span className="text-white/60">Col</span>
-                        <span className="font-mono">{cursorPosition.column}</span>
-                    </div>
-                )}
-
-                <div className="w-px h-3 bg-white/20" />
-
-                {/* Language */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-white/60">Language:</span>
-                    <span className="font-mono">
-                        {language === 'cpp' ? `C++ (${cppStandard})` : getLanguageLabel(language)}
+                {/* Language & Standard */}
+                <div className="flex items-center gap-1 text-carbon-text-secondary">
+                    <span className="text-carbon-text-muted">Lang:</span>
+                    <span className="text-carbon-text-primary font-medium">
+                        {language === 'cpp'
+                            ? `C++ (${cppStandard.toUpperCase()})`
+                            : language === 'c'
+                                ? `C (${cStandard.toUpperCase()})`
+                                : getLanguageLabel(language)}
                     </span>
                 </div>
 
-                {/* Runtime */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-white/60">{language === 'java' ? 'JDK:' : 'Compiler:'}</span>
-                    <span className={`font-mono ${runtimeInfo ? 'text-white' : 'text-error'}`}>
-                        {runtimeInfo || 'Not found'}
+                <div className="w-px h-3 bg-carbon-border" />
+
+                {/* Compiler / Runtime Info */}
+                <div className="hidden lg:flex items-center gap-1 truncate max-w-[260px]">
+                    <span className="text-carbon-text-muted">{language === 'java' ? 'JDK:' : 'Compiler:'}</span>
+                    <span className={`font-mono truncate ${runtimeInfo ? 'text-carbon-text-primary' : 'text-carbon-error'}`} title={runtimeInfo || undefined}>
+                        {runtimeInfo || 'Not detected'}
                     </span>
                 </div>
 
-                {/* Timing (if available) */}
+                {/* Execution Timing */}
                 {compilationResult && compilationResult.compileTime !== undefined && (
-                    <div className="flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="font-mono">
-                            {compilationResult.compileTime}ms
-                            {compilationResult.executionTime !== undefined && ` + ${compilationResult.executionTime}ms`}
-                        </span>
-                    </div>
+                    <>
+                        <div className="w-px h-3 bg-carbon-border" />
+                        <div className="flex items-center gap-1 font-mono text-carbon-success">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>
+                                {compilationResult.compileTime}ms
+                                {compilationResult.executionTime !== undefined ? ` · ${compilationResult.executionTime}ms` : ''}
+                            </span>
+                        </div>
+                    </>
                 )}
             </div>
         </footer>

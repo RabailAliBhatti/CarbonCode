@@ -48,10 +48,11 @@ export class DebuggerService extends EventEmitter {
         return { ...this.state }
     }
 
-    async start(code: string, breakpoints: { line: number }[]): Promise<{ success: boolean; error?: string }> {
+    async start(code: string, breakpoints: { line: number }[], language: 'c' | 'cpp' = 'cpp'): Promise<{ success: boolean; error?: string }> {
         try {
-            // Write code to temp file
-            const sourcePath = path.join(this.tempDir, 'debug_main.cpp')
+            const isC = language === 'c'
+            const sourceFileName = isC ? 'debug_main.c' : 'debug_main.cpp'
+            const sourcePath = path.join(this.tempDir, sourceFileName)
             this.executablePath = path.join(this.tempDir, 'debug_main.exe')
             fs.writeFileSync(sourcePath, code)
 
@@ -61,14 +62,14 @@ export class DebuggerService extends EventEmitter {
                 return { success: false, error: 'GDB not found. Please install MinGW with GDB.' }
             }
 
-            // Find g++
-            const gppPath = this.findCompiler()
-            if (!gppPath) {
-                return { success: false, error: 'g++ compiler not found.' }
+            // Find compiler (gcc for C, g++ for C++)
+            const compilerPath = isC ? this.findCCompiler() : this.findCompiler()
+            if (!compilerPath) {
+                return { success: false, error: isC ? 'gcc compiler not found.' : 'g++ compiler not found.' }
             }
 
             // Compile with debug symbols
-            const compileResult = await this.compile(gppPath, sourcePath, this.executablePath)
+            const compileResult = await this.compile(compilerPath, sourcePath, this.executablePath)
             if (!compileResult.success) {
                 return { success: false, error: compileResult.error }
             }
@@ -91,7 +92,7 @@ export class DebuggerService extends EventEmitter {
 
             // Set breakpoints
             for (const bp of breakpoints) {
-                await this.setBreakpoint('debug_main.cpp', bp.line)
+                await this.setBreakpoint(sourceFileName, bp.line)
             }
 
             // Run the program
@@ -191,7 +192,7 @@ export class DebuggerService extends EventEmitter {
         const locals: Variable[] = []
 
         // Parse MI response for locals
-        const match = response.match(/locals=\[(.*?)\]/s)
+        const match = response.match(/locals=\[([\s\S]*?)\]/)
         if (match) {
             const varPattern = /\{name="([^"]+)",value="([^"]*)"(?:,type="([^"]*)")?\}/g
             let varMatch
@@ -300,10 +301,27 @@ export class DebuggerService extends EventEmitter {
         })
     }
 
+    private findBundledTool(tool: string): string | null {
+        const candidates: string[] = []
+        if (process.resourcesPath) {
+            candidates.push(path.join(process.resourcesPath, 'mingw64', 'bin', tool))
+        }
+        try {
+            if (app?.getAppPath) {
+                candidates.push(path.join(app.getAppPath(), 'vendor', 'mingw64', 'bin', tool))
+            }
+        } catch { }
+
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) return candidate
+        }
+        return null
+    }
+
     private findGdb(): string | null {
         // Check bundled MinGW first
-        const bundledPath = path.join(process.resourcesPath, 'mingw64', 'bin', 'gdb.exe')
-        if (fs.existsSync(bundledPath)) return bundledPath
+        const bundled = this.findBundledTool('gdb.exe')
+        if (bundled) return bundled
 
         // Check common paths
         const paths = [
@@ -321,13 +339,31 @@ export class DebuggerService extends EventEmitter {
 
     private findCompiler(): string | null {
         // Check bundled MinGW first
-        const bundledPath = path.join(process.resourcesPath, 'mingw64', 'bin', 'g++.exe')
-        if (fs.existsSync(bundledPath)) return bundledPath
+        const bundled = this.findBundledTool('g++.exe')
+        if (bundled) return bundled
 
         // Check common paths
         const paths = [
             'C:\\mingw64\\bin\\g++.exe',
             'C:\\msys64\\mingw64\\bin\\g++.exe'
+        ]
+
+        for (const p of paths) {
+            if (fs.existsSync(p)) return p
+        }
+
+        return null
+    }
+
+    private findCCompiler(): string | null {
+        // Check bundled MinGW first
+        const bundled = this.findBundledTool('gcc.exe')
+        if (bundled) return bundled
+
+        // Check common paths
+        const paths = [
+            'C:\\mingw64\\bin\\gcc.exe',
+            'C:\\msys64\\mingw64\\bin\\gcc.exe'
         ]
 
         for (const p of paths) {

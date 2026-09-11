@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from
 import { join } from 'path'
 import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, type FSWatcher } from 'fs'
 import os from 'os'
-import { detectCompiler, detectJavaRuntime, compileCode, compileJavaCode, startInteractiveProcess, startJavaProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
+import { detectCompiler, detectJavaRuntime, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
 
@@ -15,17 +15,16 @@ app.setAppUserModelId('com.rabailalibhatti.carboncode')
 let mainWindow: BrowserWindow | null = null
 
 // Store current file state
-let currentFilePath: string | null = null
 let isDirty = false
 
 // File watchers
 const fileWatchers = new Map<string, { watcher: FSWatcher; timeout: ReturnType<typeof setTimeout> | null }>()
 
 function createWindow() {
-    // Create splash screen
+    // Create splash screen with spacious dimensions
     const splash = new BrowserWindow({
-        width: 480,
-        height: 300,
+        width: 580,
+        height: 370,
         frame: false,
         resizable: false,
         alwaysOnTop: true,
@@ -39,12 +38,15 @@ function createWindow() {
     })
     splash.loadFile(join(__dirname, '../public/splash.html'))
 
+    const preloadPath = join(__dirname, 'preload.js')
+    console.log('[Main] Preload path:', preloadPath, 'exists:', existsSync(preloadPath))
+
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
         minWidth: 800,
         minHeight: 600,
-        backgroundColor: '#1e1e1e',
+        backgroundColor: '#080D17',
         titleBarStyle: 'default',
         autoHideMenuBar: true,
         title: 'CarbonCode',
@@ -64,11 +66,22 @@ function createWindow() {
     // Force the window title
     mainWindow.setTitle('CarbonCode')
 
-    // Show main window when ready, close splash
-    mainWindow.once('ready-to-show', () => {
+    // Fast, responsive splash to main window transition
+    let splashClosed = false
+    const showMainAndCloseSplash = () => {
+        if (splashClosed) return
+        splashClosed = true
         mainWindow?.show()
-        splash.close()
-        splash.destroy()
+        if (splash && !splash.isDestroyed()) {
+            splash.close()
+        }
+    }
+
+    mainWindow.once('ready-to-show', showMainAndCloseSplash)
+
+    // Fallback: If ready-to-show is delayed by worker or font initialization, show after finish-load
+    mainWindow.webContents.once('did-finish-load', () => {
+        setTimeout(showMainAndCloseSplash, 250)
     })
 
     // Load the app
@@ -288,7 +301,7 @@ function createApplicationMenu() {
                             type: 'info',
                             title: 'About CarbonCode',
                             message: 'CarbonCode',
-                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C++ and Java built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC++ Compiler: ${compiler || 'Not detected - Please install g++ or clang++'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}`
+                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C, C++, and Java built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC / C++ Compiler: ${compiler || 'Not detected - Please install gcc/g++ or clang'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}`
                         })
                     }
                 }
@@ -309,7 +322,10 @@ ipcMain.handle('dialog:open-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: [
-            { name: 'Supported Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java'] },
+            { name: 'Supported Files', extensions: ['c', 'cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java'] },
+            { name: 'C Files', extensions: ['c', 'h'] },
+            { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx'] },
+            { name: 'Java Files', extensions: ['java'] },
             { name: 'All Files', extensions: ['*'] }
         ]
     })
@@ -321,7 +337,6 @@ ipcMain.handle('dialog:open-file', async () => {
     const filePath = result.filePaths[0]
     try {
         const content = readFileSync(filePath, 'utf-8')
-        currentFilePath = filePath
         isDirty = false
         return { filePath, content }
     } catch (error) {
@@ -342,6 +357,12 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'Java Files', extensions: ['java'] },
                 { name: 'All Files', extensions: ['*'] }
               ]
+            : language === 'c'
+            ? [
+                { name: 'C Files', extensions: ['c'] },
+                { name: 'Header Files', extensions: ['h'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
             : language === 'cpp'
             ? [
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
@@ -349,14 +370,17 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'All Files', extensions: ['*'] }
               ]
             : [
+                { name: 'C Files', extensions: ['c'] },
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
                 { name: 'Java Files', extensions: ['java'] },
                 { name: 'Header Files', extensions: ['h', 'hpp', 'hxx'] },
                 { name: 'All Files', extensions: ['*'] }
               ]
 
+        const defaultPath = language === 'java' ? 'untitled.java' : language === 'c' ? 'untitled.c' : 'untitled.cpp'
+
         const result = await dialog.showSaveDialog(mainWindow, {
-            defaultPath: language === 'java' ? 'untitled.java' : 'untitled.cpp',
+            defaultPath,
             filters
         })
 
@@ -369,7 +393,6 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
 
     try {
         writeFileSync(filePath, content, 'utf-8')
-        currentFilePath = filePath
         isDirty = false
         return { filePath, success: true }
     } catch (error) {
@@ -449,13 +472,18 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         ? { language: 'cpp', code: requestOrCode, cppStandard: legacyCppStandard }
         : requestOrCode
 
-    // Safety: detect language from file extension if not explicitly java
-    if (request.language !== 'java' && request.filePath && request.filePath.toLowerCase().endsWith('.java')) {
-        request.language = 'java'
+    // Safety: detect language from file extension
+    if (request.filePath) {
+        const lowerPath = request.filePath.toLowerCase()
+        if (lowerPath.endsWith('.java')) {
+            request.language = 'java'
+        } else if (lowerPath.endsWith('.c')) {
+            request.language = 'c'
+        }
     }
 
     // Safety: detect Java from code content if language was not set correctly
-    if (request.language !== 'java') {
+    if (request.language !== 'java' && request.language !== 'c') {
         const trimmed = request.code.trim()
         if (
             /^\s*import\s+java\./m.test(trimmed) ||
@@ -507,6 +535,37 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         if (warningMsg) {
             mainWindow?.webContents.send('process:stdout', warningMsg)
         }
+
+        return {
+            success: true,
+            compileTime: compileResult.compileTime
+        }
+    }
+
+    if (request.language === 'c') {
+        const compileResult = await compileCCode(request.code, request.cStandard || 'c17')
+
+        if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
+            return {
+                success: false,
+                error: compileResult.error || 'C compilation failed',
+                compileTime: compileResult.compileTime
+            }
+        }
+
+        startInteractiveProcess(
+            compileResult.executablePath,
+            compileResult.tempDir,
+            (data) => {
+                mainWindow?.webContents.send('process:stdout', data)
+            },
+            (data) => {
+                mainWindow?.webContents.send('process:stderr', data)
+            },
+            (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+            }
+        )
 
         return {
             success: true,
@@ -690,8 +749,8 @@ debugService.on('stderr', (data: string) => {
     mainWindow?.webContents.send('debugger:stderr', data)
 })
 
-ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[]) => {
-    return await debugService.start(code, breakpoints)
+ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') => {
+    return await debugService.start(code, breakpoints, language)
 })
 
 ipcMain.handle('debugger:stop', async () => {

@@ -5,74 +5,304 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CarbonCode</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            background: #1a1d21;
+            background: transparent;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #e0e0e0;
+            width: 100vw;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, Helvetica, Arial, sans-serif;
+            color: #F4F7FB;
             -webkit-app-region: drag;
             user-select: none;
             overflow: hidden;
         }
-        .container {
-            text-align: center;
+
+        .splash-card {
+            width: 100%;
+            max-width: 548px;
+            height: 100%;
+            max-height: 338px;
+            position: relative;
+            background: radial-gradient(130% 130% at 50% 0%, #0F1929 0%, #080D17 100%);
+            border: 1px solid #203452;
+            border-radius: 22px;
+            box-shadow: 0 28px 60px rgba(0, 0, 0, 0.85), 0 0 45px rgba(22, 136, 245, 0.22);
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            justify-content: space-between;
+            overflow: hidden;
+            padding: 36px 36px 26px 36px;
         }
-        .logo {
-            width: 80px;
-            height: 80px;
-            object-fit: contain;
-            filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.3));
+
+        /* Ambient Wave Background matching Hero card */
+        .ambient-wave {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.55;
+            z-index: 1;
         }
+
+        /* Ambient Glow behind Logo */
+        .ambient-glow {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(22, 136, 245, 0.26) 0%, rgba(49, 95, 234, 0.05) 50%, transparent 75%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Hero Brand Section */
+        .brand-section {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+        }
+
+        /* Logo Box matching Toolbar and Hero */
+        .logo-box {
+            width: 62px;
+            height: 62px;
+            border-radius: 17px;
+            background: linear-gradient(135deg, #1688F5 0%, #315FEA 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 28px rgba(22, 136, 245, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            margin-bottom: 16px;
+            animation: pulse-glow 3s ease-in-out infinite alternate;
+        }
+
+        .logo-icon {
+            color: #FFFFFF;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                box-shadow: 0 0 22px rgba(22, 136, 245, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            }
+            100% {
+                box-shadow: 0 0 38px rgba(37, 184, 255, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.55);
+            }
+        }
+
+        /* Title */
         .title {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
             letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #4ade80, #22d3ee);
+            color: #F4F7FB;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .title-accent {
+            background: linear-gradient(135deg, #25B8FF 0%, #1688F5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
+        /* Tagline with generous breathing space */
         .tagline {
-            font-size: 14px;
-            color: #6b7280;
-            margin-top: -8px;
+            font-size: 13.5px;
+            color: #A9B7CC;
+            margin-bottom: 14px;
+            font-weight: 400;
+            letter-spacing: 0.1px;
         }
-        .loader {
-            width: 200px;
-            height: 3px;
-            background: #2d3136;
-            border-radius: 3px;
+
+        /* Author Pill Badge */
+        .author-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3.5px 14px;
+            border-radius: 9999px;
+            background: rgba(15, 25, 41, 0.85);
+            border: 1px solid #203452;
+            font-size: 11.5px;
+            color: #6F8099;
+        }
+
+        .author-name {
+            color: #25B8FF;
+            font-weight: 500;
+        }
+
+        /* Bottom Loading & Status Section */
+        .utility-section {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Sleek Loading Bar */
+        .loader-track {
+            width: 280px;
+            height: 4px;
+            background: #111D30;
+            border: 1px solid rgba(32, 52, 82, 0.85);
+            border-radius: 9999px;
             overflow: hidden;
-            margin-top: 8px;
+            position: relative;
         }
+
         .loader-bar {
-            width: 40%;
+            position: absolute;
             height: 100%;
-            background: linear-gradient(90deg, #4ade80, #22d3ee);
-            border-radius: 3px;
-            animation: slide 1.2s ease-in-out infinite;
+            width: 35%;
+            background: linear-gradient(90deg, #1688F5, #25B8FF);
+            box-shadow: 0 0 12px rgba(37, 184, 255, 0.8);
+            border-radius: 9999px;
+            animation: slide 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
+
         @keyframes slide {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(350%); }
+            0% {
+                left: -40%;
+                width: 30%;
+            }
+            50% {
+                left: 35%;
+                width: 45%;
+            }
+            100% {
+                left: 105%;
+                width: 30%;
+            }
+        }
+
+        /* Status & Version Row */
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 280px;
+            margin-top: 9px;
+            font-size: 11px;
+            color: #6F8099;
+        }
+
+        .status-text {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #25B8FF;
+            box-shadow: 0 0 8px rgba(37, 184, 255, 0.8);
+            animation: pulse-dot 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse-dot {
+            0% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .version-tag {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 10.5px;
+            color: #4A5B73;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <img src="icon.png" alt="CarbonCode" class="logo" />
-        <div class="title">CarbonCode</div>
-        <div class="tagline">Your offline C++ &amp; Java IDE</div>
-        <div class="loader">
-            <div class="loader-bar"></div>
+    <div class="splash-card">
+        <!-- Ambient SVG Wave -->
+        <svg class="ambient-wave" viewBox="0 0 548 338" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M-40 230 C90 140 250 300 420 180 C490 130 550 190 580 170" stroke="url(#waveGrad1)" stroke-width="1.8" stroke-linecap="round" />
+            <path d="M-10 260 C120 170 290 320 440 200 C500 150 560 210 590 190" stroke="url(#waveGrad2)" stroke-width="1.3" stroke-linecap="round" />
+            <circle cx="410" cy="180" r="3.5" fill="#25B8FF" opacity="0.6" />
+            <circle cx="160" cy="200" r="2.5" fill="#1688F5" opacity="0.5" />
+            <defs>
+                <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#1688F5" stop-opacity="0" />
+                    <stop offset="50%" stop-color="#1688F5" stop-opacity="0.35" />
+                    <stop offset="100%" stop-color="#25B8FF" stop-opacity="0.1" />
+                </linearGradient>
+                <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#315FEA" stop-opacity="0" />
+                    <stop offset="60%" stop-color="#315FEA" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="#1688F5" stop-opacity="0" />
+                </linearGradient>
+            </defs>
+        </svg>
+
+        <div class="ambient-glow"></div>
+
+        <!-- Top / Center Hero Brand Zone -->
+        <div class="brand-section">
+            <!-- Brand Logo -->
+            <div class="logo-box">
+                <span class="logo-icon">&lt;/&gt;</span>
+            </div>
+
+            <!-- Title -->
+            <div class="title">
+                <span>Carbon</span><span class="title-accent">Code</span>
+            </div>
+
+            <!-- Tagline -->
+            <div class="tagline">A lightweight IDE for C, C++, and Java</div>
+
+            <!-- Author badge -->
+            <div class="author-pill">
+                <span>Crafted by</span>
+                <span class="author-name">Rabail Ali Bhatti</span>
+            </div>
+        </div>
+
+        <!-- Bottom Utility Zone -->
+        <div class="utility-section">
+            <!-- Sleek Loading Bar -->
+            <div class="loader-track">
+                <div class="loader-bar"></div>
+            </div>
+
+            <!-- Status and Version Row -->
+            <div class="status-row">
+                <div class="status-text">
+                    <div class="status-dot"></div>
+                    <span>Initializing workspace...</span>
+                </div>
+                <div class="version-tag">v3.3.5</div>
+            </div>
         </div>
     </div>
 </body>
