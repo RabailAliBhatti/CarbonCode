@@ -210,6 +210,35 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
                             />
                             <p className="text-xs text-text-secondary">Example: C:\Program Files\Eclipse Adoptium\jdk-21</p>
                         </div>
+
+                        <div className="space-y-1">
+                            <label className="text-sm text-text-primary">Python Interpreter Path (Optional)</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={settings.pythonPath}
+                                    placeholder="Path to python.exe or py launcher"
+                                    onChange={(e) => {
+                                        onUpdateSetting('pythonPath', e.target.value)
+                                        window.electronAPI?.setCustomPythonPath(e.target.value)
+                                    }}
+                                    className="flex-1 bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const path = await window.electronAPI?.browsePythonInterpreter()
+                                        if (path) {
+                                            onUpdateSetting('pythonPath', path)
+                                            window.electronAPI?.setCustomPythonPath(path)
+                                        }
+                                    }}
+                                    className="px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30 rounded text-sm transition-colors whitespace-nowrap"
+                                >
+                                    Browse...
+                                </button>
+                            </div>
+                            <p className="text-xs text-text-secondary">Leave blank to automatically detect the system Python or Windows py launcher.</p>
+                        </div>
                     </section>
 
                     <div className="h-px bg-editor-border" />

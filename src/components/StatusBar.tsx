@@ -141,7 +141,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
                 {/* Compiler / Runtime Info */}
                 <div className="hidden lg:flex items-center gap-1 truncate max-w-[260px]">
-                    <span className="text-carbon-text-muted">{language === 'java' ? 'JDK:' : 'Compiler:'}</span>
+                    <span className="text-carbon-text-muted">{language === 'python' ? 'Python:' : language === 'java' ? 'JDK:' : 'Compiler:'}</span>
                     <span className={`font-mono truncate ${runtimeInfo ? 'text-carbon-text-primary' : 'text-carbon-error'}`} title={runtimeInfo || undefined}>
                         {runtimeInfo || 'Not detected'}
                     </span>

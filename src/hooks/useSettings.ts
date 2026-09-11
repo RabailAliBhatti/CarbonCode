@@ -12,6 +12,7 @@ export interface Settings {
     compilerPath: string
     javaCompilerPath: string
     javaHome: string
+    pythonPath: string
     theme: 'dark' | 'light'
     minimap: boolean
     wordWrap: boolean
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
     compilerPath: '',
     javaCompilerPath: '',
     javaHome: '',
+    pythonPath: '',
     theme: 'dark',
     minimap: true,
     wordWrap: false,

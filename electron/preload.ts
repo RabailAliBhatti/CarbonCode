@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('java:detect', javaHome, javaCompilerPath),
     browseJavaCompiler: () => ipcRenderer.invoke('java:browse-compiler'),
     setCustomJavaPath: (customPath: string) => ipcRenderer.invoke('java:set-custom-path', customPath),
+    detectPythonRuntime: (customPath?: string) =>
+        ipcRenderer.invoke('python:detect', customPath),
+    browsePythonInterpreter: () => ipcRenderer.invoke('python:browse'),
+    setCustomPythonPath: (customPath: string) => ipcRenderer.invoke('python:set-custom-path', customPath),
+    getPythonInfo: () => ipcRenderer.invoke('python:get-info'),
 
     // Interactive Process
     startProcess: (request: unknown) =>

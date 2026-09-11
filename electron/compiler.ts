@@ -5,7 +5,7 @@ import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 
-export type SupportedLanguage = 'c' | 'cpp' | 'java'
+export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python'
 
 export interface RuntimeInfo {
     language: SupportedLanguage
@@ -31,6 +31,7 @@ let detectedCompilerPath: string | null = null
 let detectedCCompilerPath: string | null = null
 let detectedJavaCompilerPath: string | null = null
 let detectedJavaRuntimePath: string | null = null
+let detectedPythonPath: string | null = null
 
 // Whether the detected compiler is the bundled one
 let isBundledCompiler = false
@@ -85,6 +86,8 @@ function getBundledMingwEnv(): NodeJS.ProcessEnv {
 let compilerSource: 'custom' | 'bundled' | 'system' | 'none' = 'none'
 let javaSource: 'custom' | 'bundled' | 'system' | 'none' = 'none'
 let javaVersion: string | undefined
+let pythonSource: 'custom' | 'system' | 'none' = 'none'
+let pythonVersion: string | undefined
 
 /**
  * Set a custom compiler path from user settings.
@@ -259,6 +262,158 @@ export async function detectJavaRuntime(javaHome?: string, javaCompilerPath?: st
             runtimePath: null,
             source: 'none'
         }
+    }
+}
+
+export function setCustomPythonPath(pythonPath: string): void {
+    detectedPythonPath = null
+    pythonSource = 'none'
+    pythonVersion = undefined
+
+    if (pythonPath && existsSync(pythonPath)) {
+        detectedPythonPath = pythonPath
+        pythonSource = 'custom'
+        try {
+            const cmd = pythonPath.includes(' ') ? `"${pythonPath}" --version` : `${pythonPath} --version`
+            const out = execSync(cmd, { stdio: 'pipe', timeout: 5000, windowsHide: true }).toString().trim()
+            if (out && !out.toLowerCase().includes('was not found')) {
+                pythonVersion = out
+            }
+        } catch { }
+    }
+}
+
+export function getPythonInfo(): { path: string | null, source: string, version?: string } {
+    return {
+        path: detectedPythonPath,
+        source: pythonSource,
+        version: pythonVersion
+    }
+}
+
+function getPythonVersionString(pythonPathOrCmd: string): string | undefined {
+    try {
+        const cmd = pythonPathOrCmd.includes(' ') ? `"${pythonPathOrCmd}" --version` : `${pythonPathOrCmd} --version`
+        const out = execSync(cmd, { stdio: 'pipe', timeout: 5000, windowsHide: true }).toString().trim()
+        if (out && !out.toLowerCase().includes('was not found') && !out.toLowerCase().includes('microsoft store')) {
+            return out
+        }
+    } catch { }
+    return undefined
+}
+
+export async function detectPython(customPath?: string): Promise<RuntimeInfo> {
+    if (detectedPythonPath) {
+        return {
+            language: 'python',
+            compilerPath: null,
+            runtimePath: detectedPythonPath,
+            source: pythonSource,
+            version: pythonVersion
+        }
+    }
+
+    // 1. Check custom path if supplied
+    if (customPath && existsSync(customPath)) {
+        const ver = getPythonVersionString(customPath)
+        if (ver) {
+            detectedPythonPath = customPath
+            pythonSource = 'custom'
+            pythonVersion = ver
+            return {
+                language: 'python',
+                compilerPath: null,
+                runtimePath: detectedPythonPath,
+                source: pythonSource,
+                version: pythonVersion
+            }
+        }
+    }
+
+    // 2. On Windows, check py launcher first as it detects active python installations
+    if (process.platform === 'win32') {
+        try {
+            const exePath = execSync('py -c "import sys; print(sys.executable)"', {
+                stdio: 'pipe',
+                timeout: 5000,
+                windowsHide: true
+            }).toString().trim()
+
+            if (exePath && existsSync(exePath)) {
+                const ver = getPythonVersionString(exePath)
+                if (ver) {
+                    detectedPythonPath = exePath
+                    pythonSource = 'system'
+                    pythonVersion = ver
+                    return {
+                        language: 'python',
+                        compilerPath: null,
+                        runtimePath: detectedPythonPath,
+                        source: pythonSource,
+                        version: pythonVersion
+                    }
+                }
+            }
+        } catch { }
+
+        // Also check standard AppData/Local/Programs/Python paths on Windows
+        try {
+            const localAppData = process.env.LOCALAPPDATA
+            if (localAppData) {
+                const pyDir = join(localAppData, 'Programs', 'Python')
+                if (existsSync(pyDir)) {
+                    const { readdirSync } = await import('fs')
+                    const entries = readdirSync(pyDir)
+                    for (const entry of entries) {
+                        const candidate = join(pyDir, entry, 'python.exe')
+                        if (existsSync(candidate)) {
+                            const ver = getPythonVersionString(candidate)
+                            if (ver) {
+                                detectedPythonPath = candidate
+                                pythonSource = 'system'
+                                pythonVersion = ver
+                                return {
+                                    language: 'python',
+                                    compilerPath: null,
+                                    runtimePath: detectedPythonPath,
+                                    source: pythonSource,
+                                    version: pythonVersion
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch { }
+    }
+
+    // 3. Try standard candidate commands
+    const candidates = process.platform === 'win32'
+        ? ['python.exe', 'python3.exe', 'py.exe']
+        : ['python3', 'python']
+
+    for (const cmd of candidates) {
+        const ver = getPythonVersionString(cmd)
+        if (ver) {
+            detectedPythonPath = cmd
+            pythonSource = 'system'
+            pythonVersion = ver
+            return {
+                language: 'python',
+                compilerPath: null,
+                runtimePath: detectedPythonPath,
+                source: pythonSource,
+                version: pythonVersion
+            }
+        }
+    }
+
+    pythonSource = 'none'
+    return {
+        language: 'python',
+        compilerPath: null,
+        runtimePath: null,
+        source: 'none'
     }
 }
 
@@ -737,6 +892,14 @@ export function startJavaProcess(
     onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
 ): ChildProcess {
     return spawnProcess(javaPath, ['-cp', tempDir, mainClass], tempDir, onStdout, onStderr, onExit)
+}
+
+export function startPythonProcess(
+    pythonPath: string, tempDir: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
+): ChildProcess {
+    const scriptPath = join(tempDir, 'main.py')
+    return spawnProcess(pythonPath, ['-u', scriptPath], tempDir, onStdout, onStderr, onExit)
 }
 
 /**

@@ -17,6 +17,12 @@ const MSVC_RE = /^(.+?)\((\d+)\):\s*(error|warning)\s+(C\d+):\s*(.+)$/
 // Javac:      File.java:12: error: cannot find symbol
 const JAVAC_RE = /^(.+?):(\d+):\s*(error|warning):\s*(.+)$/
 
+// Python traceback: File "main.py", line 12, in <module>
+const PYTHON_FILE_RE = /^\s*File "(.+?)",\s*line (\d+)(?:,\s*in\s+(.+))?/
+
+// Python exception: ValueError: ... or SyntaxError: ...
+const PYTHON_ERROR_RE = /^([A-Z]\w*(?:Error|Exception|Warning))(?::\s*(.*))?$/
+
 // GCC "In file included from file:line:" chain
 const INCLUDED_FROM_RE = /^In file included from (.+?):(\d+):/
 
@@ -30,10 +36,67 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
     const errors: CompileError[] = []
     let lastIncludedFile: string | null = null
     let lastIncludedLine: number | null = null
+    let pythonFrames: Array<{ file: string; line: number; func?: string }> = []
 
     for (const line of lines) {
         const trimmed = line.trim()
         if (!trimmed) continue
+
+        // Python traceback header
+        if (trimmed.startsWith('Traceback (most recent call last):')) {
+            pythonFrames = []
+            continue
+        }
+
+        // Python File "...", line X
+        const pyFileMatch = line.match(PYTHON_FILE_RE)
+        if (pyFileMatch) {
+            pythonFrames.push({
+                file: pyFileMatch[1],
+                line: parseInt(pyFileMatch[2], 10),
+                func: pyFileMatch[3]
+            })
+            continue
+        }
+
+        // Python Error / Exception line
+        const pyErrMatch = trimmed.match(PYTHON_ERROR_RE)
+        if (pyErrMatch) {
+            const errorType = pyErrMatch[1]
+            const errorMsg = pyErrMatch[2] ? `${errorType}: ${pyErrMatch[2]}` : errorType
+            const isWarning = errorType.endsWith('Warning')
+
+            if (pythonFrames.length > 0) {
+                for (let i = pythonFrames.length - 1; i >= 0; i--) {
+                    const frame = pythonFrames[i]
+                    const isInnermost = i === pythonFrames.length - 1
+                    errors.push({
+                        file: frame.file,
+                        line: frame.line,
+                        severity: isWarning ? 'warning' : 'error',
+                        message: isInnermost ? errorMsg : `${errorType} (called from ${frame.func || 'here'})`,
+                        code: errorType,
+                        raw: trimmed
+                    })
+                }
+                pythonFrames = []
+            } else {
+                errors.push({
+                    file: defaultFile || null,
+                    line: 1,
+                    severity: isWarning ? 'warning' : 'error',
+                    message: errorMsg,
+                    code: errorType,
+                    raw: trimmed
+                })
+            }
+            continue
+        }
+
+        // If in Python traceback context (code line or caret line), skip
+        if (pythonFrames.length > 0 && (line.startsWith(' ') || line.startsWith('\t') || trimmed.startsWith('^'))) {
+            continue
+        }
 
         // Track "In file included from" chain
         const includedMatch = trimmed.match(INCLUDED_FROM_RE)

@@ -9,6 +9,7 @@ import {
     parseJavaFileSymbols,
     getAllProjectSymbols
 } from './javaIntellisense'
+import { extractPythonLocalSymbols } from './pythonIntellisense'
 
 export interface NavigationLocation {
     uri: any
@@ -236,6 +237,53 @@ export function resolveDefinition(
                         endLineNumber: i + 1,
                         endColumn: col + symbolName.length
                     }
+                }
+            }
+        }
+    }
+
+    // 4. PYTHON DEFINITION RESOLUTION
+    if (language === 'python') {
+        const pySymbols = extractPythonLocalSymbols(content)
+
+        // 4A. Functions: def func(...)
+        const matchedFunc = pySymbols.functions.find(f => f.name === symbolName)
+        if (matchedFunc) {
+            return {
+                uri: model.uri,
+                range: {
+                    startLineNumber: matchedFunc.line,
+                    startColumn: matchedFunc.column,
+                    endLineNumber: matchedFunc.line,
+                    endColumn: matchedFunc.column + symbolName.length
+                }
+            }
+        }
+
+        // 4B. Classes: class ClassName(...)
+        const matchedClass = pySymbols.classes.find(c => c.name === symbolName)
+        if (matchedClass) {
+            return {
+                uri: model.uri,
+                range: {
+                    startLineNumber: matchedClass.line,
+                    startColumn: matchedClass.column,
+                    endLineNumber: matchedClass.line,
+                    endColumn: matchedClass.column + symbolName.length
+                }
+            }
+        }
+
+        // 4C. Variables / Parameters / Loop vars
+        const matchedVar = pySymbols.variables.find(v => v.name === symbolName)
+        if (matchedVar) {
+            return {
+                uri: model.uri,
+                range: {
+                    startLineNumber: matchedVar.line,
+                    startColumn: matchedVar.column,
+                    endLineNumber: matchedVar.line,
+                    endColumn: matchedVar.column + symbolName.length
                 }
             }
         }

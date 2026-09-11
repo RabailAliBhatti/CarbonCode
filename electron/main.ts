@@ -1,8 +1,9 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, type FSWatcher } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, mkdirSync, type FSWatcher } from 'fs'
+import { randomUUID } from 'crypto'
 import os from 'os'
-import { detectCompiler, detectJavaRuntime, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, getCompilerInfo, RuntimeInfo, RunRequest } from './compiler'
+import { detectCompiler, detectJavaRuntime, detectPython, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startPythonProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, setCustomPythonPath, getCompilerInfo, getPythonInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
 
@@ -297,11 +298,12 @@ function createApplicationMenu() {
                     click: async () => {
                         const compiler = await detectCompiler()
                         const javaRuntime = await detectJavaRuntime()
+                        const pythonRuntime = await detectPython()
                         dialog.showMessageBox(mainWindow!, {
                             type: 'info',
                             title: 'About CarbonCode',
                             message: 'CarbonCode',
-                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C, C++, and Java built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC / C++ Compiler: ${compiler || 'Not detected - Please install gcc/g++ or clang'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}`
+                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C, C++, Java, and Python built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC / C++ Compiler: ${compiler || 'Not detected - Please install gcc/g++ or clang'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}\nPython Interpreter: ${pythonRuntime.runtimePath || 'Not detected - Please install Python'}`
                         })
                     }
                 }
@@ -322,7 +324,8 @@ ipcMain.handle('dialog:open-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: [
-            { name: 'Supported Files', extensions: ['c', 'cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java'] },
+            { name: 'Supported Files', extensions: ['c', 'cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java', 'py'] },
+            { name: 'Python Files', extensions: ['py'] },
             { name: 'C Files', extensions: ['c', 'h'] },
             { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx'] },
             { name: 'Java Files', extensions: ['java'] },
@@ -352,7 +355,12 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
     let filePath = existingPath
 
     if (!filePath) {
-        const filters = language === 'java'
+        const filters = language === 'python'
+            ? [
+                { name: 'Python Files', extensions: ['py'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
+            : language === 'java'
             ? [
                 { name: 'Java Files', extensions: ['java'] },
                 { name: 'All Files', extensions: ['*'] }
@@ -370,6 +378,7 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'All Files', extensions: ['*'] }
               ]
             : [
+                { name: 'Python Files', extensions: ['py'] },
                 { name: 'C Files', extensions: ['c'] },
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
                 { name: 'Java Files', extensions: ['java'] },
@@ -377,7 +386,7 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'All Files', extensions: ['*'] }
               ]
 
-        const defaultPath = language === 'java' ? 'untitled.java' : language === 'c' ? 'untitled.c' : 'untitled.cpp'
+        const defaultPath = language === 'python' ? 'untitled.py' : language === 'java' ? 'untitled.java' : language === 'c' ? 'untitled.c' : 'untitled.cpp'
 
         const result = await dialog.showSaveDialog(mainWindow, {
             defaultPath,
@@ -454,6 +463,33 @@ ipcMain.handle('java:set-custom-path', (_, customPath: string) => {
     setCustomJavaPath(customPath)
 })
 
+// Python Runtime Detection & Settings
+ipcMain.handle('python:detect', async (_, customPath?: string): Promise<RuntimeInfo> => {
+    return await detectPython(customPath)
+})
+
+ipcMain.handle('python:browse', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Python Interpreter', extensions: process.platform === 'win32' ? ['exe'] : ['*'] },
+            { name: 'All Files', extensions: ['*'] }
+        ],
+        title: 'Select Python Interpreter (python.exe)'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+})
+
+ipcMain.handle('python:set-custom-path', (_, customPath: string) => {
+    setCustomPythonPath(customPath)
+})
+
+ipcMain.handle('python:get-info', () => {
+    return getPythonInfo()
+})
+
 // Get compiler info (path + source)
 ipcMain.handle('compiler:get-info', () => {
     return getCompilerInfo()
@@ -479,11 +515,13 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             request.language = 'java'
         } else if (lowerPath.endsWith('.c')) {
             request.language = 'c'
+        } else if (lowerPath.endsWith('.py')) {
+            request.language = 'python'
         }
     }
 
-    // Safety: detect Java from code content if language was not set correctly
-    if (request.language !== 'java' && request.language !== 'c') {
+    // Safety: detect Python or Java from code content if language was not set correctly
+    if (request.language !== 'java' && request.language !== 'c' && request.language !== 'python') {
         const trimmed = request.code.trim()
         if (
             /^\s*import\s+java\./m.test(trimmed) ||
@@ -493,6 +531,14 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             /\bSystem\.in\./.test(trimmed)
         ) {
             request.language = 'java'
+        } else if (
+            /^\s*(def|class)\s+\w+.*:/m.test(trimmed) ||
+            /^\s*(import|from)\s+[a-zA-Z_]\w*/m.test(trimmed) ||
+            /\bprint\s*\(/.test(trimmed) ||
+            /\binput\s*\(/.test(trimmed) ||
+            /__name__\s*==\s*['"]__main__['"]/.test(trimmed)
+        ) {
+            request.language = 'python'
         }
     }
 
@@ -539,6 +585,40 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         return {
             success: true,
             compileTime: compileResult.compileTime
+        }
+    }
+
+    if (request.language === 'python') {
+        const pythonInfo = await detectPython()
+        if (!pythonInfo.runtimePath) {
+            return {
+                success: false,
+                error: 'Python is not detected on your system. Please install Python from https://www.python.org or configure the interpreter path in Settings.'
+            }
+        }
+
+        const tempDir = join(os.tmpdir(), 'carboncode-py-' + randomUUID())
+        mkdirSync(tempDir, { recursive: true })
+        const scriptPath = join(tempDir, 'main.py')
+        writeFileSync(scriptPath, request.code, 'utf8')
+
+        startPythonProcess(
+            pythonInfo.runtimePath,
+            tempDir,
+            (data) => {
+                mainWindow?.webContents.send('process:stdout', data)
+            },
+            (data) => {
+                mainWindow?.webContents.send('process:stderr', data)
+            },
+            (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+            }
+        )
+
+        return {
+            success: true,
+            compileTime: 0
         }
     }
 

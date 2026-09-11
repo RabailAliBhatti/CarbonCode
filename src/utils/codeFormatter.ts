@@ -16,9 +16,132 @@ export function formatDocument(content: string, language: SupportedLanguage, tab
         return formatJavaCode(content, tabSize)
     } else if (language === 'cpp' || language === 'c') {
         return formatCppCode(content, tabSize)
+    } else if (language === 'python') {
+        return formatPythonCode(content, tabSize)
     }
 
     return content
+}
+
+/**
+ * Formats Python source code according to PEP 8 conventions:
+ * - 4-space standard indentation
+ * - 2 blank lines before top-level def and class
+ * - 1 blank line before class methods
+ * - Spacing after commas and colons in type hints
+ * - Trims trailing spaces per line
+ * - Ensures single trailing newline
+ */
+export function formatPythonCode(content: string, tabSize = 4): string {
+    if (!content || !content.trim()) return content
+
+    const indentStr = ' '.repeat(tabSize)
+    const rawLines = content.split('\n')
+    const formattedLines: string[] = []
+
+    function getOriginalIndent(line: string): number {
+        let count = 0
+        for (const ch of line) {
+            if (ch === ' ') count++
+            else if (ch === '\t') count += tabSize
+            else break
+        }
+        return count
+    }
+
+    let minIndentStep = tabSize
+    for (const line of rawLines) {
+        if (!line.trim()) continue
+        const ind = getOriginalIndent(line)
+        if (ind > 0 && ind < minIndentStep) {
+            minIndentStep = ind
+        }
+    }
+
+    let inDocstring = false
+    let docstringDelim = ''
+
+    for (let i = 0; i < rawLines.length; i++) {
+        const raw = rawLines[i]
+        const trimmed = raw.trim()
+
+        if (inDocstring) {
+            formattedLines.push(raw.trimEnd())
+            if (trimmed.includes(docstringDelim)) {
+                inDocstring = false
+                docstringDelim = ''
+            }
+            continue
+        }
+
+        const tripleDouble = trimmed.includes('"""')
+        const tripleSingle = trimmed.includes("'''")
+        if (tripleDouble || tripleSingle) {
+            const delim = tripleDouble ? '"""' : "'''"
+            const count = (trimmed.match(new RegExp(delim, 'g')) || []).length
+            if (count % 2 !== 0) {
+                inDocstring = true
+                docstringDelim = delim
+            }
+        }
+
+        if (trimmed.length === 0) {
+            const last = formattedLines[formattedLines.length - 1]
+            if (formattedLines.length > 0 && last !== '') {
+                formattedLines.push('')
+            }
+            continue
+        }
+
+        const origIndent = getOriginalIndent(raw)
+        const indentLevel = Math.round(origIndent / minIndentStep)
+
+        let line = trimmed
+
+        let inSingle = false
+        let inDouble = false
+        let result = ''
+        for (let j = 0; j < line.length; j++) {
+            const ch = line[j]
+            if (ch === "'" && !inDouble && line[j - 1] !== '\\') inSingle = !inSingle
+            else if (ch === '"' && !inSingle && line[j - 1] !== '\\') inDouble = !inDouble
+
+            if (!inSingle && !inDouble) {
+                if (ch === ',' && j + 1 < line.length && line[j + 1] !== ' ' && line[j + 1] !== '\n') {
+                    result += ', '
+                    continue
+                }
+                if (ch === ':' && j + 1 < line.length && line[j + 1] !== ' ' && line[j + 1] !== '\n' && !line.startsWith('#')) {
+                    if (/[a-zA-Z0-9]/.test(line[j + 1])) {
+                        result += ': '
+                        continue
+                    }
+                }
+            }
+            result += ch
+        }
+        line = result
+
+        const isTopLevelDefOrClass = indentLevel === 0 && (line.startsWith('def ') || line.startsWith('class ') || line.startsWith('@'))
+        const isMethodDef = indentLevel > 0 && (line.startsWith('def ') || line.startsWith('@'))
+
+        if (isTopLevelDefOrClass && formattedLines.length > 0) {
+            while (formattedLines.length > 0 && formattedLines[formattedLines.length - 1] === '') {
+                formattedLines.pop()
+            }
+            if (formattedLines.length > 0) {
+                formattedLines.push('', '')
+            }
+        } else if (isMethodDef && formattedLines.length > 0) {
+            if (formattedLines[formattedLines.length - 1] !== '') {
+                formattedLines.push('')
+            }
+        }
+
+        formattedLines.push(indentStr.repeat(indentLevel) + line)
+    }
+
+    return formattedLines.join('\n').trimEnd() + '\n'
 }
 
 /**

@@ -180,6 +180,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             onChange={(e) => onLanguageChange?.(e.target.value as SupportedLanguage)}
                             className="appearance-none bg-carbon-surface border border-carbon-border rounded-md px-2.5 py-1 pr-6 text-xs text-carbon-text-primary font-medium cursor-pointer hover:border-carbon-accent focus:border-carbon-accent outline-none transition-all"
                         >
+                            <option value="python">Python</option>
                             <option value="cpp">C++</option>
                             <option value="c">C</option>
                             <option value="java">Java</option>
@@ -238,6 +239,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             </div>
                         </div>
                     </div>
+                ) : language === 'python' ? (
+                    <div className="text-[11px] text-carbon-text-muted hidden sm:inline px-2 py-0.5 rounded bg-carbon-surface border border-carbon-border-subtle">
+                        Python 3 runner
+                    </div>
                 ) : (
                     <div className="text-[11px] text-carbon-text-muted hidden sm:inline px-2 py-0.5 rounded bg-carbon-surface border border-carbon-border-subtle">
                         JDK compile & run
@@ -257,12 +262,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                                 ? 'bg-gradient-to-r from-carbon-accent to-carbon-accent-secondary hover:from-carbon-accent-highlight hover:to-carbon-accent shadow-glow active:scale-95'
                                 : 'bg-carbon-border text-carbon-text-muted cursor-not-allowed'
                     }`}
-                    title={!hasCompiler ? 'No compiler detected' : 'Compile & Run (F5)'}
+                    title={!hasCompiler ? (language === 'python' ? 'No Python interpreter detected' : 'No compiler detected') : (language === 'python' ? 'Run Python (F5)' : 'Compile & Run (F5)')}
                 >
                     {isCompiling ? (
                         <>
                             <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Compiling...</span>
+                            <span>{language === 'python' ? 'Running...' : 'Compiling...'}</span>
                         </>
                     ) : (
                         <>

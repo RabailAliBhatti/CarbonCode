@@ -15,7 +15,7 @@ declare global {
             setCustomCompilerPath: (customPath: string) => Promise<void>
             getCompilerInfo: () => Promise<{ path: string | null; source: string }>
             detectJavaRuntime: (javaHome?: string, javaCompilerPath?: string) => Promise<{
-                language: 'c' | 'cpp' | 'java'
+                language: 'c' | 'cpp' | 'java' | 'python'
                 compilerPath: string | null
                 runtimePath?: string | null
                 source: 'custom' | 'bundled' | 'system' | 'none'
@@ -23,8 +23,18 @@ declare global {
             }>
             browseJavaCompiler: () => Promise<string | null>
             setCustomJavaPath: (customPath: string) => Promise<void>
+            detectPythonRuntime: (customPath?: string) => Promise<{
+                language: 'c' | 'cpp' | 'java' | 'python'
+                compilerPath: string | null
+                runtimePath?: string | null
+                source: 'custom' | 'bundled' | 'system' | 'none'
+                version?: string
+            }>
+            browsePythonInterpreter: () => Promise<string | null>
+            setCustomPythonPath: (customPath: string) => Promise<void>
+            getPythonInfo: () => Promise<{ path: string | null; source: string; version?: string }>
             startProcess: (request: {
-                language: 'c' | 'cpp' | 'java'
+                language: 'c' | 'cpp' | 'java' | 'python'
                 code: string
                 filePath?: string | null
                 cppStandard?: string

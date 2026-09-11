@@ -13,7 +13,7 @@ import NavigationRail, { NavItem } from './components/NavigationRail'
 import CodingScreen from './components/CodingScreen'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
 import { useFileManager } from './hooks/useFileManager'
-import { SupportedLanguage } from './types/language'
+import { SupportedLanguage, getLanguageFromFileName } from './types/language'
 import { useSettings, CppStandard, CStandard } from './hooks/useSettings'
 import { parseCompileErrors } from './utils/parseCompileErrors'
 import type { CompileError } from './utils/parseCompileErrors'
@@ -127,9 +127,9 @@ function App() {
     // Author name for new file templates
     const [authorName, setAuthorName] = useState<string>('')
 
-    // Compiler state
     const [compilerInfo, setCompilerInfo] = useState<string | null>(null)
     const [javaRuntimeInfo, setJavaRuntimeInfo] = useState<RuntimeInfo | null>(null)
+    const [pythonRuntimeInfo, setPythonRuntimeInfo] = useState<RuntimeInfo | null>(null)
     const [isDetecting, setIsDetecting] = useState<boolean>(true)
     const [isCompiling, setIsCompiling] = useState<boolean>(false)
     const [compilationResult, setCompilationResult] = useState<{
@@ -167,6 +167,8 @@ function App() {
 
     // Track execution start time
     const executionStartRef = useRef<number>(0)
+    const activeTabRef = useRef(activeTab)
+    activeTabRef.current = activeTab
 
     // Listeners for process output
     useEffect(() => {
@@ -183,10 +185,17 @@ function App() {
         })
 
         const cleanStderr = window.electronAPI.onProcessStderr((data) => {
-            setCompilationResult(prev => ({
-                ...prev!,
-                error: appendOutput(prev?.error || '', data)
-            }))
+            setCompilationResult(prev => {
+                const combined = appendOutput(prev?.error || '', data)
+                const parsed = parseCompileErrors(combined, activeTabRef.current?.filePath || undefined)
+                if (parsed.length > 0) {
+                    setParsedErrors(parsed)
+                }
+                return {
+                    ...prev!,
+                    error: combined
+                }
+            })
         })
 
         const cleanExit = window.electronAPI.onProcessExit((code) => {
@@ -194,11 +203,16 @@ function App() {
             const elapsed = Date.now() - executionStartRef.current
             setCompilationResult(prev => {
                 if (code !== 0) {
+                    const finalError = (prev?.error || '') + `\nProgram exited with code ${code}`
+                    const parsed = parseCompileErrors(finalError, activeTabRef.current?.filePath || undefined)
+                    if (parsed.length > 0) {
+                        setParsedErrors(parsed)
+                    }
                     return {
                         ...prev!,
                         success: false,
                         executionTime: elapsed,
-                        error: (prev?.error || '') + `\nProgram exited with code ${code}`
+                        error: finalError
                     }
                 }
                 return {
@@ -221,21 +235,28 @@ function App() {
         setIsRunning(false)
     }, [])
 
+    const activeLanguage: SupportedLanguage = activeTab?.language || 'cpp'
+
     const handleInput = useCallback((data: string) => {
         window.electronAPI.writeProcess(data)
-        // Echo input to output for clarity.
-        setCompilationResult(prev => ({
-            ...prev!,
-            output: appendOutput(prev?.output || '', data)
-        }))
-    }, [])
+        // Echo input to output for clarity, except for Python (which echoes its own unbuffered stdin)
+        if (activeLanguage !== 'python') {
+            setCompilationResult(prev => ({
+                ...prev!,
+                output: appendOutput(prev?.output || '', data)
+            }))
+        }
+    }, [activeLanguage])
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
-    const activeLanguage: SupportedLanguage = activeTab?.language || 'cpp'
-    const activeRuntimeInfo = activeLanguage === 'java'
+    const activeRuntimeInfo = activeLanguage === 'python'
+        ? (pythonRuntimeInfo?.runtimePath || null)
+        : activeLanguage === 'java'
         ? (javaRuntimeInfo?.compilerPath || null)
         : compilerInfo
-    const hasActiveRuntime = activeLanguage === 'java'
+    const hasActiveRuntime = activeLanguage === 'python'
+        ? !!pythonRuntimeInfo?.runtimePath
+        : activeLanguage === 'java'
         ? !!javaRuntimeInfo?.compilerPath && !!javaRuntimeInfo?.runtimePath
         : !!compilerInfo
 
@@ -246,20 +267,22 @@ function App() {
         const initStartupData = async () => {
             setIsDetecting(true)
             try {
-                const [compiler, javaRuntime, name] = await Promise.all([
+                const [compiler, javaRuntime, pythonRuntime, name] = await Promise.all([
                     window.electronAPI.detectCompiler(settings.compilerPath || undefined),
                     window.electronAPI.detectJavaRuntime(settings.javaHome || undefined, settings.javaCompilerPath || undefined),
+                    window.electronAPI.detectPythonRuntime(settings.pythonPath || undefined),
                     window.electronAPI.getAuthorName()
                 ])
                 setCompilerInfo(compiler)
                 setJavaRuntimeInfo(javaRuntime)
+                setPythonRuntimeInfo(pythonRuntime)
                 setAuthorName(name)
             } finally {
                 setIsDetecting(false)
             }
         }
         initStartupData()
-    }, [settings.compilerPath, settings.javaHome, settings.javaCompilerPath])
+    }, [settings.compilerPath, settings.javaHome, settings.javaCompilerPath, settings.pythonPath])
 
     // Update dirty state in main process
     useEffect(() => {
@@ -329,7 +352,7 @@ function App() {
         setShowNewFileDialog(true)
     }, [])
 
-    const handleNewFileSelect = useCallback((language: 'c' | 'cpp' | 'java') => {
+    const handleNewFileSelect = useCallback((language: SupportedLanguage) => {
         setShowNewFileDialog(false)
         createNewTab(language, authorName || undefined)
         setCurrentView('editor')
@@ -341,8 +364,7 @@ function App() {
         const file = await window.electronAPI.openFile()
         if (file) {
             openFile(file.filePath, file.content)
-            const ext = file.filePath?.split('.').pop()?.toLowerCase()
-            const fileLang = ext === 'java' ? 'java' : ext === 'c' ? 'c' : 'cpp'
+            const fileLang = getLanguageFromFileName(file.filePath)
             window.electronAPI?.trackEvent?.('file_opened', { language: fileLang })
             addRecentFile(file.filePath, file.filePath.split(/[/\\]/).pop() || 'file', fileLang)
             setCurrentView('editor')
@@ -354,8 +376,7 @@ function App() {
         const content = await window.electronAPI.readFile(filePath)
         if (content !== null) {
             openFile(filePath, content)
-            const ext = filePath.split('.').pop()?.toLowerCase()
-            const fileLang = ext === 'java' ? 'java' : ext === 'c' ? 'c' : 'cpp'
+            const fileLang = getLanguageFromFileName(filePath)
             addRecentFile(filePath, filePath.split(/[/\\]/).pop() || 'file', fileLang)
             setCurrentView('editor')
             if (line) {
@@ -548,7 +569,9 @@ function App() {
             setCompilationResult({
                 success: false,
                 output: '',
-                error: activeLanguage === 'java'
+                error: activeLanguage === 'python'
+                    ? 'No Python interpreter detected!\n\nPlease install Python from https://www.python.org or configure the interpreter path in Settings.'
+                    : activeLanguage === 'java'
                     ? 'No Java JDK detected!\n\nInstall a JDK with javac, set JAVA_HOME, or configure Java in Settings.'
                     : activeLanguage === 'c'
                         ? 'No C compiler detected!\n\nPlease install a C compiler (gcc) and restart the application.'
@@ -929,6 +952,7 @@ function App() {
                         <WelcomeScreen
                             compilerInfo={compilerInfo}
                             javaRuntimeInfo={javaRuntimeInfo ? (javaRuntimeInfo.version || javaRuntimeInfo.compilerPath) : null}
+                            pythonRuntimeInfo={pythonRuntimeInfo ? (pythonRuntimeInfo.version || pythonRuntimeInfo.runtimePath) : null}
                             language={activeLanguage}
                             cppStandard={settings.cppStandard}
                             cStandard={settings.cStandard}

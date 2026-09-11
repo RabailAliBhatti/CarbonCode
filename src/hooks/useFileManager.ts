@@ -81,6 +81,20 @@ int main(void) {
 `
 }
 
+const generateDefaultPythonCode = (authorName: string): string => {
+    const date = new Date().toLocaleDateString()
+    return `# Author: ${authorName}
+# Date: ${date}
+
+def main():
+    print("Hello, World!")
+    print("Welcome to CarbonCode!")
+
+if __name__ == "__main__":
+    main()
+`
+}
+
 // Fallback template when author name is not available
 const DEFAULT_CODE = `#include <iostream>
 using namespace std;
@@ -110,7 +124,18 @@ const DEFAULT_JAVA_CODE = `public class Main {
 }
 `
 
+const DEFAULT_PYTHON_CODE = `def main():
+    print("Hello, World!")
+    print("Welcome to CarbonCode!")
+
+if __name__ == "__main__":
+    main()
+`
+
 const getDefaultContent = (language: SupportedLanguage, authorName?: string) => {
+    if (language === 'python') {
+        return authorName ? generateDefaultPythonCode(authorName) : DEFAULT_PYTHON_CODE
+    }
     if (language === 'java') {
         return authorName ? generateDefaultJavaCode(authorName) : DEFAULT_JAVA_CODE
     }
@@ -168,7 +193,7 @@ export function useFileManager() {
     // Create new tab with optional author name for template
     const createNewTab = useCallback((language: SupportedLanguage = 'cpp', authorName?: string) => {
         const content = getDefaultContent(language, authorName)
-        const fileName = language === 'java' ? 'Untitled.java' : language === 'c' ? 'Untitled.c' : 'Untitled.cpp'
+        const fileName = language === 'python' ? 'untitled.py' : language === 'java' ? 'Untitled.java' : language === 'c' ? 'Untitled.c' : 'Untitled.cpp'
         const newTab: FileTab = {
             id: generateId(),
             fileName,

@@ -16,6 +16,7 @@ import {
     JAVA_ALL_CLASS_IMPORTS,
     getAllProjectSymbols
 } from '../utils/javaIntellisense'
+import { getPythonCompletionItems } from '../utils/pythonIntellisense'
 import { resolveDefinition, findSymbolReferences } from '../utils/symbolNavigation'
 import { formatDocument } from '../utils/codeFormatter'
 
@@ -919,6 +920,35 @@ function Editor({
             }
         })
 
+        monaco.languages.setLanguageConfiguration('python', {
+            comments: {
+                lineComment: '#'
+            },
+            brackets: [
+                ['{', '}'],
+                ['[', ']'],
+                ['(', ')']
+            ],
+            autoClosingPairs: [
+                { open: '{', close: '}' },
+                { open: '[', close: ']' },
+                { open: '(', close: ')' },
+                { open: '"', close: '"' },
+                { open: "'", close: "'" }
+            ],
+            surroundingPairs: [
+                { open: '{', close: '}' },
+                { open: '[', close: ']' },
+                { open: '(', close: ')' },
+                { open: '"', close: '"' },
+                { open: "'", close: "'" }
+            ],
+            indentationRules: {
+                increaseIndentPattern: /^.*:\s*(?:#.*)?$/,
+                decreaseIndentPattern: /^\s*(elif|else|except|finally)\b.*:$/
+            }
+        })
+
         const javaProvider = monaco.languages.registerCompletionItemProvider('java', {
             triggerCharacters: ['.', ' ', '*', '@'],
             provideCompletionItems: (model, position) => {
@@ -926,10 +956,17 @@ function Editor({
             }
         })
 
-        registeredCompletionProviders.push(cppProvider, cProvider, javaProvider)
+        const pythonProvider = monaco.languages.registerCompletionItemProvider('python', {
+            triggerCharacters: ['.', ' '],
+            provideCompletionItems: (model, position) => {
+                return getPythonCompletionItems(model, position, monaco)
+            }
+        })
 
-        // Register Definition, Reference, and Document Formatting providers for Java, C++, and C
-        const navLanguages: ('java' | 'cpp' | 'c')[] = ['java', 'cpp', 'c']
+        registeredCompletionProviders.push(cppProvider, cProvider, javaProvider, pythonProvider)
+
+        // Register Definition, Reference, and Document Formatting providers for Java, C++, C, and Python
+        const navLanguages: ('java' | 'cpp' | 'c' | 'python')[] = ['java', 'cpp', 'c', 'python']
         navLanguages.forEach(lang => {
             // Go to Definition (F12 / Ctrl+Click)
             const defProvider = monaco.languages.registerDefinitionProvider(lang, {
@@ -1266,7 +1303,7 @@ function Editor({
     useEffect(() => {
         const model = editorRef.current?.getModel()
         if (model && monacoRef.current) {
-            monacoRef.current.editor.setModelLanguage(model, language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp')
+            monacoRef.current.editor.setModelLanguage(model, language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp')
         }
     }, [language])
 
@@ -1324,7 +1361,7 @@ function Editor({
         <div className="h-full w-full">
             <MonacoEditor
                 height="100%"
-                defaultLanguage={language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp'}
+                defaultLanguage={language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp'}
                 theme="vs-dark"
                 value={value}
                 onChange={onChange}

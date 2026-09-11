@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 interface NewFileDialogProps {
     isOpen: boolean
-    onSelect: (language: 'c' | 'cpp' | 'java') => void
+    onSelect: (language: 'c' | 'cpp' | 'java' | 'python') => void
     onCancel: () => void
 }
 
@@ -47,6 +47,40 @@ export const NewFileDialog: React.FC<NewFileDialogProps> = ({ isOpen, onSelect, 
 
                 {/* Cards */}
                 <div className="px-6 pb-6 space-y-2.5">
+                    {/* Python Card */}
+                    <button
+                        onClick={() => onSelect('python')}
+                        onMouseEnter={() => setHoveredCard('python')}
+                        onMouseLeave={() => setHoveredCard(null)}
+                        className={`w-full p-3.5 rounded-xl border transition-all duration-200 text-left group ${
+                            hoveredCard === 'python'
+                                ? 'bg-carbon-elevated border-yellow-500/50 shadow-lg shadow-yellow-500/10'
+                                : 'bg-carbon-bg border-carbon-border-subtle hover:border-carbon-border'
+                        }`}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-base font-bold transition-all duration-200 ${
+                                hoveredCard === 'python'
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-carbon-elevated text-yellow-400'
+                            }`}>
+                                Py
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-carbon-text-primary font-medium text-sm">Python File</span>
+                                    <span className="px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 text-[11px] font-mono font-medium">.py</span>
+                                </div>
+                                <p className="text-xs text-carbon-text-muted mt-0.5">Scripted, beginner-friendly, and powerful</p>
+                            </div>
+                            <svg className={`w-4 h-4 transition-all duration-200 ${
+                                hoveredCard === 'python' ? 'text-yellow-400 translate-x-0 opacity-100' : 'text-carbon-text-muted -translate-x-2 opacity-0'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+
                     {/* C Card */}
                     <button
                         onClick={() => onSelect('c')}

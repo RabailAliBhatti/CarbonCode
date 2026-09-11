@@ -6,6 +6,7 @@ import { getRecentFiles, clearRecentFiles, formatRelativeTime, RecentFileItem } 
 interface WelcomeScreenProps {
     compilerInfo: string | null
     javaRuntimeInfo: string | null
+    pythonRuntimeInfo?: string | null
     language?: SupportedLanguage
     cppStandard?: CppStandard
     cStandard?: CStandard
@@ -21,6 +22,7 @@ interface WelcomeScreenProps {
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     compilerInfo,
     javaRuntimeInfo,
+    pythonRuntimeInfo,
     language = 'cpp',
     cppStandard = 'c++17',
     cStandard = 'c17',
@@ -32,7 +34,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     onOpenShortcutsModal,
 }) => {
     const [recentFiles, setRecentFiles] = useState<RecentFileItem[]>([])
-    const [copiedTarget, setCopiedTarget] = useState<'cpp' | 'java' | null>(null)
+    const [copiedTarget, setCopiedTarget] = useState<'cpp' | 'java' | 'python' | null>(null)
 
     // Load dynamic recent files
     const refreshRecentFiles = useCallback(() => {
@@ -43,7 +45,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         refreshRecentFiles()
     }, [refreshRecentFiles])
 
-    const handleCopy = (text: string | null, target: 'cpp' | 'java') => {
+    const handleCopy = (text: string | null, target: 'cpp' | 'java' | 'python') => {
         if (!text) return
         navigator.clipboard.writeText(text)
         setCopiedTarget(target)
@@ -105,7 +107,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                     Welcome to <span className="bg-gradient-to-r from-carbon-accent-highlight to-carbon-accent bg-clip-text text-transparent">CarbonCode</span>
                                 </h1>
                                 <p className="text-carbon-text-secondary text-sm md:text-base mt-1">
-                                    A lightweight IDE for C, C++, and Java
+                                    A lightweight IDE for C, C++, Java, and Python
                                 </p>
                             </div>
 
@@ -116,7 +118,38 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                         </div>
 
                         {/* Environment Cards inside Hero */}
-                        <div className="relative z-10 mt-6 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="relative z-10 mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                            {/* Python Environment Card */}
+                            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-carbon-bg/80 border border-carbon-border/70 hover:border-carbon-border transition-all">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-7 h-7 rounded-lg bg-carbon-surface border border-carbon-border flex items-center justify-center text-xs font-bold text-yellow-400 shrink-0">
+                                        Py
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-[11px] text-carbon-text-muted">Python Interpreter</div>
+                                        <div className="text-xs font-mono text-carbon-text-primary truncate" title={pythonRuntimeInfo || 'Not detected'}>
+                                            {pythonRuntimeInfo ? truncatePath(pythonRuntimeInfo) : 'Python not detected'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleCopy(pythonRuntimeInfo || null, 'python')}
+                                    disabled={!pythonRuntimeInfo}
+                                    className="p-1.5 rounded-md text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-surface transition-all shrink-0"
+                                    title={copiedTarget === 'python' ? 'Copied!' : 'Copy Python info'}
+                                >
+                                    {copiedTarget === 'python' ? (
+                                        <svg className="w-4 h-4 text-carbon-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+
                             {/* C++ Environment Card */}
                             <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-carbon-bg/80 border border-carbon-border/70 hover:border-carbon-border transition-all">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -363,7 +396,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0">
-                                                {file.language === 'java' ? (
+                                                {file.language === 'python' ? (
+                                                    <span className="text-yellow-400">Py</span>
+                                                ) : file.language === 'java' ? (
                                                     <span className="text-orange-400">J</span>
                                                 ) : file.language === 'c' ? (
                                                     <span className="text-cyan-400">C</span>
