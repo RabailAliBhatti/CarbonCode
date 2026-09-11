@@ -206,31 +206,6 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                 </div>
             </div>
 
-            {/* Execution Result Banner (from Coding Screen.png) */}
-            {result && !isCompiling && (
-                <div className="px-3.5 py-2 bg-carbon-elevated border-b border-carbon-border shrink-0 flex items-center justify-between">
-                    {result.success ? (
-                        <div className="flex items-center gap-2 text-carbon-success text-xs font-medium">
-                            <svg className="w-4 h-4 text-carbon-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span>Program executed successfully</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-carbon-error text-xs font-medium">
-                            <svg className="w-4 h-4 text-carbon-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            <span>Execution failed</span>
-                        </div>
-                    )}
-
-                    {totalTimeSeconds && (
-                        <span className="font-mono text-xs text-carbon-text-muted">{totalTimeSeconds}</span>
-                    )}
-                </div>
-            )}
-
             {/* Monospace Interactive Output Stream */}
             <div
                 ref={outputRef}
@@ -263,46 +238,77 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                     </div>
                 ) : result ? (
                     effectiveTab === 'output' ? (
-                        hasOutput || isRunning ? (
-                            <div className="whitespace-pre-wrap break-words">
-                                {totalLines > MAX_VISIBLE_LINES && (
-                                    <div className="text-carbon-text-muted text-[11px] italic mb-2">
-                                        Showing last {MAX_VISIBLE_LINES} of {totalLines} lines
-                                    </div>
-                                )}
-                                {(() => {
-                                    const displayLines = visibleLines.length === 0 && isRunning ? [''] : visibleLines
-                                    const textBeforeCursor = inputValue.slice(0, cursorPos)
-                                    const textAfterCursor = inputValue.slice(cursorPos)
+                        <>
+                            {hasOutput || isRunning ? (
+                                <div className="whitespace-pre-wrap break-words">
+                                    {totalLines > MAX_VISIBLE_LINES && (
+                                        <div className="text-carbon-text-muted text-[11px] italic mb-2">
+                                            Showing last {MAX_VISIBLE_LINES} of {totalLines} lines
+                                        </div>
+                                    )}
+                                    {(() => {
+                                        const displayLines = visibleLines.length === 0 && isRunning ? [''] : visibleLines
+                                        const textBeforeCursor = inputValue.slice(0, cursorPos)
+                                        const textAfterCursor = inputValue.slice(cursorPos)
 
-                                    return displayLines.map((line, i) => {
-                                        const isLast = i === displayLines.length - 1
-                                        if (isLast && isRunning) {
+                                        return displayLines.map((line, i) => {
+                                            const isLast = i === displayLines.length - 1
+                                            if (isLast && isRunning) {
+                                                return (
+                                                    <div key={startIndex + i} className="min-h-[1.4em]">
+                                                        <span>{line}</span>
+                                                        <span className="text-carbon-accent-highlight font-medium">{textBeforeCursor}</span>
+                                                        <span className="terminal-cursor" />
+                                                        <span className="text-carbon-accent-highlight font-medium">{textAfterCursor}</span>
+                                                    </div>
+                                                )
+                                            }
                                             return (
                                                 <div key={startIndex + i} className="min-h-[1.4em]">
-                                                    <span>{line}</span>
-                                                    <span className="text-carbon-accent-highlight font-medium">{textBeforeCursor}</span>
-                                                    <span className="terminal-cursor" />
-                                                    <span className="text-carbon-accent-highlight font-medium">{textAfterCursor}</span>
+                                                    {line || '\u00A0'}
                                                 </div>
                                             )
-                                        }
-                                        return (
-                                            <div key={startIndex + i} className="min-h-[1.4em]">
-                                                {line || '\u00A0'}
-                                            </div>
-                                        )
-                                    })
-                                })()}
-                            </div>
-                        ) : (
-                            <div className="text-carbon-text-muted text-xs italic">
-                                {result.success
-                                    ? 'Program completed with no output.'
-                                    : 'No output. Check the Errors tab for details.'
-                                }
-                            </div>
-                        )
+                                        })
+                                    })()}
+                                </div>
+                            ) : (
+                                <div className="text-carbon-text-muted text-xs italic">
+                                    {result.success
+                                        ? 'Program completed with no output.'
+                                        : 'No output. Check the Errors tab for details.'
+                                    }
+                                </div>
+                            )}
+
+                            {/* Execution Status Indicator - under output as before */}
+                            {result && !isCompiling && !isRunning && (
+                                <div className={`mt-4 pt-3 border-t border-carbon-border/60 flex items-center justify-between select-none ${
+                                    result.success ? 'text-carbon-success' : 'text-carbon-error'
+                                }`}>
+                                    <div className="flex items-center gap-2 text-xs font-medium">
+                                        {result.success ? (
+                                            <>
+                                                <svg className="w-4 h-4 text-carbon-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                <span>Program executed successfully</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4 text-carbon-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                <span>Execution failed</span>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {totalTimeSeconds && (
+                                        <span className="font-mono text-[11px] text-carbon-text-muted">{totalTimeSeconds}</span>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         hasErrors ? (
                             parsedErrors.length > 0 ? (
