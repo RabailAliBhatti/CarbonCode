@@ -337,3 +337,26 @@ select {
 .flash-error {
   animation: error-flash 0.5s ease;
 }
+
+/* Interactive Terminal Blinking Caret */
+@keyframes terminal-caret-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: var(--color-accent-highlight, #25B8FF);
+  box-shadow: 0 0 6px rgba(37, 184, 255, 0.7);
+  vertical-align: -0.22em;
+  margin-left: 1px;
+  margin-right: 1px;
+  animation: terminal-caret-blink 1s step-start infinite;
+  pointer-events: none;
+}

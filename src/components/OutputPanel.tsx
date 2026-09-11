@@ -36,6 +36,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
     const [inputValue, setInputValue] = useState('')
+    const [cursorPos, setCursorPos] = useState(0)
     const inputRef = useRef<HTMLInputElement>(null)
     const outputRef = useRef<HTMLDivElement>(null)
 
@@ -61,19 +62,64 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         if (outputRef.current) {
             outputRef.current.scrollTop = outputRef.current.scrollHeight
         }
-    }, [result?.output])
+    }, [result?.output, inputValue])
 
     useEffect(() => {
-        if (isRunning && inputRef.current) {
-            inputRef.current.focus()
+        if (isRunning) {
+            const timer = setTimeout(() => {
+                inputRef.current?.focus()
+            }, 30)
+            return () => clearTimeout(timer)
+        } else {
+            setInputValue('')
+            setCursorPos(0)
         }
     }, [isRunning])
 
-    const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value)
+        setCursorPos(e.target.selectionStart ?? e.target.value.length)
+    }
+
+    const handleInputSelect = (e: React.SyntheticEvent<HTMLInputElement>) => {
+        const target = e.target as HTMLInputElement
+        setCursorPos(target.selectionStart ?? target.value.length)
+    }
+
+    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault()
-            onInput(inputValue + '\n')
+            const toSend = inputValue + '\n'
+            onInput(toSend)
             setInputValue('')
+            setCursorPos(0)
+            return
+        }
+
+        if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+            const selection = window.getSelection()
+            if (!selection || selection.toString().length === 0) {
+                e.preventDefault()
+                onStop()
+                return
+            }
+        }
+
+        setTimeout(() => {
+            if (inputRef.current) {
+                setCursorPos(inputRef.current.selectionStart ?? inputRef.current.value.length)
+            }
+        }, 0)
+    }
+
+    const handleTerminalClick = () => {
+        const selection = window.getSelection()
+        if (selection && selection.toString().length > 0) {
+            return
+        }
+        if (isRunning && inputRef.current) {
+            inputRef.current.focus()
+            setCursorPos(inputRef.current.selectionStart ?? inputRef.current.value.length)
         }
     }
 
@@ -188,9 +234,28 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
             {/* Monospace Interactive Output Stream */}
             <div
                 ref={outputRef}
-                className="flex-1 overflow-y-auto p-3.5 font-mono bg-carbon-bg text-carbon-text-primary select-text leading-relaxed scrollbar-thin"
+                onClick={handleTerminalClick}
+                className={`flex-1 overflow-y-auto p-3.5 font-mono bg-carbon-bg text-carbon-text-primary select-text leading-relaxed scrollbar-thin relative ${
+                    isRunning ? 'cursor-text' : ''
+                }`}
                 style={{ fontSize: `${fontSize}px` }}
             >
+                {/* Hidden input to capture stdin keystrokes when program is running */}
+                {isRunning && (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        onSelect={handleInputSelect}
+                        onKeyDown={handleInputKeyDown}
+                        className="absolute opacity-0 pointer-events-none w-0 h-0 -z-10"
+                        autoFocus
+                        tabIndex={-1}
+                        aria-label="Terminal Input"
+                    />
+                )}
+
                 {isCompiling ? (
                     <div className="flex items-center gap-2.5 text-carbon-warning text-xs">
                         <div className="w-3.5 h-3.5 border-2 border-carbon-warning border-t-transparent rounded-full animate-spin" />
@@ -205,26 +270,30 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                                         Showing last {MAX_VISIBLE_LINES} of {totalLines} lines
                                     </div>
                                 )}
-                                {visibleLines.map((line, i) => (
-                                    <div key={startIndex + i}>{line}</div>
-                                ))}
+                                {(() => {
+                                    const displayLines = visibleLines.length === 0 && isRunning ? [''] : visibleLines
+                                    const textBeforeCursor = inputValue.slice(0, cursorPos)
+                                    const textAfterCursor = inputValue.slice(cursorPos)
 
-                                {/* Interactive Stdin prompt when running */}
-                                {isRunning && (
-                                    <div className="flex items-center gap-1 mt-1 text-carbon-accent">
-                                        <span className="text-xs select-none">&gt;</span>
-                                        <input
-                                            ref={inputRef}
-                                            type="text"
-                                            value={inputValue}
-                                            onChange={(e) => setInputValue(e.target.value)}
-                                            onKeyDown={handleInputKeyDown}
-                                            className="bg-transparent border-none outline-none text-carbon-accent-highlight font-mono flex-1 text-xs"
-                                            placeholder="type input here & press Enter..."
-                                            autoFocus
-                                        />
-                                    </div>
-                                )}
+                                    return displayLines.map((line, i) => {
+                                        const isLast = i === displayLines.length - 1
+                                        if (isLast && isRunning) {
+                                            return (
+                                                <div key={startIndex + i} className="min-h-[1.4em]">
+                                                    <span>{line}</span>
+                                                    <span className="text-carbon-accent-highlight font-medium">{textBeforeCursor}</span>
+                                                    <span className="terminal-cursor" />
+                                                    <span className="text-carbon-accent-highlight font-medium">{textAfterCursor}</span>
+                                                </div>
+                                            )
+                                        }
+                                        return (
+                                            <div key={startIndex + i} className="min-h-[1.4em]">
+                                                {line || '\u00A0'}
+                                            </div>
+                                        )
+                                    })
+                                })()}
                             </div>
                         ) : (
                             <div className="text-carbon-text-muted text-xs italic">
