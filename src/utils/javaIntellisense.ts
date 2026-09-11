@@ -49,6 +49,14 @@ export interface ProjectJavaFile {
     filePath?: string | null
 }
 
+export interface JavaVariableSymbol {
+    name: string
+    type: string
+    kind: 'local' | 'param' | 'field' | 'loop'
+    detail?: string
+    documentation?: string
+}
+
 // In-memory project symbol cache
 const projectSymbols: Map<string, JavaClassSymbol[]> = new Map()
 
@@ -206,6 +214,218 @@ function parseParams(rawParams: string): JavaParam[] {
         return { type: 'Object', name: parts[0] || 'arg' }
     })
 }
+
+const JAVA_KEYWORDS_SET = new Set([
+    'abstract', 'assert', 'break', 'case', 'catch', 'class', 'const', 'continue',
+    'default', 'do', 'else', 'enum', 'extends', 'finally', 'for', 'goto', 'if',
+    'implements', 'import', 'instanceof', 'interface', 'native', 'new', 'package',
+    'private', 'protected', 'public', 'record', 'return', 'static', 'strictfp',
+    'super', 'switch', 'synchronized', 'this', 'throw', 'throws', 'transient',
+    'try', 'void', 'volatile', 'while', 'yield', 'true', 'false', 'null'
+])
+
+/**
+ * Parses a Java file's content to extract user-declared variables:
+ * - Local variables & statements (e.g. Scanner scanner = ..., String input = ...)
+ * - Method & constructor parameters (e.g. String[] args)
+ * - Enhanced for-each and traditional for loops
+ * - Catch blocks & try-with-resources
+ * - Class fields in current file
+ */
+export function extractJavaVariables(content: string, fileName = 'Current.java'): JavaVariableSymbol[] {
+    const varMap = new Map<string, JavaVariableSymbol>()
+
+    // 1. Fields from classes defined in the file
+    try {
+        const classSymbols = parseJavaFileSymbols(content, fileName)
+        for (const cls of classSymbols) {
+            for (const f of cls.fields) {
+                if (!JAVA_KEYWORDS_SET.has(f.name)) {
+                    varMap.set(f.name, {
+                        name: f.name,
+                        type: f.type,
+                        kind: 'field',
+                        detail: `${f.type} ${f.name} (field in ${cls.name})`,
+                        documentation: `${f.isStatic ? 'static ' : ''}${f.type} ${f.name}`
+                    })
+                }
+            }
+        }
+    } catch {
+        // Ignore symbol parse errors if file is temporarily incomplete
+    }
+
+    // 2. Remove comments and string literals for cleaner statement matching
+    const cleanContent = content
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*/g, '')
+        .replace(/"(?:\\.|[^"\\])*"/g, '""')
+        .replace(/'(?:\\.|[^'\\])*'/g, "''")
+
+    // 3. Method & constructor parameters: e.g. public static void main(String[] args)
+    const methodOrCtorRegex = /(?:(?:public|protected|private|static|final|abstract|synchronized|native)\s+)*(?:[A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*(?:throws\s+[A-Za-z0-9_<>,\s]+)?\s*[{;]/g
+    let mMatch: RegExpExecArray | null
+    while ((mMatch = methodOrCtorRegex.exec(cleanContent)) !== null) {
+        const methodName = mMatch[1]
+        if (JAVA_KEYWORDS_SET.has(methodName) || ['if', 'while', 'for', 'switch', 'catch', 'try'].includes(methodName)) {
+            continue
+        }
+        const rawParams = mMatch[2].trim()
+        if (!rawParams) continue
+
+        const paramList = rawParams.split(',')
+        for (const p of paramList) {
+            const trimmed = p.trim().replace(/^final\s+/, '')
+            const parts = trimmed.split(/\s+/)
+            if (parts.length >= 2) {
+                const type = parts[parts.length - 2]
+                const name = parts[parts.length - 1]
+                if (name && !JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+                    varMap.set(name, {
+                        name,
+                        type,
+                        kind: 'param',
+                        detail: `${type} ${name} (parameter)`,
+                        documentation: `Parameter '${name}' of type '${type}' in ${methodName}`
+                    })
+                }
+            }
+        }
+    }
+
+    // 4. Enhanced for-each loops: e.g. for (String item : items)
+    const forEachRegex = /for\s*\(\s*(?:final\s+)?([A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+)\s*:/g
+    let feMatch: RegExpExecArray | null
+    while ((feMatch = forEachRegex.exec(cleanContent)) !== null) {
+        const type = feMatch[1]
+        const name = feMatch[2]
+        if (!JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+            varMap.set(name, {
+                name,
+                type,
+                kind: 'loop',
+                detail: `${type} ${name} (for-each loop)`,
+                documentation: `Loop variable '${name}' of type '${type}'`
+            })
+        }
+    }
+
+    // 5. Traditional for loops: e.g. for (int i = 0; i < n; i++)
+    const forLoopRegex = /for\s*\(\s*(?:final\s+)?([A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+(?:\s*=\s*[^;]+)?(?:\s*,\s*[A-Za-z0-9_]+(?:\s*=\s*[^;]+)?)*)\s*;/g
+    let flMatch: RegExpExecArray | null
+    while ((flMatch = forLoopRegex.exec(cleanContent)) !== null) {
+        const type = flMatch[1]
+        if (JAVA_KEYWORDS_SET.has(type)) continue
+        const decls = flMatch[2]
+        const varMatches = decls.split(',')
+        for (const item of varMatches) {
+            const varName = item.split('=')[0].trim()
+            if (varName && !JAVA_KEYWORDS_SET.has(varName) && /^[A-Za-z0-9_]+$/.test(varName)) {
+                varMap.set(varName, {
+                    name: varName,
+                    type,
+                    kind: 'loop',
+                    detail: `${type} ${varName} (loop variable)`,
+                    documentation: `Loop variable '${varName}' of type '${type}'`
+                })
+            }
+        }
+    }
+
+    // 6. Catch blocks: e.g. catch (IOException e)
+    const catchRegex = /catch\s*\(\s*(?:final\s+)?([A-Za-z0-9_<>|.\s]+)\s+([A-Za-z0-9_]+)\s*\)/g
+    let cMatch: RegExpExecArray | null
+    while ((cMatch = catchRegex.exec(cleanContent)) !== null) {
+        const rawType = cMatch[1].trim()
+        const name = cMatch[2].trim()
+        const type = rawType.split('|')[0].trim()
+        if (name && !JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+            varMap.set(name, {
+                name,
+                type,
+                kind: 'local',
+                detail: `${type} ${name} (catch variable)`,
+                documentation: `Caught exception '${name}' of type '${type}'`
+            })
+        }
+    }
+
+    // 7. Try-with-resources: e.g. try (Scanner scanner = new Scanner(System.in))
+    const tryResRegex = /try\s*\(([^)]+)\)/g
+    let trMatch: RegExpExecArray | null
+    while ((trMatch = tryResRegex.exec(cleanContent)) !== null) {
+        const resources = trMatch[1].split(';')
+        for (const res of resources) {
+            const m = res.trim().match(/^(?:final\s+)?([A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+)\s*=/)
+            if (m) {
+                const type = m[1]
+                const name = m[2]
+                if (!JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+                    varMap.set(name, {
+                        name,
+                        type,
+                        kind: 'local',
+                        detail: `${type} ${name} (resource variable)`,
+                        documentation: `Try-with-resources variable '${name}' of type '${type}'`
+                    })
+                }
+            }
+        }
+    }
+
+    // 8. General local variable declarations & statements:
+    // e.g. Scanner scanner = new Scanner(System.in);
+    //      String input = scanner.nextLine();
+    //      int count = 0;
+    //      int a = 1, b = 2;
+    const stmtRegex = /(?:^|[;{}])\s*(?:final\s+)?([A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+(?:\s*=\s*[^;{}]+|\s*,\s*[A-Za-z0-9_]+(?:\s*=\s*[^;{}]+)?)*)\s*;/g
+    let sMatch: RegExpExecArray | null
+    while ((sMatch = stmtRegex.exec(cleanContent)) !== null) {
+        const rawType = sMatch[1].trim()
+        if (JAVA_KEYWORDS_SET.has(rawType)) continue
+
+        const decls = sMatch[2]
+        let depth = 0
+        let current = ''
+        for (let i = 0; i < decls.length; i++) {
+            const ch = decls[i]
+            if (ch === '(' || ch === '{' || ch === '<' || ch === '[') depth++
+            else if (ch === ')' || ch === '}' || ch === '>' || ch === ']') depth = Math.max(0, depth - 1)
+            else if (ch === ',' && depth === 0) {
+                const varNameMatch = current.trim().match(/^([A-Za-z0-9_]+)/)
+                if (varNameMatch && !JAVA_KEYWORDS_SET.has(varNameMatch[1])) {
+                    const varName = varNameMatch[1]
+                    varMap.set(varName, {
+                        name: varName,
+                        type: rawType,
+                        kind: 'local',
+                        detail: `${rawType} ${varName} (variable)`,
+                        documentation: `Local variable '${varName}' of type '${rawType}'`
+                    })
+                }
+                current = ''
+                continue
+            }
+            current += ch
+        }
+        if (current.trim()) {
+            const varNameMatch = current.trim().match(/^([A-Za-z0-9_]+)/)
+            if (varNameMatch && !JAVA_KEYWORDS_SET.has(varNameMatch[1])) {
+                const varName = varNameMatch[1]
+                varMap.set(varName, {
+                    name: varName,
+                    type: rawType,
+                    kind: 'local',
+                    detail: `${rawType} ${varName} (variable)`,
+                    documentation: `Local variable '${varName}' of type '${rawType}'`
+                })
+            }
+        }
+    }
+
+    return Array.from(varMap.values())
+}
+
 
 /**
  * Updates the symbol registry with all active project Java files.
@@ -607,6 +827,9 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
 
     const suggestions: any[] = []
 
+    const fullContent = model.getValue()
+    const variables = extractJavaVariables(fullContent)
+
     // ---------------------------------------------------------
     // 1. IMPORT STATEMENT COMPLETION (e.g. import java.util.|)
     // ---------------------------------------------------------
@@ -714,7 +937,7 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
     }
 
     // ---------------------------------------------------------
-    // 2. DOT MEMBER ACCESS (e.g. System.out.|, Math.|, MyClass.|)
+    // 2. DOT MEMBER ACCESS (e.g. System.out.|, Math.|, MyClass.|, scanner.|, student.|)
     // ---------------------------------------------------------
     const dotMatch = textUntilPosition.match(/([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*)\.([A-Za-z0-9_]*)$/)
     if (dotMatch) {
@@ -782,8 +1005,111 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
             return { suggestions }
         }
 
-        // 2C. Instance Member Completion (for variables)
-        // Check if callerExpression matches a project class instance methods
+        // 2C. Variable-based Member Access (e.g. scanner.nextLine(), student.getName(), input.length())
+        const callerVar = variables.find(v => v.name === callerExpression)
+        if (callerVar) {
+            const varType = callerVar.type.replace(/<.*>/, '').replace(/\[\]/, '')
+            const targetProjClass = projectSyms.find(s => s.name === varType)
+
+            // If variable is an instance of a project class, suggest its methods & fields
+            if (targetProjClass) {
+                for (const m of targetProjClass.methods.filter(m => !m.isStatic)) {
+                    if (!memberQuery || m.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
+                        const paramsPlaceholder = m.params.map((p, i) => `\${${i + 1}:${p.name}}`).join(', ')
+                        suggestions.push({
+                            label: m.name,
+                            kind: monaco.languages.CompletionItemKind.Method,
+                            detail: `${targetProjClass.name}.${m.signature} • ${targetProjClass.fileName}`,
+                            documentation: m.documentation,
+                            insertText: `${m.name}(${paramsPlaceholder})`,
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            range,
+                            sortText: '0_var_proj_' + m.name
+                        })
+                    }
+                }
+                for (const f of targetProjClass.fields.filter(f => !f.isStatic)) {
+                    if (!memberQuery || f.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
+                        suggestions.push({
+                            label: f.name,
+                            kind: monaco.languages.CompletionItemKind.Field,
+                            detail: `${targetProjClass.name}.${f.signature} • ${targetProjClass.fileName}`,
+                            insertText: f.name,
+                            range,
+                            sortText: '0_var_proj_f_' + f.name
+                        })
+                    }
+                }
+            }
+
+            // Type-specific suggestions from JAVA_INSTANCE_MEMBERS
+            const scannerMethods = new Set(['nextInt', 'nextDouble', 'nextLine', 'next', 'hasNext', 'hasNextLine', 'close'])
+            const stringMethods = new Set(['length', 'charAt', 'substring', 'toLowerCase', 'toUpperCase', 'trim', 'contains', 'replace', 'split', 'startsWith', 'endsWith', 'isEmpty', 'equals', 'toString'])
+            const listMethods = new Set(['size', 'add', 'get', 'set', 'remove', 'clear', 'stream', 'forEach', 'isEmpty', 'toString'])
+            const mapMethods = new Set(['put', 'get', 'containsKey', 'containsValue', 'remove', 'keySet', 'values', 'entrySet', 'size', 'isEmpty', 'clear'])
+
+            let preferredMethods: Set<string> | null = null
+            if (varType === 'Scanner') preferredMethods = scannerMethods
+            else if (varType === 'String') preferredMethods = stringMethods
+            else if (['List', 'ArrayList', 'LinkedList'].includes(varType)) preferredMethods = listMethods
+            else if (['Map', 'HashMap', 'TreeMap'].includes(varType)) preferredMethods = mapMethods
+
+            if (preferredMethods) {
+                for (const item of JAVA_INSTANCE_MEMBERS) {
+                    if (preferredMethods.has(item.name)) {
+                        if (!memberQuery || item.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
+                            suggestions.push({
+                                label: item.name,
+                                kind: monaco.languages.CompletionItemKind.Method,
+                                detail: item.detail,
+                                documentation: item.doc,
+                                insertText: item.snippet,
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                range,
+                                sortText: '0_var_method_' + item.name
+                            })
+                        }
+                    }
+                }
+                return { suggestions }
+            }
+        }
+
+        // 2D. "this." Access (current class instance methods and fields)
+        if (callerExpression === 'this') {
+            const thisClasses = parseJavaFileSymbols(fullContent, 'Current.java')
+            for (const cls of thisClasses) {
+                for (const m of cls.methods.filter(m => !m.isStatic)) {
+                    if (!memberQuery || m.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
+                        const paramsPlaceholder = m.params.map((p, i) => `\${${i + 1}:${p.name}}`).join(', ')
+                        suggestions.push({
+                            label: m.name,
+                            kind: monaco.languages.CompletionItemKind.Method,
+                            detail: `${cls.name}.${m.signature}`,
+                            documentation: m.documentation,
+                            insertText: `${m.name}(${paramsPlaceholder})`,
+                            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                            range,
+                            sortText: '0_this_' + m.name
+                        })
+                    }
+                }
+                for (const f of cls.fields.filter(f => !f.isStatic)) {
+                    if (!memberQuery || f.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
+                        suggestions.push({
+                            label: f.name,
+                            kind: monaco.languages.CompletionItemKind.Field,
+                            detail: `${cls.name}.${f.signature}`,
+                            insertText: f.name,
+                            range,
+                            sortText: '0_this_f_' + f.name
+                        })
+                    }
+                }
+            }
+        }
+
+        // 2E. General Project Instance Member Fallback
         for (const sym of projectSyms) {
             for (const m of sym.methods.filter(m => !m.isStatic)) {
                 if (!memberQuery || m.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
@@ -802,7 +1128,7 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
             }
         }
 
-        // Standard instance methods (Strings, Collections, Scanner, Object)
+        // 2F. Standard instance methods fallback (Strings, Collections, Scanner, Object)
         for (const item of JAVA_INSTANCE_MEMBERS) {
             if (!memberQuery || item.name.toLowerCase().startsWith(memberQuery.toLowerCase())) {
                 suggestions.push({
@@ -879,10 +1205,23 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
     }
 
     // ---------------------------------------------------------
-    // 4. GENERAL CODE AUTOCOMPLETIONS (Classes, Keywords, Snippets)
+    // 4. GENERAL CODE AUTOCOMPLETIONS (Variables, Classes, Keywords, Snippets)
     // ---------------------------------------------------------
 
-    // 4A. Project Classes & Symbols from other files
+    // 4A. User-Declared Variables (Local variables, Parameters, Loop variables, Fields)
+    for (const v of variables) {
+        suggestions.push({
+            label: v.name,
+            kind: monaco.languages.CompletionItemKind.Variable,
+            detail: v.detail || `${v.type} ${v.name} (variable)`,
+            documentation: v.documentation || `${v.kind === 'param' ? 'Parameter' : v.kind === 'field' ? 'Field' : 'Variable'} '${v.name}' of type '${v.type}'`,
+            insertText: v.name,
+            range,
+            sortText: '0_0_var_' + v.name
+        })
+    }
+
+    // 4B. Project Classes & Symbols from other files
     const projectSyms = getAllProjectSymbols()
     for (const sym of projectSyms) {
         suggestions.push({

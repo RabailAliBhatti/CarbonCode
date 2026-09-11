@@ -39,6 +39,109 @@ self.MonacoEnvironment = {
 // Configure the loader to use local Monaco
 loader.config({ monaco: monacoEditor })
 
+// Global tracker to dispose completion providers on remount and prevent duplicate suggestions
+let registeredCompletionProviders: monacoEditor.IDisposable[] = []
+
+/**
+ * Parses C/C++ source code to extract user-declared variables:
+ * - Function parameters (e.g. int argc, char* argv[])
+ * - Range-based and traditional for loop variables
+ * - Local variable declarations (e.g. int count = 0, std::string text)
+ */
+function extractCppVariables(content: string): Array<{ name: string; type: string }> {
+    const vars = new Map<string, { name: string; type: string }>()
+
+    const cleanContent = content
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*/g, '')
+        .replace(/"(?:\\.|[^"\\])*"/g, '""')
+        .replace(/'(?:\\.|[^'\\])*'/g, "''")
+
+    const CPP_KEYWORDS = new Set([
+        'alignas', 'alignof', 'and', 'and_eq', 'asm', 'auto', 'bitand', 'bitor',
+        'bool', 'break', 'case', 'catch', 'char', 'class', 'compl', 'concept',
+        'const', 'consteval', 'constexpr', 'constinit', 'const_cast', 'continue',
+        'co_await', 'co_return', 'co_yield', 'decltype', 'default', 'delete',
+        'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export',
+        'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline',
+        'int', 'long', 'mutable', 'namespace', 'new', 'noexcept', 'not', 'not_eq',
+        'nullptr', 'operator', 'or', 'or_eq', 'private', 'protected', 'public',
+        'reflexpr', 'register', 'reinterpret_cast', 'requires', 'return', 'short',
+        'signed', 'sizeof', 'static', 'static_assert', 'static_cast', 'struct',
+        'switch', 'template', 'this', 'thread_local', 'throw', 'true', 'try',
+        'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual',
+        'void', 'volatile', 'wchar_t', 'while', 'xor', 'xor_eq', 'std'
+    ])
+
+    // 1. Function / method parameters: e.g. int main(int argc, char* argv[])
+    const funcRegex = /\b(?:[A-Za-z0-9_:*&<>]+)\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*(?:const\s*)?(?:noexcept\s*)?\{/g
+    let fMatch: RegExpExecArray | null
+    while ((fMatch = funcRegex.exec(cleanContent)) !== null) {
+        const rawParams = fMatch[2].trim()
+        if (!rawParams || rawParams === 'void') continue
+        const params = rawParams.split(',')
+        for (const p of params) {
+            const clean = p.trim().replace(/^const\s+/, '')
+            const m = clean.match(/([A-Za-z0-9_:*&<>]+)\s+([*&]*)([A-Za-z0-9_]+)(?:\s*\[\s*\])?$/)
+            if (m && !CPP_KEYWORDS.has(m[3])) {
+                vars.set(m[3], { name: m[3], type: m[1] + (m[2] ? ' ' + m[2] : '') })
+            }
+        }
+    }
+
+    // 2. For loop variables: e.g. for (int i = 0; ...), for (const auto& item : items)
+    const forRangeRegex = /for\s*\(\s*(?:const\s+)?(?:auto|int|[A-Za-z0-9_:<>]+)[*&\s]+([A-Za-z0-9_]+)\s*:/g
+    let rMatch: RegExpExecArray | null
+    while ((rMatch = forRangeRegex.exec(cleanContent)) !== null) {
+        if (!CPP_KEYWORDS.has(rMatch[1])) {
+            vars.set(rMatch[1], { name: rMatch[1], type: 'auto' })
+        }
+    }
+
+    const forLoopRegex = /for\s*\(\s*(?:const\s+)?([A-Za-z0-9_:*&<>]+)\s+([A-Za-z0-9_]+)\s*=/g
+    let flMatch: RegExpExecArray | null
+    while ((flMatch = forLoopRegex.exec(cleanContent)) !== null) {
+        if (!CPP_KEYWORDS.has(flMatch[2])) {
+            vars.set(flMatch[2], { name: flMatch[2], type: flMatch[1] })
+        }
+    }
+
+    // 3. Local variable declarations: e.g. int count = 0; double total; string s;
+    const stmtRegex = /(?:^|[;{}])\s*(?:const\s+)?([A-Za-z0-9_:*&<>]+)\s+([A-Za-z0-9_]+(?:\s*=\s*[^;,{}]+|\s*,\s*[A-Za-z0-9_]+(?:\s*=\s*[^;,{}]+)?)*)\s*;/g
+    let sMatch: RegExpExecArray | null
+    while ((sMatch = stmtRegex.exec(cleanContent)) !== null) {
+        const rawType = sMatch[1].trim()
+        if (CPP_KEYWORDS.has(rawType) && !['int', 'double', 'float', 'char', 'bool', 'long', 'short', 'unsigned', 'signed', 'auto', 'size_t'].includes(rawType)) {
+            continue
+        }
+        const decls = sMatch[2]
+        let depth = 0
+        let current = ''
+        for (let i = 0; i < decls.length; i++) {
+            const ch = decls[i]
+            if (ch === '(' || ch === '{' || ch === '<' || ch === '[') depth++
+            else if (ch === ')' || ch === '}' || ch === '>' || ch === ']') depth = Math.max(0, depth - 1)
+            else if (ch === ',' && depth === 0) {
+                const varNameMatch = current.trim().match(/^([*&]*\s*)([A-Za-z0-9_]+)/)
+                if (varNameMatch && !CPP_KEYWORDS.has(varNameMatch[2])) {
+                    vars.set(varNameMatch[2], { name: varNameMatch[2], type: rawType })
+                }
+                current = ''
+                continue
+            }
+            current += ch
+        }
+        if (current.trim()) {
+            const varNameMatch = current.trim().match(/^([*&]*\s*)([A-Za-z0-9_]+)/)
+            if (varNameMatch && !CPP_KEYWORDS.has(varNameMatch[2])) {
+                vars.set(varNameMatch[2], { name: varNameMatch[2], type: rawType })
+            }
+        }
+    }
+
+    return Array.from(vars.values())
+}
+
 interface EditorProps {
     value: string
     language: SupportedLanguage
@@ -276,8 +379,12 @@ function Editor({
             }
         })
 
+        // Clean up previously registered completion providers to prevent duplicates on remount
+        registeredCompletionProviders.forEach(d => d.dispose())
+        registeredCompletionProviders = []
+
         // Enhanced C++ IntelliSense
-        monaco.languages.registerCompletionItemProvider('cpp', {
+        const cppProvider = monaco.languages.registerCompletionItemProvider('cpp', {
             provideCompletionItems: (model, position) => {
                 const word = model.getWordUntilPosition(position);
                 const range = {
@@ -287,7 +394,18 @@ function Editor({
                     endColumn: word.endColumn
                 };
 
+                const userVars = extractCppVariables(model.getValue())
+                const varSuggestions = userVars.map(v => ({
+                    label: v.name,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    detail: `${v.type} ${v.name} (variable)`,
+                    insertText: v.name,
+                    range,
+                    sortText: '0_0_var_' + v.name
+                }))
+
                 const suggestions = [
+                    ...varSuggestions,
                     // Keywords (Expanded)
                     ...['alignas', 'alignof', 'and', 'and_eq', 'asm', 'atomic_cancel', 'atomic_commit', 'atomic_noexcept', 'auto', 'bitand', 'bitor', 'bool', 'break', 'case', 'catch', 'char', 'char8_t', 'char16_t', 'char32_t', 'class', 'compl', 'concept', 'const', 'consteval', 'constexpr', 'constinit', 'const_cast', 'continue', 'co_await', 'co_return', 'co_yield', 'decltype', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'noexcept', 'not', 'not_eq', 'nullptr', 'operator', 'or', 'or_eq', 'private', 'protected', 'public', 'reflexpr', 'register', 'reinterpret_cast', 'requires', 'return', 'short', 'signed', 'sizeof', 'static', 'static_assert', 'static_cast', 'struct', 'switch', 'synchronized', 'template', 'this', 'thread_local', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'xor', 'xor_eq'].map(k => ({
                         label: k,
@@ -514,7 +632,7 @@ function Editor({
         })
 
         // Enhanced C IntelliSense & Snippets
-        monaco.languages.registerCompletionItemProvider('c', {
+        const cProvider = monaco.languages.registerCompletionItemProvider('c', {
             provideCompletionItems: (model, position) => {
                 const word = model.getWordUntilPosition(position)
                 const range = {
@@ -524,7 +642,18 @@ function Editor({
                     endColumn: word.endColumn
                 }
 
+                const userVars = extractCppVariables(model.getValue())
+                const varSuggestions = userVars.map(v => ({
+                    label: v.name,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    detail: `${v.type} ${v.name} (variable)`,
+                    insertText: v.name,
+                    range,
+                    sortText: '0_0_var_' + v.name
+                }))
+
                 const suggestions = [
+                    ...varSuggestions,
                     // Keywords
                     ...['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool', '_Complex', '_Imaginary', '_Atomic', '_Generic', '_Static_assert', '_Thread_local', 'bool', 'true', 'false', 'NULL'].map(k => ({
                         label: k,
@@ -774,12 +903,14 @@ function Editor({
             }
         })
 
-        monaco.languages.registerCompletionItemProvider('java', {
+        const javaProvider = monaco.languages.registerCompletionItemProvider('java', {
             triggerCharacters: ['.', ' ', '*', '@'],
             provideCompletionItems: (model, position) => {
                 return getJavaCompletionItems(model, position, monaco)
             }
         })
+
+        registeredCompletionProviders.push(cppProvider, cProvider, javaProvider)
 
         // Add keyboard shortcut for running code (F5)
         editor.addCommand(monaco.KeyCode.F5, () => {

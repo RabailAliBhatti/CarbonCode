@@ -4,6 +4,7 @@ import {
     updateJavaProjectFiles,
     getAllProjectSymbols,
     getJavaCompletionItems,
+    extractJavaVariables,
     JAVA_STANDARD_PACKAGES,
     JAVA_STATIC_MEMBERS,
     JAVA_ALL_CLASS_IMPORTS
@@ -21,7 +22,8 @@ const mockMonaco = {
             Keyword: 6,
             Snippet: 7,
             Interface: 8,
-            Enum: 9
+            Enum: 9,
+            Variable: 10
         },
         CompletionItemInsertTextRule: {
             InsertAsSnippet: 4
@@ -387,6 +389,139 @@ describe('Java IntelliSense Engine', () => {
             expect(JAVA_ALL_CLASS_IMPORTS['Files']).toBe('java.nio.file.Files')
             expect(JAVA_ALL_CLASS_IMPORTS['LocalDate']).toBe('java.time.LocalDate')
             expect(JAVA_ALL_CLASS_IMPORTS['CompletableFuture']).toBe('java.util.concurrent.CompletableFuture')
+        })
+    })
+
+    describe('8. User Variable Detection & Autocompletion', () => {
+        it('should accurately extract local variables, parameters, loop variables, and fields', () => {
+            const code = `
+                public class Main {
+                    private int counter = 0;
+
+                    public static void main(String[] args) {
+                        Scanner scanner = new Scanner(System.in);
+                        String input = scanner.nextLine();
+                        int x = 1, y = 2;
+                        for (String item : items) {
+                            int total = 10;
+                        }
+                        for (int i = 0; i < 5; i++) {
+                        }
+                    }
+                }
+            `
+
+            const vars = extractJavaVariables(code, 'Main.java')
+            const names = vars.map(v => v.name)
+
+            expect(names).toContain('counter')
+            expect(names).toContain('args')
+            expect(names).toContain('scanner')
+            expect(names).toContain('input')
+            expect(names).toContain('x')
+            expect(names).toContain('y')
+            expect(names).toContain('item')
+            expect(names).toContain('total')
+            expect(names).toContain('i')
+
+            const scannerVar = vars.find(v => v.name === 'scanner')
+            expect(scannerVar?.type).toBe('Scanner')
+            expect(scannerVar?.kind).toBe('local')
+
+            const argsVar = vars.find(v => v.name === 'args')
+            expect(argsVar?.type).toBe('String[]')
+            expect(argsVar?.kind).toBe('param')
+        })
+
+        it('should suggest user variables at top priority when completing words (e.g. typing "inpu")', () => {
+            const code = [
+                'public class Main {',
+                '    public static void main(String[] args) {',
+                '        Scanner scanner = new Scanner(System.in);',
+                '        System.out.print("Enter input: ");',
+                '        String input = scanner.nextLine();',
+                '        System.out.println(inpu);',
+                '    }',
+                '}'
+            ].join('\n')
+
+            const model = createMockModel(code)
+            // Cursor right after 'inpu' on line 6: '        System.out.println(inpu'
+            const position = { lineNumber: 6, column: 32 }
+
+            const { suggestions } = getJavaCompletionItems(model, position, mockMonaco)
+            const inputSuggestion = suggestions.find(s => s.label === 'input')
+
+            expect(inputSuggestion).toBeDefined()
+            expect(inputSuggestion?.kind).toBe(mockMonaco.languages.CompletionItemKind.Variable)
+            expect(inputSuggestion?.sortText).toBe('0_0_var_input')
+
+            // Verify that input's sortText ranks before standard classes and snippets
+            const inputStreamSuggestion = suggestions.find(s => s.label === 'InputStream')
+            const scannerSnippet = suggestions.find(s => s.label === 'scanner-input')
+
+            if (inputStreamSuggestion) {
+                expect(inputSuggestion!.sortText < inputStreamSuggestion.sortText).toBe(true)
+            }
+            if (scannerSnippet) {
+                expect(inputSuggestion!.sortText < scannerSnippet.sortText).toBe(true)
+            }
+        })
+
+        it('should suggest Scanner methods at top priority when accessing members of a Scanner variable', () => {
+            const code = [
+                'public class Main {',
+                '    public static void main(String[] args) {',
+                '        Scanner scanner = new Scanner(System.in);',
+                '        scanner.',
+                '    }',
+                '}'
+            ].join('\n')
+
+            const model = createMockModel(code)
+            const position = { lineNumber: 4, column: 17 }
+
+            const { suggestions } = getJavaCompletionItems(model, position, mockMonaco)
+            const nextLine = suggestions.find(s => s.label === 'nextLine')
+            const nextInt = suggestions.find(s => s.label === 'nextInt')
+
+            expect(nextLine).toBeDefined()
+            expect(nextInt).toBeDefined()
+            expect(nextLine?.sortText.startsWith('0_var_method_')).toBe(true)
+        })
+
+        it('should suggest project class methods when accessing members of a project variable instance', () => {
+            updateJavaProjectFiles([
+                {
+                    fileName: 'Student.java',
+                    content: `
+                        public class Student {
+                            public String getName() { return ""; }
+                            public int getAge() { return 0; }
+                        }
+                    `
+                }
+            ])
+
+            const code = [
+                'public class Main {',
+                '    public static void main(String[] args) {',
+                '        Student student = new Student();',
+                '        student.',
+                '    }',
+                '}'
+            ].join('\n')
+
+            const model = createMockModel(code)
+            const position = { lineNumber: 4, column: 17 }
+
+            const { suggestions } = getJavaCompletionItems(model, position, mockMonaco)
+            const getName = suggestions.find(s => s.label === 'getName')
+            const getAge = suggestions.find(s => s.label === 'getAge')
+
+            expect(getName).toBeDefined()
+            expect(getAge).toBeDefined()
+            expect(getName?.sortText.startsWith('0_var_proj_')).toBe(true)
         })
     })
 })
