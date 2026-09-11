@@ -8,6 +8,14 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { SupportedLanguage } from '../types/language'
 import type { CompileError } from '../utils/parseCompileErrors'
+import { FileTab } from './TabBar'
+import {
+    getJavaCompletionItems,
+    updateJavaProjectFiles,
+    ProjectJavaFile,
+    JAVA_ALL_CLASS_IMPORTS,
+    getAllProjectSymbols
+} from '../utils/javaIntellisense'
 
 // Configure Monaco to use local workers (for offline support)
 self.MonacoEnvironment = {
@@ -43,6 +51,8 @@ interface EditorProps {
     wordWrap?: boolean
     onRun?: () => void
     parsedErrors?: CompileError[]
+    tabs?: FileTab[]
+    rootPath?: string | null
 }
 
 // CarbonCode Dark theme colors
@@ -121,9 +131,109 @@ const editorThemeLight = {
     }
 }
 
-function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSize = 4, minimap = true, wordWrap = false, theme = 'dark', onRun, parsedErrors = [] }: EditorProps) {
+function Editor({
+    value,
+    language,
+    onChange,
+    onEditorMount,
+    fontSize = 14,
+    tabSize = 4,
+    minimap = true,
+    wordWrap = false,
+    theme = 'dark',
+    onRun,
+    parsedErrors = [],
+    tabs,
+    rootPath
+}: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
+    const diskFilesCacheRef = useRef<Map<string, ProjectJavaFile>>(new Map())
+
+    // 1. Scan rootPath for disk .java files when rootPath changes
+    useEffect(() => {
+        let isMounted = true
+
+        const scanDiskJavaFiles = async () => {
+            if (!rootPath || !window.electronAPI?.readDirectory || !window.electronAPI?.readFile) {
+                diskFilesCacheRef.current.clear()
+                return
+            }
+
+            const diskMap = new Map<string, ProjectJavaFile>()
+            try {
+                const scanDir = async (dirPath: string, depth = 0) => {
+                    if (depth > 6 || !isMounted) return
+                    const items = await window.electronAPI.readDirectory(dirPath)
+                    for (const item of items) {
+                        if (!isMounted) return
+                        if (item.isDirectory) {
+                            if (!['node_modules', '.git', 'bin', 'target', 'out', 'dist', 'build', '.idea', '.vscode'].includes(item.name)) {
+                                await scanDir(item.path, depth + 1)
+                            }
+                        } else if (item.name.endsWith('.java')) {
+                            try {
+                                const content = await window.electronAPI.readFile(item.path)
+                                if (content !== null && isMounted) {
+                                    diskMap.set(item.name, {
+                                        fileName: item.name,
+                                        content,
+                                        filePath: item.path
+                                    })
+                                }
+                            } catch {
+                                // Ignore read errors
+                            }
+                        }
+                    }
+                }
+
+                await scanDir(rootPath)
+                if (isMounted) {
+                    diskFilesCacheRef.current = diskMap
+                }
+            } catch {
+                // Ignore directory scan errors
+            }
+        }
+
+        scanDiskJavaFiles()
+
+        return () => {
+            isMounted = false
+        }
+    }, [rootPath])
+
+    // 2. Synchronize active in-memory tabs & current editor value on top of disk files
+    useEffect(() => {
+        const mergedFiles = new Map<string, ProjectJavaFile>(diskFilesCacheRef.current)
+
+        // Overlay open tabs (they contain unsaved/fresher in-memory content)
+        if (tabs && tabs.length > 0) {
+            for (const tab of tabs) {
+                if (tab.language === 'java' || tab.fileName.endsWith('.java')) {
+                    mergedFiles.set(tab.fileName, {
+                        fileName: tab.fileName,
+                        content: tab.content,
+                        filePath: tab.filePath
+                    })
+                }
+            }
+        }
+
+        // Overlay currently active file content
+        if (language === 'java' && value !== undefined) {
+            const activeTab = tabs?.find(t => t.language === 'java' || t.fileName.endsWith('.java'))
+            const currentFileName = activeTab?.fileName || 'Main.java'
+            mergedFiles.set(currentFileName, {
+                fileName: currentFileName,
+                content: value,
+                filePath: activeTab?.filePath
+            })
+        }
+
+        updateJavaProjectFiles(Array.from(mergedFiles.values()))
+    }, [tabs, value, language, rootPath])
 
     const handleEditorMount: OnMount = (editor, monaco) => {
         editorRef.current = editor
@@ -665,269 +775,9 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
         })
 
         monaco.languages.registerCompletionItemProvider('java', {
+            triggerCharacters: ['.', ' ', '*', '@'],
             provideCompletionItems: (model, position) => {
-                const word = model.getWordUntilPosition(position)
-                const range = {
-                    startLineNumber: position.lineNumber,
-                    endLineNumber: position.lineNumber,
-                    startColumn: word.startColumn,
-                    endColumn: word.endColumn
-                }
-
-                const suggestions = [
-                    ...['abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch', 'char', 'class', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extends', 'final', 'finally', 'float', 'for', 'if', 'implements', 'import', 'instanceof', 'int', 'interface', 'long', 'new', 'package', 'private', 'protected', 'public', 'return', 'short', 'static', 'strictfp', 'super', 'switch', 'synchronized', 'this', 'throw', 'throws', 'transient', 'try', 'void', 'volatile', 'while'].map(k => ({
-                        label: k,
-                        kind: monaco.languages.CompletionItemKind.Keyword,
-                        insertText: k,
-                        range
-                    })),
-                    ...['String', 'System', 'Math', 'Scanner', 'ArrayList', 'HashMap', 'List', 'Map', 'Set', 'Integer', 'Double', 'Boolean', 'Character', 'StringBuilder', 'BufferedReader', 'IOException', 'File', 'FileReader', 'FileWriter', 'PrintWriter', 'Collections', 'Arrays', 'Comparable', 'Comparator', 'Exception', 'RuntimeException', 'Thread', 'Runnable', 'InputStream', 'OutputStream', 'ObjectOutputStream', 'ObjectInputStream'].map(k => ({
-                        label: k,
-                        kind: monaco.languages.CompletionItemKind.Class,
-                        insertText: k,
-                        range
-                    })),
-                    // Scanner methods
-                    ...['nextInt', 'nextDouble', 'nextFloat', 'nextLong', 'nextBoolean', 'nextByte', 'nextShort', 'nextLine', 'next', 'hasNext', 'hasNextInt', 'hasNextDouble', 'hasNextFloat', 'hasNextLong', 'hasNextBoolean', 'hasNextLine', 'close'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `Scanner.${m}()`,
-                        range,
-                        detail: 'Scanner method'
-                    })),
-                    // System methods
-                    ...['out.println', 'out.print', 'out.printf', 'err.println', 'err.print', 'exit', 'currentTimeMillis', 'nanoTime', 'getenv', 'getProperty', 'arraycopy'].map(m => ({
-                        label: m.split('.').pop() || m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m.includes('.') ? m + '($1)' : m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `System.${m}()`,
-                        range,
-                        detail: 'System method',
-                        filterText: m
-                    })),
-                    // String methods
-                    ...['length', 'charAt', 'substring', 'indexOf', 'lastIndexOf', 'contains', 'equals', 'equalsIgnoreCase', 'compareTo', 'compareToIgnoreCase', 'toLowerCase', 'toUpperCase', 'trim', 'replace', 'replaceAll', 'split', 'startsWith', 'endsWith', 'isEmpty', 'isBlank', 'toCharArray', 'valueOf', 'format', 'join', 'repeat', 'strip', 'stripLeading', 'stripTrailing'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `String.${m}()`,
-                        range,
-                        detail: 'String method'
-                    })),
-                    // ArrayList methods
-                    ...['add', 'get', 'set', 'remove', 'size', 'isEmpty', 'contains', 'indexOf', 'lastIndexOf', 'clear', 'subList', 'toArray', 'addAll', 'removeAll', 'retainAll', 'sort', 'forEach', 'iterator', 'listIterator'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `ArrayList.${m}()`,
-                        range,
-                        detail: 'ArrayList method'
-                    })),
-                    // HashMap methods
-                    ...['put', 'get', 'remove', 'containsKey', 'containsValue', 'size', 'isEmpty', 'keySet', 'values', 'entrySet', 'putAll', 'clear', 'getOrDefault', 'putIfAbsent', 'replace', 'replaceAll', 'compute', 'computeIfAbsent', 'computeIfPresent', 'merge', 'forEach'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `HashMap.${m}()`,
-                        range,
-                        detail: 'HashMap method'
-                    })),
-                    // Collections methods
-                    ...['sort', 'reverse', 'shuffle', 'swap', 'copy', 'fill', 'rotate', 'unmodifiableList', 'unmodifiableMap', 'unmodifiableSet', 'synchronizedList', 'synchronizedMap', 'synchronizedSet', 'singletonList', 'singletonMap', 'singleton', 'emptyList', 'emptyMap', 'emptySet', 'nCopies', 'frequency', 'disjoint', 'min', 'max', 'indexOfSubList', 'lastIndexOfSubList'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `Collections.${m}()`,
-                        range,
-                        detail: 'Collections method'
-                    })),
-                    // Arrays methods
-                    ...['sort', 'binarySearch', 'copyOf', 'copyOfRange', 'fill', 'equals', 'deepEquals', 'hashCode', 'deepHashCode', 'toString', 'deepToString', 'asList', 'stream', 'compare', 'mismatch'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m + '($1)',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `Arrays.${m}()`,
-                        range,
-                        detail: 'Arrays method'
-                    })),
-                    // Math methods
-                    ...['abs', 'max', 'min', 'sqrt', 'pow', 'log', 'log10', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'toDegrees', 'toRadians', 'random', 'round', 'ceil', 'floor', 'signum', 'exp', 'PI', 'E'].map(m => ({
-                        label: m,
-                        kind: monaco.languages.CompletionItemKind.Method,
-                        insertText: m.includes('PI') || m === 'E' ? m : m + '($1)',
-                        insertTextRules: m.includes('PI') || m === 'E' ? undefined : monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: `Math.${m}()`,
-                        range,
-                        detail: 'Math method'
-                    })),
-                    // Common snippets
-                    {
-                        label: 'psvm',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public static void main(String[] args) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Public static void main',
-                        range
-                    },
-                    {
-                        label: 'sout',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.println($1);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'System.out.println()',
-                        range
-                    },
-                    {
-                        label: 'soutv',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'System.out.println("${1:variable} = " + $1);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Print variable with label',
-                        range
-                    },
-                    {
-                        label: 'for',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'for (int ${1:i} = 0; $1 < ${2:count}; $1++) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'For loop',
-                        range
-                    },
-                    {
-                        label: 'foreach',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'for (${1:Type} ${2:item} : ${3:collection}) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Enhanced for loop',
-                        range
-                    },
-                    {
-                        label: 'while',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'while (${1:condition}) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'While loop',
-                        range
-                    },
-                    {
-                        label: 'if',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'if (${1:condition}) {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'If block',
-                        range
-                    },
-                    {
-                        label: 'ifelse',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'if (${1:condition}) {',
-                            '\t$2',
-                            '} else {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'If-else block',
-                        range
-                    },
-                    {
-                        label: 'trycatch',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'try {',
-                            '\t$1',
-                            '} catch (${2:Exception} e) {',
-                            '\te.printStackTrace();',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Try-catch block',
-                        range
-                    },
-                    {
-                        label: 'trycatchfinally',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'try {',
-                            '\t$1',
-                            '} catch (${2:Exception} e) {',
-                            '\te.printStackTrace();',
-                            '} finally {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Try-catch-finally block',
-                        range
-                    },
-                    {
-                        label: 'class',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: [
-                            'public class ${1:Main} {',
-                            '\t$0',
-                            '}'
-                        ].join('\n'),
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Public class',
-                        range
-                    },
-                    {
-                        label: 'scanner',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'Scanner ${1:sc} = new Scanner(System.in);',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Create Scanner',
-                        range
-                    },
-                    {
-                        label: 'arraylist',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'ArrayList<${1:Type}> ${2:list} = new ArrayList<>();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Create ArrayList',
-                        range
-                    },
-                    {
-                        label: 'hashmap',
-                        kind: monaco.languages.CompletionItemKind.Snippet,
-                        insertText: 'HashMap<${1:Key}, ${2:Value}> ${3:map} = new HashMap<>();',
-                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                        documentation: 'Create HashMap',
-                        range
-                    }
-                ]
-
-                return { suggestions }
+                return getJavaCompletionItems(model, position, monaco)
             }
         })
 
@@ -951,8 +801,9 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             editor.trigger('keyboard', 'editor.action.moveLinesDownAction', null)
         })
 
-        // Java missing import diagnostic service
+        // Java missing import diagnostic service with full standard libraries
         const javaImportMap: Record<string, string> = {
+            ...JAVA_ALL_CLASS_IMPORTS,
             'Scanner': 'java.util.Scanner',
             'ArrayList': 'java.util.ArrayList',
             'LinkedList': 'java.util.LinkedList',
@@ -989,6 +840,18 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             'Boolean': 'java.lang.Boolean',
         }
 
+        const resolveJavaImport = (className: string): string | undefined => {
+            const projectSyms = getAllProjectSymbols()
+            const projClass = projectSyms.find(s => s.name === className)
+            if (projClass) {
+                if (projClass.packageName) {
+                    return `${projClass.packageName}.${className}`
+                }
+                return undefined // Same/default package, no import needed
+            }
+            return javaImportMap[className]
+        }
+
         // Quick fix action: Add import
         editor.addAction({
             id: 'java.add-import',
@@ -1006,7 +869,7 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                 if (!word) return
 
                 const className = word.word
-                const fullImport = javaImportMap[className]
+                const fullImport = resolveJavaImport(className)
                 if (!fullImport) return
 
                 const code = model.getValue()
@@ -1052,8 +915,14 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
                 const code = model.getValue()
                 const lines = code.split('\n')
 
+                const projectSyms = getAllProjectSymbols()
+                const projectClassNames = new Set(projectSyms.map(s => s.name))
+
                 // Check each line for missing imports
                 for (const className of Object.keys(javaImportMap)) {
+                    if (projectClassNames.has(className) || new RegExp(`\\b(class|interface|enum|record)\\s+${className}\\b`).test(code)) {
+                        continue
+                    }
                     const fullImport = javaImportMap[className]
 
                     // Check if class is used but not imported
@@ -1148,7 +1017,13 @@ function Editor({ value, language, onChange, onEditorMount, fontSize = 14, tabSi
             const markers: monacoEditor.editor.IMarkerData[] = []
             const lines = code.split('\n')
 
+            const projectSyms = getAllProjectSymbols()
+            const projectClassNames = new Set(projectSyms.map(s => s.name))
+
             for (const className of Object.keys(javaImportMap)) {
+                if (projectClassNames.has(className) || new RegExp(`\\b(class|interface|enum|record)\\s+${className}\\b`).test(code)) {
+                    continue
+                }
                 const fullImport = javaImportMap[className]
                 const classRegex = new RegExp(`\\b${className}\\b`, 'g')
                 let match

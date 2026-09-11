@@ -174,6 +174,8 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
                         theme={settings.theme}
                         onRun={onRun}
                         parsedErrors={parsedErrors}
+                        tabs={tabs}
+                        rootPath={rootPath}
                     />
                 </div>
 
