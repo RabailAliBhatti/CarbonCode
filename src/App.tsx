@@ -19,6 +19,7 @@ import { parseCompileErrors } from './utils/parseCompileErrors'
 import type { CompileError } from './utils/parseCompileErrors'
 import { loadProjectSettings } from './utils/loadProjectSettings'
 import { addRecentFile } from './utils/recentFiles'
+import { formatDocument } from './utils/codeFormatter'
 
 interface DebugState {
     status: 'idle' | 'running' | 'stopped' | 'exited'
@@ -348,8 +349,8 @@ function App() {
         }
     }, [openFile])
 
-    // Open specific file by path (from Recent Files card or Explorer)
-    const handleOpenFileByPath = useCallback(async (filePath: string) => {
+    // Open specific file by path (from Recent Files card, Explorer, or Definition Navigation)
+    const handleOpenFileByPath = useCallback(async (filePath: string, line?: number, column?: number) => {
         const content = await window.electronAPI.readFile(filePath)
         if (content !== null) {
             openFile(filePath, content)
@@ -357,6 +358,15 @@ function App() {
             const fileLang = ext === 'java' ? 'java' : ext === 'c' ? 'c' : 'cpp'
             addRecentFile(filePath, filePath.split(/[/\\]/).pop() || 'file', fileLang)
             setCurrentView('editor')
+            if (line) {
+                setTimeout(() => {
+                    if (editorRef.current) {
+                        editorRef.current.revealPositionInCenter({ lineNumber: line, column: column || 1 })
+                        editorRef.current.setPosition({ lineNumber: line, column: column || 1 })
+                        editorRef.current.focus()
+                    }
+                }, 100)
+            }
         }
     }, [openFile])
 
@@ -461,9 +471,23 @@ function App() {
         if (!target) return
 
         // Read live Monaco buffer only when saving the active tab; otherwise use stored content.
-        const contentToSave = (tabId === undefined || tabId === activeTabId)
+        let contentToSave = (tabId === undefined || tabId === activeTabId)
             ? (editorRef.current?.getValue() || target.content)
             : target.content
+
+        // Format on save if enabled
+        if (settings.formatOnSave && target.language) {
+            const formatted = formatDocument(contentToSave, target.language, settings.tabSize)
+            if (formatted !== contentToSave) {
+                contentToSave = formatted
+                if (tabId === undefined || tabId === activeTabId) {
+                    if (editorRef.current) {
+                        editorRef.current.setValue(formatted)
+                    }
+                }
+                updateTabContent(target.id, formatted)
+            }
+        }
 
         if (!target.filePath) {
             // Save As
@@ -480,7 +504,7 @@ function App() {
                 addRecentFile(target.filePath, target.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
             }
         }
-    }, [activeTab, activeTabId, tabs, markTabSaved])
+    }, [activeTab, activeTabId, tabs, markTabSaved, settings.formatOnSave, settings.tabSize, updateTabContent])
 
     // Auto-save with debounce
     useEffect(() => {
@@ -783,6 +807,12 @@ function App() {
             // Ctrl+Shift+F - Search in files
             if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
                 e.preventDefault()
+                if (currentView === 'dashboard') {
+                    if (tabs.length === 0) {
+                        createNewTab('cpp', authorName || undefined)
+                    }
+                    setCurrentView('editor')
+                }
                 setShowSearch(prev => !prev)
                 if (showSearch) setShowFind(false)
             }
@@ -885,11 +915,12 @@ function App() {
                     )}
 
                     {/* Search in Files Overlay */}
-                    {showSearch && currentView === 'editor' && rootPath && (
+                    {showSearch && currentView === 'editor' && (
                         <SearchPanel
                             rootPath={rootPath}
                             onResultClick={handleLocationClick}
                             onClose={() => setShowSearch(false)}
+                            onOpenFolder={handleOpenFolder}
                         />
                     )}
 

@@ -15,6 +15,7 @@ export interface Settings {
     theme: 'dark' | 'light'
     minimap: boolean
     wordWrap: boolean
+    formatOnSave: boolean
     outputFontSize: number
     outputPosition: 'bottom' | 'right'
     explorerWidth: number
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
     fontSize: 14,
     tabSize: 4,
     autoSave: false,
+    formatOnSave: true,
     cStandard: 'c17',
     cppStandard: 'c++17',
     compilerPath: '',

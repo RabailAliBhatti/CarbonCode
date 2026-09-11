@@ -16,6 +16,8 @@ export interface JavaMethodSymbol {
     params: JavaParam[]
     signature: string
     documentation?: string
+    line?: number
+    column?: number
 }
 
 export interface JavaFieldSymbol {
@@ -24,11 +26,15 @@ export interface JavaFieldSymbol {
     isFinal: boolean
     type: string
     signature: string
+    line?: number
+    column?: number
 }
 
 export interface JavaConstructorSymbol {
     params: JavaParam[]
     signature: string
+    line?: number
+    column?: number
 }
 
 export interface JavaClassSymbol {
@@ -41,6 +47,8 @@ export interface JavaClassSymbol {
     constructors: JavaConstructorSymbol[]
     methods: JavaMethodSymbol[]
     fields: JavaFieldSymbol[]
+    line?: number
+    column?: number
 }
 
 export interface ProjectJavaFile {
@@ -55,10 +63,23 @@ export interface JavaVariableSymbol {
     kind: 'local' | 'param' | 'field' | 'loop'
     detail?: string
     documentation?: string
+    line?: number
+    column?: number
 }
 
 // In-memory project symbol cache
 const projectSymbols: Map<string, JavaClassSymbol[]> = new Map()
+
+/**
+ * Calculates 1-indexed line and column coordinates from character offset in text
+ */
+export function getLineAndColumn(content: string, offset: number): { line: number; column: number } {
+    const textBefore = content.substring(0, Math.max(0, offset))
+    const lines = textBefore.split('\n')
+    const line = lines.length
+    const column = lines[lines.length - 1].length + 1
+    return { line, column }
+}
 
 /**
  * Parses a Java source file content and extracts class/interface/enum definitions,
@@ -123,9 +144,13 @@ export function parseJavaFileSymbols(content: string, fileName: string, filePath
         while ((ctorMatch = ctorRegex.exec(classBody)) !== null) {
             const rawParams = ctorMatch[2].trim()
             const params = parseParams(rawParams)
+            const ctorOffset = startIndex + ctorMatch.index + ctorMatch[0].indexOf(className)
+            const ctorPos = getLineAndColumn(content, ctorOffset)
             constructors.push({
                 params,
-                signature: `${className}(${rawParams})`
+                signature: `${className}(${rawParams})`,
+                line: ctorPos.line,
+                column: ctorPos.column
             })
         }
 
@@ -155,13 +180,17 @@ export function parseJavaFileSymbols(content: string, fileName: string, filePath
             }
 
             const params = parseParams(rawParams)
+            const methodOffset = startIndex + mMatch.index + mMatch[0].indexOf(methodName)
+            const methodPos = getLineAndColumn(content, methodOffset)
             methods.push({
                 name: methodName,
                 isStatic,
                 returnType,
                 params,
                 signature: `${methodName}(${rawParams}) -> ${returnType}`,
-                documentation: `${visibility} ${isStatic ? 'static ' : ''}${returnType} ${methodName}(${rawParams})`
+                documentation: `${visibility} ${isStatic ? 'static ' : ''}${returnType} ${methodName}(${rawParams})`,
+                line: methodPos.line,
+                column: methodPos.column
             })
         }
 
@@ -179,15 +208,20 @@ export function parseJavaFileSymbols(content: string, fileName: string, filePath
             // Avoid catching method keywords or controls
             if (['return', 'throw', 'new', 'class', 'package', 'import'].includes(fieldType)) continue
 
+            const fieldOffset = startIndex + fMatch.index + fMatch[0].indexOf(fieldName)
+            const fieldPos = getLineAndColumn(content, fieldOffset)
             fields.push({
                 name: fieldName,
                 isStatic,
                 isFinal,
                 type: fieldType,
-                signature: `${fieldName}: ${fieldType}`
+                signature: `${fieldName}: ${fieldType}`,
+                line: fieldPos.line,
+                column: fieldPos.column
             })
         }
 
+        const classPos = getLineAndColumn(content, match.index)
         symbols.push({
             name: className,
             kind,
@@ -197,7 +231,9 @@ export function parseJavaFileSymbols(content: string, fileName: string, filePath
             documentation: `${packageName ? `package ${packageName};\n\n` : ''}${kind} ${className} (${fileName})`,
             constructors,
             methods,
-            fields
+            fields,
+            line: classPos.line,
+            column: classPos.column
         })
     }
 
@@ -281,12 +317,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
                 const type = parts[parts.length - 2]
                 const name = parts[parts.length - 1]
                 if (name && !JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+                    const pPos = getLineAndColumn(content, mMatch.index + mMatch[0].indexOf(name))
                     varMap.set(name, {
                         name,
                         type,
                         kind: 'param',
                         detail: `${type} ${name} (parameter)`,
-                        documentation: `Parameter '${name}' of type '${type}' in ${methodName}`
+                        documentation: `Parameter '${name}' of type '${type}' in ${methodName}`,
+                        line: pPos.line,
+                        column: pPos.column
                     })
                 }
             }
@@ -300,12 +339,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
         const type = feMatch[1]
         const name = feMatch[2]
         if (!JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+            const fePos = getLineAndColumn(content, feMatch.index + feMatch[0].indexOf(name))
             varMap.set(name, {
                 name,
                 type,
                 kind: 'loop',
                 detail: `${type} ${name} (for-each loop)`,
-                documentation: `Loop variable '${name}' of type '${type}'`
+                documentation: `Loop variable '${name}' of type '${type}'`,
+                line: fePos.line,
+                column: fePos.column
             })
         }
     }
@@ -321,12 +363,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
         for (const item of varMatches) {
             const varName = item.split('=')[0].trim()
             if (varName && !JAVA_KEYWORDS_SET.has(varName) && /^[A-Za-z0-9_]+$/.test(varName)) {
+                const flPos = getLineAndColumn(content, flMatch.index + flMatch[0].indexOf(varName))
                 varMap.set(varName, {
                     name: varName,
                     type,
                     kind: 'loop',
                     detail: `${type} ${varName} (loop variable)`,
-                    documentation: `Loop variable '${varName}' of type '${type}'`
+                    documentation: `Loop variable '${varName}' of type '${type}'`,
+                    line: flPos.line,
+                    column: flPos.column
                 })
             }
         }
@@ -340,12 +385,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
         const name = cMatch[2].trim()
         const type = rawType.split('|')[0].trim()
         if (name && !JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+            const cPos = getLineAndColumn(content, cMatch.index + cMatch[0].indexOf(name))
             varMap.set(name, {
                 name,
                 type,
                 kind: 'local',
                 detail: `${type} ${name} (catch variable)`,
-                documentation: `Caught exception '${name}' of type '${type}'`
+                documentation: `Caught exception '${name}' of type '${type}'`,
+                line: cPos.line,
+                column: cPos.column
             })
         }
     }
@@ -361,12 +409,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
                 const type = m[1]
                 const name = m[2]
                 if (!JAVA_KEYWORDS_SET.has(name) && /^[A-Za-z0-9_]+$/.test(name)) {
+                    const trPos = getLineAndColumn(content, trMatch.index + trMatch[0].indexOf(name))
                     varMap.set(name, {
                         name,
                         type,
                         kind: 'local',
                         detail: `${type} ${name} (resource variable)`,
-                        documentation: `Try-with-resources variable '${name}' of type '${type}'`
+                        documentation: `Try-with-resources variable '${name}' of type '${type}'`,
+                        line: trPos.line,
+                        column: trPos.column
                     })
                 }
             }
@@ -374,10 +425,6 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
     }
 
     // 8. General local variable declarations & statements:
-    // e.g. Scanner scanner = new Scanner(System.in);
-    //      String input = scanner.nextLine();
-    //      int count = 0;
-    //      int a = 1, b = 2;
     const stmtRegex = /(?:^|[;{}])\s*(?:final\s+)?([A-Za-z0-9_<>\[\]]+)\s+([A-Za-z0-9_]+(?:\s*=\s*[^;{}]+|\s*,\s*[A-Za-z0-9_]+(?:\s*=\s*[^;{}]+)?)*)\s*;/g
     let sMatch: RegExpExecArray | null
     while ((sMatch = stmtRegex.exec(cleanContent)) !== null) {
@@ -395,12 +442,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
                 const varNameMatch = current.trim().match(/^([A-Za-z0-9_]+)/)
                 if (varNameMatch && !JAVA_KEYWORDS_SET.has(varNameMatch[1])) {
                     const varName = varNameMatch[1]
+                    const sPos = getLineAndColumn(content, sMatch.index + sMatch[0].indexOf(varName))
                     varMap.set(varName, {
                         name: varName,
                         type: rawType,
                         kind: 'local',
                         detail: `${rawType} ${varName} (variable)`,
-                        documentation: `Local variable '${varName}' of type '${rawType}'`
+                        documentation: `Local variable '${varName}' of type '${rawType}'`,
+                        line: sPos.line,
+                        column: sPos.column
                     })
                 }
                 current = ''
@@ -412,12 +462,15 @@ export function extractJavaVariables(content: string, fileName = 'Current.java')
             const varNameMatch = current.trim().match(/^([A-Za-z0-9_]+)/)
             if (varNameMatch && !JAVA_KEYWORDS_SET.has(varNameMatch[1])) {
                 const varName = varNameMatch[1]
+                const sPos = getLineAndColumn(content, sMatch.index + sMatch[0].indexOf(varName))
                 varMap.set(varName, {
                     name: varName,
                     type: rawType,
                     kind: 'local',
                     detail: `${rawType} ${varName} (variable)`,
-                    documentation: `Local variable '${varName}' of type '${rawType}'`
+                    documentation: `Local variable '${varName}' of type '${rawType}'`,
+                    line: sPos.line,
+                    column: sPos.column
                 })
             }
         }

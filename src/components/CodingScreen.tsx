@@ -176,6 +176,8 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
                         parsedErrors={parsedErrors}
                         tabs={tabs}
                         rootPath={rootPath}
+                        onOpenFile={onFileSelect}
+                        formatOnSave={settings.formatOnSave}
                     />
                 </div>
 

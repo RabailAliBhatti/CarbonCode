@@ -41,6 +41,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     {
         category: 'Navigation & Workspace',
         shortcuts: [
+            { description: 'Go to Definition', keys: ['F12'] },
+            { description: 'Peek References', keys: ['Shift', 'F12'] },
+            { description: 'Format Document', keys: ['Shift', 'Alt', 'F'] },
             { description: 'Toggle File Explorer', keys: ['Ctrl', 'B'] },
             { description: 'Find / Replace', keys: ['Ctrl', 'F'] },
             { description: 'Search Across Files', keys: ['Ctrl', 'Shift', 'F'] },

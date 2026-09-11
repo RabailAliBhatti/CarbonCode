@@ -16,6 +16,8 @@ import {
     JAVA_ALL_CLASS_IMPORTS,
     getAllProjectSymbols
 } from '../utils/javaIntellisense'
+import { resolveDefinition, findSymbolReferences } from '../utils/symbolNavigation'
+import { formatDocument } from '../utils/codeFormatter'
 
 // Configure Monaco to use local workers (for offline support)
 self.MonacoEnvironment = {
@@ -156,6 +158,8 @@ interface EditorProps {
     parsedErrors?: CompileError[]
     tabs?: FileTab[]
     rootPath?: string | null
+    onOpenFile?: (filePath: string, line?: number, column?: number) => void
+    formatOnSave?: boolean
 }
 
 // CarbonCode Dark theme colors
@@ -247,11 +251,23 @@ function Editor({
     onRun,
     parsedErrors = [],
     tabs,
-    rootPath
+    rootPath,
+    onOpenFile,
+    formatOnSave: _formatOnSave
 }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
     const diskFilesCacheRef = useRef<Map<string, ProjectJavaFile>>(new Map())
+    const onOpenFileRef = useRef(onOpenFile)
+    const tabSizeRef = useRef(tabSize)
+
+    useEffect(() => {
+        onOpenFileRef.current = onOpenFile
+    }, [onOpenFile])
+
+    useEffect(() => {
+        tabSizeRef.current = tabSize
+    }, [tabSize])
 
     // 1. Scan rootPath for disk .java files when rootPath changes
     useEffect(() => {
@@ -911,6 +927,44 @@ function Editor({
         })
 
         registeredCompletionProviders.push(cppProvider, cProvider, javaProvider)
+
+        // Register Definition, Reference, and Document Formatting providers for Java, C++, and C
+        const navLanguages: ('java' | 'cpp' | 'c')[] = ['java', 'cpp', 'c']
+        navLanguages.forEach(lang => {
+            // Go to Definition (F12 / Ctrl+Click)
+            const defProvider = monaco.languages.registerDefinitionProvider(lang, {
+                provideDefinition: (model, position) => {
+                    return resolveDefinition(model, position, lang, monaco, onOpenFileRef.current)
+                }
+            })
+
+            // Peek References (Shift+F12)
+            const refProvider = monaco.languages.registerReferenceProvider(lang, {
+                provideReferences: (model, position) => {
+                    return findSymbolReferences(model, position, lang)
+                }
+            })
+
+            // Document Formatting (Shift+Alt+F & Format on Save)
+            const formatProvider = monaco.languages.registerDocumentFormattingEditProvider(lang, {
+                provideDocumentFormattingEdits: (model) => {
+                    const fullRange = model.getFullModelRange()
+                    const text = model.getValue()
+                    const formatted = formatDocument(text, lang, tabSizeRef.current)
+                    return [{
+                        range: fullRange,
+                        text: formatted
+                    }]
+                }
+            })
+
+            registeredCompletionProviders.push(defProvider, refProvider, formatProvider)
+        })
+
+        // Add keyboard shortcut for format document (Shift+Alt+F)
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
+            editor.getAction('editor.action.formatDocument')?.run()
+        })
 
         // Add keyboard shortcut for running code (F5)
         editor.addCommand(monaco.KeyCode.F5, () => {
