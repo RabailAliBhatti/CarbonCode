@@ -1,3 +1,5 @@
+import { SupportedLanguage } from '../types/language'
+
 interface Variable {
     name: string
     value: string
@@ -21,6 +23,7 @@ interface DebugState {
 interface DebugPanelProps {
     debugState: DebugState
     javaDebugUnsupported?: boolean
+    language?: SupportedLanguage
     onStart: () => void
     onStop: () => void
     onStepOver: () => void
@@ -32,6 +35,7 @@ interface DebugPanelProps {
 function DebugPanel({
     debugState,
     javaDebugUnsupported = false,
+    language,
     onStart,
     onStop,
     onStepOver,
@@ -43,13 +47,19 @@ function DebugPanel({
     const isStopped = debugState.status === 'stopped'
 
     if (javaDebugUnsupported) {
+        const isPython = language === 'python'
         return (
             <div className="bg-editor-sidebar border-t border-editor-border">
                 <div className="flex items-start gap-3 px-4 py-3" style={{ borderLeft: '3px solid #3b82f6', background: 'rgba(59, 130, 246, 0.08)' }}>
                     <i className="ti ti-info-circle text-blue-400 text-lg mt-0.5 shrink-0" />
                     <div className="text-sm">
-                        <p className="text-text-primary font-medium">Java debugging is not supported</p>
-                        <p className="text-text-secondary mt-1">Use F5 to compile and run your Java program. For debugging, add <code className="text-accent">System.out.println()</code> statements to inspect values.</p>
+                        <p className="text-text-primary font-medium">{isPython ? 'Python debugging is not supported' : 'Java debugging is not supported'}</p>
+                        <p className="text-text-secondary mt-1">
+                            {isPython
+                                ? <>Use F5 to run your Python program with live terminal input and traceback diagnostics. For debugging, add <code className="text-accent">print()</code> statements to inspect values.</>
+                                : <>Use F5 to compile and run your Java program. For debugging, add <code className="text-accent">System.out.println()</code> statements to inspect values.</>
+                            }
+                        </p>
                     </div>
                 </div>
             </div>

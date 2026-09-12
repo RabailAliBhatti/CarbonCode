@@ -186,6 +186,7 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
                     <DebugPanel
                         debugState={debugState}
                         javaDebugUnsupported={javaDebugUnsupported}
+                        language={activeTab?.language}
                         onStart={onDebugStart}
                         onStop={onDebugStop}
                         onStepOver={onDebugStepOver}

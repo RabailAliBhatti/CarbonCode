@@ -37,6 +37,7 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
     let lastIncludedFile: string | null = null
     let lastIncludedLine: number | null = null
     let pythonFrames: Array<{ file: string; line: number; func?: string }> = []
+    let lastCaretCol: number | undefined
 
     for (const line of lines) {
         const trimmed = line.trim()
@@ -70,9 +71,12 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
                 for (let i = pythonFrames.length - 1; i >= 0; i--) {
                     const frame = pythonFrames[i]
                     const isInnermost = i === pythonFrames.length - 1
+                    const isTempFile = frame.file.includes('carboncode-') || frame.file === 'main.py' || frame.file === '<string>'
+                    const resolvedFile = (isTempFile && defaultFile) ? defaultFile : frame.file
                     errors.push({
-                        file: frame.file,
+                        file: resolvedFile,
                         line: frame.line,
+                        column: isInnermost ? lastCaretCol : undefined,
                         severity: isWarning ? 'warning' : 'error',
                         message: isInnermost ? errorMsg : `${errorType} (called from ${frame.func || 'here'})`,
                         code: errorType,
@@ -80,16 +84,25 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
                     })
                 }
                 pythonFrames = []
+                lastCaretCol = undefined
             } else {
                 errors.push({
                     file: defaultFile || null,
                     line: 1,
+                    column: lastCaretCol,
                     severity: isWarning ? 'warning' : 'error',
                     message: errorMsg,
                     code: errorType,
                     raw: trimmed
                 })
+                lastCaretCol = undefined
             }
+            continue
+        }
+
+        // Track caret position (column) in Python syntax error
+        if (pythonFrames.length > 0 && line.includes('^')) {
+            lastCaretCol = line.indexOf('^') + 1
             continue
         }
 
@@ -156,6 +169,17 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
                     }
                 }
             }
+        }
+
+        // Map temp compilation files to defaultFile if provided
+        if (file && defaultFile && (
+            file.includes('carboncode-') ||
+            file === 'main.cpp' || file === 'main.c' || file === 'main.py' ||
+            file.endsWith('/main.cpp') || file.endsWith('\\main.cpp') ||
+            file.endsWith('/main.c') || file.endsWith('\\main.c') ||
+            file.endsWith('/main.py') || file.endsWith('\\main.py')
+        )) {
+            file = defaultFile
         }
 
         errors.push({

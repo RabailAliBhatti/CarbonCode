@@ -239,14 +239,12 @@ function App() {
 
     const handleInput = useCallback((data: string) => {
         window.electronAPI.writeProcess(data)
-        // Echo input to output for clarity, except for Python (which echoes its own unbuffered stdin)
-        if (activeLanguage !== 'python') {
-            setCompilationResult(prev => ({
-                ...prev!,
-                output: appendOutput(prev?.output || '', data)
-            }))
-        }
-    }, [activeLanguage])
+        // Echo input to output for clarity so user sees typed text in terminal
+        setCompilationResult(prev => ({
+            ...prev!,
+            output: appendOutput(prev?.output || '', data)
+        }))
+    }, [])
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
     const activeRuntimeInfo = activeLanguage === 'python'
@@ -432,7 +430,7 @@ function App() {
     // Debug handlers — ponytail: 5 identical wrappers → one-liners
     const handleDebugStart = useCallback(async () => {
         if (!activeTab) return
-        if (activeTab.language === 'java') {
+        if (activeTab.language === 'java' || activeTab.language === 'python') {
             setJavaDebugUnsupported(true)
             return
         }
@@ -785,14 +783,44 @@ function App() {
     }, [])
 
     const handleLocationClick = useCallback(async (file: string | null, line: number, column?: number) => {
-        if (!file) return
+        // If file is null/undefined or points to active tab or temporary compilation target, jump directly
+        const isCurrentTabTarget = !file ||
+            (activeTab && (
+                (activeTab.filePath && pathsEqual(activeTab.filePath, file)) ||
+                file === activeTab.fileName ||
+                file.includes('carboncode-') ||
+                file === 'main.cpp' || file === 'main.c' || file === 'main.py' ||
+                file.endsWith('/main.cpp') || file.endsWith('\\main.cpp') ||
+                file.endsWith('/main.c') || file.endsWith('\\main.c') ||
+                file.endsWith('/main.py') || file.endsWith('\\main.py') ||
+                file.endsWith('/' + activeTab.fileName) || file.endsWith('\\' + activeTab.fileName)
+            ))
+
+        if (isCurrentTabTarget) {
+            if (editorRef.current) {
+                editorRef.current.revealLineInCenter(line)
+                editorRef.current.setPosition({ lineNumber: line, column: column ?? 1 })
+                editorRef.current.focus()
+            }
+            return
+        }
+
         const existing = tabs.find(t => t.filePath && pathsEqual(t.filePath, file))
         if (existing) {
             switchToTab(existing.id)
         } else {
             const content = await window.electronAPI.readFile(file)
-            if (content !== null) openFile(file, content)
-            else return
+            if (content !== null) {
+                openFile(file, content)
+            } else {
+                // If temporary file no longer exists on disk, navigate inside the current editor
+                if (editorRef.current) {
+                    editorRef.current.revealLineInCenter(line)
+                    editorRef.current.setPosition({ lineNumber: line, column: column ?? 1 })
+                    editorRef.current.focus()
+                }
+                return
+            }
         }
         // Small delay to let React render the tab switch
         setTimeout(() => {
@@ -801,7 +829,7 @@ function App() {
             editorRef.current.setPosition({ lineNumber: line, column: column ?? 1 })
             editorRef.current.focus()
         }, 50)
-    }, [tabs, switchToTab, openFile, pathsEqual])
+    }, [tabs, activeTab, switchToTab, openFile, pathsEqual])
 
     // Keyboard shortcuts
     useEffect(() => {

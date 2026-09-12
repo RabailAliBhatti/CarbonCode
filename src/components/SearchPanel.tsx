@@ -353,7 +353,7 @@ function SearchPanel({ rootPath, onResultClick, onClose, onOpenFolder }: SearchP
                                     type="text"
                                     value={includePattern}
                                     onChange={(e) => setIncludePattern(e.target.value)}
-                                    placeholder="Files to include (e.g. *.java, *.cpp)"
+                                    placeholder="Files to include (e.g. *.py, *.java, *.cpp)"
                                     className="w-full bg-carbon-bg text-carbon-text text-xs px-2.5 py-1.5 rounded-lg border border-carbon-border focus:border-carbon-accent focus:outline-none placeholder-carbon-text-muted/60"
                                 />
                             </div>

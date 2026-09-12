@@ -314,7 +314,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                             parsedErrors.length > 0 ? (
                                 <div className="space-y-2">
                                     {parsedErrors.map((err, i) => {
-                                        const isClickable = err.file !== null
+                                        const isClickable = err.file !== null || err.line > 0
                                         const isError = err.severity === 'error'
                                         return (
                                             <button

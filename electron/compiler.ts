@@ -39,6 +39,7 @@ let isBundledCompiler = false
 // ponytail: one helper replaces 7 identical try/rmSync/catch blocks
 function cleanupDir(dir: string) {
     try {
+        if (!dir || (!dir.includes('carboncode-') && !dir.includes('tmp') && !dir.includes('Temp'))) return
         if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
     } catch { }
 }
