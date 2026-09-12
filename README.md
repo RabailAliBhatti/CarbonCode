@@ -5,12 +5,12 @@
 <h1 align="center">CarbonCode</h1>
 
 <p align="center">
-  <strong>A lightweight, offline C++ & Java IDE</strong><br/>
+  <strong>A lightweight, offline IDE for C, C++, Java, and Python</strong><br/>
   <em>Developed by Rabail Ali Bhatti</em>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.0.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-4.0.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square" alt="Platform" />
   <img src="https://img.shields.io/badge/electron-28-9cf?style=flat-square" alt="Electron" />
@@ -18,24 +18,22 @@
 
 ---
 
-CarbonCode is a modern, cross-platform IDE for C++ and Java built with Electron, React, and Monaco Editor. Compile and run C++ and Java code locally using your system's installed compiler - no internet connection required.
+CarbonCode is a modern, cross-platform offline IDE for C, C++, Java, and Python built with Electron, React, and Monaco Editor. Compile and run your code locally using your system's installed tools or the bundled C++ compiler — 100% offline, zero internet required.
 
 ## ✨ Features
 
-- 🖥️ **Modern Code Editor** - Monaco Editor with C++ syntax highlighting, Enhanced IntelliSense, and bracket matching
-- 🐞 **Integrated Debugger** - GDB-powered line-by-line debugging with variable inspection and breakpoint support
-- 🛡️ **Anti-Cheat System** - Robust copy-paste restrictions with dedicated UI buttons and toast feedback
-- 🔧 **Dual Compiler Modes** - Uses bundled MinGW (Full version) or system compiler (Lite version)
-- 📁 **File Explorer** - Integrated file tree for easy project navigation
-- 📑 **Multi-Tab Interface** - Work on multiple files simultaneously with dirty-state tracking
-- 🔍 **Find & Replace** - Powerful search functionality with regex support (Ctrl+F)
-- ⚙️ **Customizable** - Settings for font size, themes, auto-save, and C++ standards
-- ⚡ **Fast Execution** - Compile and run code with a single click or F5
-- 📊 **Output Panel** - View stdout and stderr separately with timing information
-- 🔢 **C++ Standards** - Support for C++11 through C++23
-- ☕ **Java Support** - Compile and run Java programs with automatic JDK detection
-- 📈 **Performance Analytics** - Opt-in system usage tracking to improve user experience
-- 💾 **Offline First** - No internet connection required
+- 🐍 **Full Python Support** - Native Python 3 runner with unbuffered execution, 60+ built-ins, 35+ stdlib completions, and PEP 8 formatting
+- 🖥️ **Monaco Code Editor** - VS Code-grade editor with dark navy theme, high-contrast syntax highlighting, bracket matching, and indentation guides
+- 🔍 **Go to Definition & Navigation** - F12 to jump to symbol definitions, Shift+F12 for references across C, C++, Java, and Python
+- 💅 **Built-in Code Formatter** - Shift+Alt+F and Format-on-Save supporting PEP 8, Java, C++, and C
+- 💻 **Interactive Blinking Cursor Terminal** - Real-time inline terminal with full standard input (`cin`, `Scanner`, `input()`) support
+- 🐞 **Clickable Error Diagnostics** - Automatic traceback and compilation error parsing with instant click-to-jump to line/column
+- 🛠️ **Integrated Debugger** - GDB-powered line-by-line debugging with variable inspection and breakpoint support for C and C++
+- 🔧 **Bundled Compiler Setup** - Comes ready out-of-the-box with bundled MinGW64 for C and C++
+- 📁 **File Explorer & Global Search** - Integrated tree view and Ctrl+Shift+F project search/replace across files
+- 📑 **Multi-Tab Interface** - Work on multiple files simultaneously with dirty-state tracking and unsaved change protection
+- ☕ **Java JDK Support** - Automatic JDK and `javac` detection with standard library IntelliSense
+- 💾 **Offline First** - Zero network dependencies for compilation, running, or editing
 
 ## 📋 Prerequisites
 

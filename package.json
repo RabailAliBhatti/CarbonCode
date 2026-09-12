@@ -1,7 +1,7 @@
 {
   "name": "carboncode",
-  "version": "3.3.5",
-  "description": "CarbonCode - A lightweight, offline C++ IDE built with Electron, React, and Monaco Editor",
+  "version": "4.0.0",
+  "description": "CarbonCode - A lightweight, offline IDE for C, C++, Java, and Python built with Electron, React, and Monaco Editor",
   "main": "dist-electron/main.js",
   "author": "Rabail Ali Bhatti",
   "license": "MIT",
@@ -82,7 +82,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "CarbonCode",
-      "uninstallDisplayName": "CarbonCode - C++ IDE",
+      "uninstallDisplayName": "CarbonCode IDE",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true
     },

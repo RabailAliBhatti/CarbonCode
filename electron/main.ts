@@ -303,7 +303,7 @@ function createApplicationMenu() {
                             type: 'info',
                             title: 'About CarbonCode',
                             message: 'CarbonCode',
-                            detail: `Version: 1.0.0\n\nA lightweight, offline IDE for C, C++, Java, and Python built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC / C++ Compiler: ${compiler || 'Not detected - Please install gcc/g++ or clang'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}\nPython Interpreter: ${pythonRuntime.runtimePath || 'Not detected - Please install Python'}`
+                            detail: `Version: ${app.getVersion()}\n\nA lightweight, offline IDE for C, C++, Java, and Python built with Electron, React, and Monaco Editor.\n\nDeveloped by: Rabail Ali Bhatti\n\nC / C++ Compiler: ${compiler || 'Not detected - Please install gcc/g++ or clang'}\nJava Compiler: ${javaRuntime.compilerPath || 'Not detected - Please install JDK'}\nPython Interpreter: ${pythonRuntime.runtimePath || 'Not detected - Please install Python'}`
                         })
                     }
                 }
