@@ -63,6 +63,8 @@ export const TabBar: React.FC<TabBarProps> = ({
                                 <span className="w-4 h-4 rounded-full bg-orange-500/20 border border-orange-500/40 text-[10px] font-bold text-orange-400 flex items-center justify-center shrink-0">J</span>
                             ) : tab.language === 'c' ? (
                                 <span className="w-4 h-4 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-bold text-cyan-400 flex items-center justify-center shrink-0">C</span>
+                            ) : tab.language === 'plaintext' ? (
+                                <span className="w-4 h-4 rounded-full bg-slate-500/20 border border-slate-500/40 text-[8px] font-bold text-slate-300 flex items-center justify-center shrink-0">TXT</span>
                             ) : (
                                 <span className="w-4 h-4 rounded-full bg-blue-500/20 border border-blue-500/40 text-[9px] font-bold text-blue-400 flex items-center justify-center shrink-0">C+</span>
                             )}

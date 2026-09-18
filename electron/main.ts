@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, mkdirSync, type FSWatcher } from 'fs'
 import { randomUUID } from 'crypto'
 import os from 'os'
@@ -324,10 +324,10 @@ ipcMain.handle('dialog:open-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: [
-            { name: 'Supported Files', extensions: ['c', 'cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java', 'py'] },
-            { name: 'Python Files', extensions: ['py'] },
-            { name: 'C Files', extensions: ['c', 'h'] },
-            { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx'] },
+            { name: 'Supported Files', extensions: ['c', 'cpp', 'cc', 'cxx', 'c++', 'h', 'hpp', 'hxx', 'java', 'py', 'txt', 'csv', 'tsv', 'dat', 'in', 'out', 'log', 'json', 'md'] },
+            { name: 'Text & Data Files', extensions: ['txt', 'csv', 'tsv', 'dat', 'in', 'out', 'log', 'json', 'md'] },
+            { name: 'Python Files', extensions: ['py', 'pyw'] },
+            { name: 'C/C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++', 'c', 'h', 'hpp', 'hxx'] },
             { name: 'Java Files', extensions: ['java'] },
             { name: 'All Files', extensions: ['*'] }
         ]
@@ -371,6 +371,12 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'Header Files', extensions: ['h'] },
                 { name: 'All Files', extensions: ['*'] }
               ]
+            : language === 'plaintext'
+            ? [
+                { name: 'Text Files', extensions: ['txt'] },
+                { name: 'Data Files', extensions: ['csv', 'tsv', 'dat', 'in', 'out', 'log', 'json'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
             : language === 'cpp'
             ? [
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
@@ -378,6 +384,7 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'All Files', extensions: ['*'] }
               ]
             : [
+                { name: 'Text Files', extensions: ['txt', 'csv', 'dat', 'in', 'out'] },
                 { name: 'Python Files', extensions: ['py'] },
                 { name: 'C Files', extensions: ['c'] },
                 { name: 'C++ Files', extensions: ['cpp', 'cc', 'cxx', 'c++'] },
@@ -386,7 +393,7 @@ ipcMain.handle('dialog:save-file', async (_, content: string, existingPath?: str
                 { name: 'All Files', extensions: ['*'] }
               ]
 
-        const defaultPath = language === 'python' ? 'untitled.py' : language === 'java' ? 'untitled.java' : language === 'c' ? 'untitled.c' : 'untitled.cpp'
+        const defaultPath = language === 'python' ? 'untitled.py' : language === 'java' ? 'Untitled.java' : language === 'c' ? 'untitled.c' : language === 'plaintext' ? 'untitled.txt' : 'untitled.cpp'
 
         const result = await dialog.showSaveDialog(mainWindow, {
             defaultPath,
@@ -520,6 +527,13 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         }
     }
 
+    if (request.language === 'plaintext') {
+        return {
+            success: false,
+            error: 'Cannot run a text document. Switch to a C, C++, Java, or Python file to run.'
+        }
+    }
+
     // Safety: detect Python or Java from code content if language was not set correctly
     if (request.language !== 'java' && request.language !== 'c' && request.language !== 'python') {
         const trimmed = request.code.trim()
@@ -542,6 +556,24 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         }
     }
 
+    // Resolve execution working directory for relative file handling
+    let executionCwd = ''
+    if (request.filePath) {
+        try {
+            const dir = dirname(request.filePath)
+            if (existsSync(dir)) {
+                executionCwd = dir
+            }
+        } catch { }
+    }
+    if (!executionCwd && request.rootPath) {
+        try {
+            if (existsSync(request.rootPath)) {
+                executionCwd = request.rootPath
+            }
+        } catch { }
+    }
+
     if (request.language === 'java') {
         // Static analysis: warn if Scanner is created but never read from
         const code = request.code
@@ -549,7 +581,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         const hasAnyScanRead = /(\w+)\.(next|nextLine|nextInt|nextDouble|nextFloat|nextBoolean|nextLong|nextByte|nextShort)\s*\(/.test(code)
         let warningMsg = ''
         if (hasScanner && !hasAnyScanRead) {
-            warningMsg = '\n\u26a0\ufe0f Warning: Your code creates a Scanner to read from System.in, but no read method (next(), nextLine(), etc.) was found. The Scanner is unused.\n\n'
+            warningMsg = '\n⚠️ Warning: Your code creates a Scanner to read from System.in, but no read method (next(), nextLine(), etc.) was found. The Scanner is unused.\n\n'
         }
 
         const compileResult = await compileJavaCode(request.code, request.filePath)
@@ -562,10 +594,13 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             }
         }
 
+        const targetCwd = executionCwd || compileResult.tempDir
+
         startJavaProcess(
             compileResult.executablePath,
             compileResult.tempDir,
             compileResult.mainClass,
+            targetCwd,
             (data) => {
                 mainWindow?.webContents.send('process:stdout', data)
             },
@@ -574,6 +609,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             },
             (code) => {
                 mainWindow?.webContents.send('process:exit', code)
+                mainWindow?.webContents.send('workspace:refresh')
             }
         )
 
@@ -602,9 +638,12 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         const scriptPath = join(tempDir, 'main.py')
         writeFileSync(scriptPath, request.code, 'utf8')
 
+        const targetCwd = executionCwd || os.tmpdir()
+
         startPythonProcess(
             pythonInfo.runtimePath,
-            tempDir,
+            scriptPath,
+            targetCwd,
             (data) => {
                 mainWindow?.webContents.send('process:stdout', data)
             },
@@ -613,7 +652,9 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             },
             (code) => {
                 mainWindow?.webContents.send('process:exit', code)
-            }
+                mainWindow?.webContents.send('workspace:refresh')
+            },
+            tempDir
         )
 
         return {
@@ -633,9 +674,11 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             }
         }
 
+        const targetCwd = executionCwd || compileResult.tempDir
+
         startInteractiveProcess(
             compileResult.executablePath,
-            compileResult.tempDir,
+            targetCwd,
             (data) => {
                 mainWindow?.webContents.send('process:stdout', data)
             },
@@ -644,7 +687,9 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             },
             (code) => {
                 mainWindow?.webContents.send('process:exit', code)
-            }
+                mainWindow?.webContents.send('workspace:refresh')
+            },
+            compileResult.tempDir
         )
 
         return {
@@ -664,9 +709,11 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         }
     }
 
+    const targetCwd = executionCwd || compileResult.tempDir
+
     startInteractiveProcess(
         compileResult.executablePath,
-        compileResult.tempDir,
+        targetCwd,
         (data) => {
             mainWindow?.webContents.send('process:stdout', data)
         },
@@ -675,7 +722,9 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         },
         (code) => {
             mainWindow?.webContents.send('process:exit', code)
-        }
+            mainWindow?.webContents.send('workspace:refresh')
+        },
+        compileResult.tempDir
     )
 
     return {
@@ -765,6 +814,29 @@ ipcMain.handle('file:read-directory', async (_, dirPath: string) => {
     } catch (error) {
         console.error('Failed to read directory:', error)
         return []
+    }
+})
+
+// Create a new empty file in a directory
+ipcMain.handle('fs:create-file', async (_, dirPath: string, fileName: string) => {
+    try {
+        if (!dirPath || !fileName) {
+            return { success: false, error: 'Directory path and file name are required' }
+        }
+        // Sanitize file name (no path traversal)
+        const sanitized = fileName.replace(/[\\/]/g, '').trim()
+        if (!sanitized) {
+            return { success: false, error: 'Invalid file name' }
+        }
+        const fullPath = join(dirPath, sanitized)
+        if (existsSync(fullPath)) {
+            return { success: false, error: 'File already exists', filePath: fullPath }
+        }
+        writeFileSync(fullPath, '', 'utf-8')
+        return { success: true, filePath: fullPath }
+    } catch (error) {
+        console.error('Failed to create file:', error)
+        return { success: false, error: String(error) }
     }
 })
 

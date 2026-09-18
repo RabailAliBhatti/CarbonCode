@@ -805,6 +805,31 @@ export const JAVA_STATIC_MEMBERS: Record<string, Array<{ name: string; snippet?:
         { name: 'isInfinite', snippet: 'isInfinite($1)', detail: 'boolean isInfinite(double v)', doc: 'Returns true if specified number is infinitely large' },
         { name: 'MAX_VALUE', detail: 'double MAX_VALUE', doc: 'Largest positive finite value of type double' },
         { name: 'MIN_VALUE', detail: 'double MIN_VALUE', doc: 'Smallest positive nonzero value of type double' }
+    ],
+    'Files': [
+        { name: 'readString', snippet: 'readString(Path.of("${1:data.txt}"))', detail: 'String readString(Path path)', doc: 'Reads all content from a file into a string' },
+        { name: 'writeString', snippet: 'writeString(Path.of("${1:output.txt}"), ${2:content})', detail: 'Path writeString(Path path, CharSequence csq)', doc: 'Writes content to a file' },
+        { name: 'readAllLines', snippet: 'readAllLines(Path.of("${1:data.txt}"))', detail: 'List<String> readAllLines(Path path)', doc: 'Reads all lines from a file' },
+        { name: 'readAllBytes', snippet: 'readAllBytes(Path.of("${1:data.txt}"))', detail: 'byte[] readAllBytes(Path path)', doc: 'Reads all bytes from a file' },
+        { name: 'write', snippet: 'write(Path.of("${1:output.txt}"), ${2:bytes})', detail: 'Path write(Path path, byte[] bytes)', doc: 'Writes bytes to a file' },
+        { name: 'exists', snippet: 'exists(Path.of("${1:data.txt}"))', detail: 'boolean exists(Path path)', doc: 'Tests whether a file exists' },
+        { name: 'notExists', snippet: 'notExists(Path.of("${1:data.txt}"))', detail: 'boolean notExists(Path path)', doc: 'Tests whether file located by path does not exist' },
+        { name: 'copy', snippet: 'copy(${1:source}, ${2:target})', detail: 'Path copy(Path source, Path target)', doc: 'Copies a file to a target file' },
+        { name: 'move', snippet: 'move(${1:source}, ${2:target})', detail: 'Path move(Path source, Path target)', doc: 'Moves or renames a file to a target file' },
+        { name: 'delete', snippet: 'delete(Path.of("${1:path}"))', detail: 'void delete(Path path)', doc: 'Deletes a file' },
+        { name: 'deleteIfExists', snippet: 'deleteIfExists(Path.of("${1:path}"))', detail: 'boolean deleteIfExists(Path path)', doc: 'Deletes a file if it exists' },
+        { name: 'createFile', snippet: 'createFile(Path.of("${1:path}"))', detail: 'Path createFile(Path path)', doc: 'Creates a new and empty file' },
+        { name: 'createDirectories', snippet: 'createDirectories(Path.of("${1:path}"))', detail: 'Path createDirectories(Path dir)', doc: 'Creates a directory and all nonexistent parent directories' },
+        { name: 'newBufferedReader', snippet: 'newBufferedReader(Path.of("${1:data.txt}"))', detail: 'BufferedReader newBufferedReader(Path path)', doc: 'Opens a file for reading, returning a BufferedReader' },
+        { name: 'newBufferedWriter', snippet: 'newBufferedWriter(Path.of("${1:output.txt}"))', detail: 'BufferedWriter newBufferedWriter(Path path)', doc: 'Opens or creates a file for writing, returning a BufferedWriter' },
+        { name: 'lines', snippet: 'lines(Path.of("${1:data.txt}"))', detail: 'Stream<String> lines(Path path)', doc: 'Read all lines from a file as a Stream' },
+        { name: 'list', snippet: 'list(Path.of("${1:dir}"))', detail: 'Stream<Path> list(Path dir)', doc: 'Return a lazily populated Stream of directory entries' }
+    ],
+    'Path': [
+        { name: 'of', snippet: 'of("${1:path}")', detail: 'Path of(String first, String... more)', doc: 'Returns a Path by converting a path string' }
+    ],
+    'Paths': [
+        { name: 'get', snippet: 'get("${1:path}")', detail: 'Path get(String first, String... more)', doc: 'Converts a path string into a Path' }
     ]
 }
 
@@ -851,7 +876,26 @@ export const JAVA_INSTANCE_MEMBERS: Array<{ name: string; snippet: string; detai
     { name: 'next', snippet: 'next()', detail: 'String next()', doc: 'Finds and returns next complete token from this scanner' },
     { name: 'hasNext', snippet: 'hasNext()', detail: 'boolean hasNext()', doc: 'Returns true if this scanner has another token in its input' },
     { name: 'hasNextLine', snippet: 'hasNextLine()', detail: 'boolean hasNextLine()', doc: 'Returns true if there is another line in scanner input' },
-    { name: 'close', snippet: 'close();', detail: 'void close()', doc: 'Closes this stream or resource' }
+    { name: 'close', snippet: 'close();', detail: 'void close()', doc: 'Closes this stream or resource' },
+    // File & IO methods
+    { name: 'exists', snippet: 'exists()', detail: 'boolean exists()', doc: 'Tests whether the file or directory exists' },
+    { name: 'isFile', snippet: 'isFile()', detail: 'boolean isFile()', doc: 'Tests whether this is a normal file' },
+    { name: 'isDirectory', snippet: 'isDirectory()', detail: 'boolean isDirectory()', doc: 'Tests whether this is a directory' },
+    { name: 'getName', snippet: 'getName()', detail: 'String getName()', doc: 'Returns the name of the file or directory' },
+    { name: 'getAbsolutePath', snippet: 'getAbsolutePath()', detail: 'String getAbsolutePath()', doc: 'Returns the absolute path of this file' },
+    { name: 'getPath', snippet: 'getPath()', detail: 'String getPath()', doc: 'Converts this abstract pathname into a pathname string' },
+    { name: 'createNewFile', snippet: 'createNewFile()', detail: 'boolean createNewFile()', doc: 'Atomically creates a new, empty file' },
+    { name: 'delete', snippet: 'delete()', detail: 'boolean delete()', doc: 'Deletes the file or directory' },
+    { name: 'listFiles', snippet: 'listFiles()', detail: 'File[] listFiles()', doc: 'Returns an array of abstract pathnames denoting files in directory' },
+    { name: 'mkdir', snippet: 'mkdir()', detail: 'boolean mkdir()', doc: 'Creates directory named by this abstract pathname' },
+    { name: 'mkdirs', snippet: 'mkdirs()', detail: 'boolean mkdirs()', doc: 'Creates directory including any necessary parent directories' },
+    { name: 'canRead', snippet: 'canRead()', detail: 'boolean canRead()', doc: 'Tests whether the application can read the file' },
+    { name: 'canWrite', snippet: 'canWrite()', detail: 'boolean canWrite()', doc: 'Tests whether the application can modify the file' },
+    // Reader & Writer methods
+    { name: 'readLine', snippet: 'readLine()', detail: 'String readLine()', doc: 'Reads a line of text' },
+    { name: 'write', snippet: 'write(${1:data});', detail: 'void write(String str)', doc: 'Writes a string to the output stream or writer' },
+    { name: 'newLine', snippet: 'newLine();', detail: 'void newLine()', doc: 'Writes a line separator' },
+    { name: 'flush', snippet: 'flush();', detail: 'void flush()', doc: 'Flushes the stream' }
 ]
 
 // -------------------------------------------------------------
@@ -1396,6 +1440,83 @@ export function getJavaCompletionItems(model: any, position: any, monaco: any): 
                 '$0'
             ].join('\n'),
             doc: 'Interactive console input via Scanner'
+        },
+        {
+            label: 'file-read-scanner',
+            insertText: [
+                'try (Scanner ${1:scanner} = new Scanner(new File("${2:data.txt}"))) {',
+                '\twhile (${1:scanner}.hasNextLine()) {',
+                '\t\tString ${3:line} = ${1:scanner}.nextLine();',
+                '\t\t$0',
+                '\t}',
+                '} catch (FileNotFoundException e) {',
+                '\tSystem.err.println("File not found: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Read file line-by-line using Scanner and File'
+        },
+        {
+            label: 'file-read-buffered',
+            insertText: [
+                'try (BufferedReader ${1:reader} = new BufferedReader(new FileReader("${2:data.txt}"))) {',
+                '\tString ${3:line};',
+                '\twhile ((${3:line} = ${1:reader}.readLine()) != null) {',
+                '\t\t$0',
+                '\t}',
+                '} catch (IOException e) {',
+                '\tSystem.err.println("Error reading file: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Read file efficiently using BufferedReader and FileReader'
+        },
+        {
+            label: 'file-write-printwriter',
+            insertText: [
+                'try (PrintWriter ${1:writer} = new PrintWriter(new FileWriter("${2:output.txt}"))) {',
+                '\t${1:writer}.println(${3:"Hello, World!"});',
+                '\t$0',
+                '} catch (IOException e) {',
+                '\tSystem.err.println("Error writing to file: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Write formatted lines to file using PrintWriter and FileWriter'
+        },
+        {
+            label: 'file-write-buffered',
+            insertText: [
+                'try (BufferedWriter ${1:writer} = new BufferedWriter(new FileWriter("${2:output.txt}"))) {',
+                '\t${1:writer}.write(${3:content});',
+                '\t${1:writer}.newLine();',
+                '\t$0',
+                '} catch (IOException e) {',
+                '\tSystem.err.println("Error writing to file: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Write text to file using BufferedWriter and FileWriter'
+        },
+        {
+            label: 'files-readstring',
+            insertText: [
+                'try {',
+                '\tString ${1:content} = Files.readString(Path.of("${2:data.txt}"));',
+                '\t$0',
+                '} catch (IOException e) {',
+                '\tSystem.err.println("Error reading file: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Read entire file into a String using Files.readString (Java 11+)'
+        },
+        {
+            label: 'files-writestring',
+            insertText: [
+                'try {',
+                '\tFiles.writeString(Path.of("${1:output.txt}"), ${2:content});',
+                '\t$0',
+                '} catch (IOException e) {',
+                '\tSystem.err.println("Error writing to file: " + e.getMessage());',
+                '}'
+            ].join('\n'),
+            doc: 'Write string to file using Files.writeString (Java 11+)'
         }
     ]
 

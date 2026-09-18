@@ -1,4 +1,4 @@
-export type SupportedLanguage = 'c' | 'cpp' | 'java'
+export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python' | 'plaintext'
 
 export type CompilerSource = 'custom' | 'bundled' | 'system' | 'none'
 

@@ -1,11 +1,6 @@
 import { useRef, useEffect } from 'react'
 import MonacoEditor, { OnMount, loader, Monaco } from '@monaco-editor/react'
-import * as monacoEditor from 'monaco-editor'
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
-import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
-import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
-import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+import type * as monacoEditor from 'monaco-editor'
 import { SupportedLanguage } from '../types/language'
 import type { CompileError } from '../utils/parseCompileErrors'
 import { FileTab } from './TabBar'
@@ -20,27 +15,12 @@ import { getPythonCompletionItems } from '../utils/pythonIntellisense'
 import { resolveDefinition, findSymbolReferences } from '../utils/symbolNavigation'
 import { formatDocument } from '../utils/codeFormatter'
 
-// Configure Monaco to use local workers (for offline support)
-self.MonacoEnvironment = {
-    getWorker(_, label) {
-        if (label === 'json') {
-            return new jsonWorker()
-        }
-        if (label === 'css' || label === 'scss' || label === 'less') {
-            return new cssWorker()
-        }
-        if (label === 'html' || label === 'handlebars' || label === 'razor') {
-            return new htmlWorker()
-        }
-        if (label === 'typescript' || label === 'javascript') {
-            return new tsWorker()
-        }
-        return new editorWorker()
+// Configure Monaco loader to use local distribution for 100% offline support
+loader.config({
+    paths: {
+        vs: './monaco/vs'
     }
-}
-
-// Configure the loader to use local Monaco
-loader.config({ monaco: monacoEditor })
+})
 
 // Global tracker to dispose completion providers on remount and prevent duplicate suggestions
 let registeredCompletionProviders: monacoEditor.IDisposable[] = []
@@ -440,12 +420,29 @@ function Editor({
                     })),
 
                     // Common Headers
-                    ...['iostream', 'vector', 'string', 'algorithm', 'cmath', 'cstdio', 'memory', 'map', 'set', 'fstream', 'thread', 'chrono', 'sstream', 'queue', 'stack', 'deque', 'list', 'tuple', 'utility', 'functional', 'numeric', 'iterator', 'climits', 'cstdint', 'cstring', 'cctype', 'cassert', 'iomanip'].map(h => ({
+                    ...['iostream', 'vector', 'string', 'algorithm', 'cmath', 'cstdio', 'memory', 'map', 'set', 'fstream', 'filesystem', 'thread', 'chrono', 'sstream', 'queue', 'stack', 'deque', 'list', 'tuple', 'utility', 'functional', 'numeric', 'iterator', 'climits', 'cstdint', 'cstring', 'cctype', 'cassert', 'iomanip'].map(h => ({
                         label: `<${h}>`,
                         kind: monaco.languages.CompletionItemKind.Snippet,
                         insertText: `#include <${h}>`,
                         range: range,
                         documentation: `Include <${h}>`
+                    })),
+
+                    // File Stream & IO Methods & Flags
+                    ...['is_open', 'open', 'close', 'good', 'eof', 'fail', 'bad', 'clear', 'getline', 'seekg', 'seekp', 'tellg', 'tellp', 'read', 'write', 'flush', 'peek', 'gcount', 'sync'].map(m => ({
+                        label: m,
+                        kind: monaco.languages.CompletionItemKind.Method,
+                        insertText: `${m}($1)`,
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        range: range,
+                        documentation: `Stream method ${m}()`
+                    })),
+                    ...['ios::in', 'ios::out', 'ios::app', 'ios::ate', 'ios::trunc', 'ios::binary'].map(f => ({
+                        label: f,
+                        kind: monaco.languages.CompletionItemKind.Constant,
+                        insertText: f,
+                        range: range,
+                        documentation: `File open mode flag ${f}`
                     })),
 
                     // Snippets
@@ -610,6 +607,123 @@ function Editor({
                         ].join('\n'),
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Try-Catch block',
+                        range: range
+                    },
+                    {
+                        label: 'ifstream-read',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'std::ifstream ${1:inFile}("${2:data.txt}");',
+                            'if (!${1:inFile}.is_open()) {',
+                            '\tstd::cerr << "Error: Could not open file ${2:data.txt}" << std::endl;',
+                            '\treturn 1;',
+                            '}',
+                            '',
+                            'std::string ${3:line};',
+                            'while (std::getline(${1:inFile}, ${3:line})) {',
+                            '\t$0',
+                            '}',
+                            '${1:inFile}.close();'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Read file line-by-line using std::ifstream',
+                        range: range
+                    },
+                    {
+                        label: 'ofstream-write',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'std::ofstream ${1:outFile}("${2:output.txt}");',
+                            'if (!${1:outFile}.is_open()) {',
+                            '\tstd::cerr << "Error: Could not open file for writing!" << std::endl;',
+                            '\treturn 1;',
+                            '}',
+                            '',
+                            '${1:outFile} << ${3:"Hello, World!"} << std::endl;',
+                            '$0',
+                            '${1:outFile}.close();'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Write text to file using std::ofstream',
+                        range: range
+                    },
+                    {
+                        label: 'ofstream-app',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'std::ofstream ${1:outFile}("${2:output.txt}", std::ios::app);',
+                            'if (!${1:outFile}.is_open()) {',
+                            '\tstd::cerr << "Error: Could not open file for appending!" << std::endl;',
+                            '\treturn 1;',
+                            '}',
+                            '',
+                            '${1:outFile} << ${3:"Appended line"} << std::endl;',
+                            '$0',
+                            '${1:outFile}.close();'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Append text to file using std::ofstream and std::ios::app',
+                        range: range
+                    },
+                    {
+                        label: 'ifstream-tokens',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'std::ifstream ${1:inFile}("${2:data.txt}");',
+                            'if (!${1:inFile}.is_open()) {',
+                            '\tstd::cerr << "Error: Could not open file!" << std::endl;',
+                            '\treturn 1;',
+                            '}',
+                            '',
+                            '${3:std::string} ${4:token};',
+                            'while (${1:inFile} >> ${4:token}) {',
+                            '\t$0',
+                            '}',
+                            '${1:inFile}.close();'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Read file token-by-token using std::ifstream >>',
+                        range: range
+                    },
+                    {
+                        label: 'fstream-rw',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'std::fstream ${1:file}("${2:data.txt}", std::ios::in | std::ios::out);',
+                            'if (!${1:file}.is_open()) {',
+                            '\tstd::cerr << "Error opening file!" << std::endl;',
+                            '\treturn 1;',
+                            '}',
+                            '$0',
+                            '${1:file}.close();'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Open file for both reading and writing using std::fstream',
+                        range: range
+                    },
+                    {
+                        label: 'fs-exists',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'if (std::filesystem::exists("${1:data.txt}")) {',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Check if file exists using std::filesystem::exists',
+                        range: range
+                    },
+                    {
+                        label: 'fs-iterate',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'for (const auto& ${1:entry} : std::filesystem::directory_iterator("${2:.}")) {',
+                            '\tstd::cout << ${1:entry}.path() << std::endl;',
+                            '\t$0',
+                            '}'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Iterate directory entries using std::filesystem::directory_iterator',
                         range: range
                     }
                 ];
@@ -883,6 +997,77 @@ function Editor({
                         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                         documentation: 'Dynamic memory allocation',
                         range
+                    },
+                    {
+                        label: 'fopen-read',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'FILE *${1:fp} = fopen("${2:data.txt}", "r");',
+                            'if (${1:fp} == NULL) {',
+                            '\tperror("Error opening file ${2:data.txt}");',
+                            '\treturn 1;',
+                            '}',
+                            'char ${3:buffer}[${4:256}];',
+                            'while (fgets(${3:buffer}, sizeof(${3:buffer}), ${1:fp}) != NULL) {',
+                            '\t$0',
+                            '}',
+                            'fclose(${1:fp});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Read file line-by-line using fopen and fgets',
+                        range
+                    },
+                    {
+                        label: 'fopen-write',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'FILE *${1:fp} = fopen("${2:output.txt}", "w");',
+                            'if (${1:fp} == NULL) {',
+                            '\tperror("Error opening file ${2:output.txt}");',
+                            '\treturn 1;',
+                            '}',
+                            'fprintf(${1:fp}, "${3:%s}\\n", ${4:"Hello World"});',
+                            '$0',
+                            'fclose(${1:fp});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Write formatted text to file using fopen and fprintf',
+                        range
+                    },
+                    {
+                        label: 'fopen-append',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'FILE *${1:fp} = fopen("${2:output.txt}", "a");',
+                            'if (${1:fp} == NULL) {',
+                            '\tperror("Error opening file ${2:output.txt}");',
+                            '\treturn 1;',
+                            '}',
+                            'fprintf(${1:fp}, "${3:%s}\\n", ${4:"Log entry"});',
+                            '$0',
+                            'fclose(${1:fp});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Append formatted text to file using fopen mode "a"',
+                        range
+                    },
+                    {
+                        label: 'fopen-binary',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: [
+                            'FILE *${1:fp} = fopen("${2:data.bin}", "rb");',
+                            'if (${1:fp} == NULL) {',
+                            '\tperror("Error opening binary file ${2:data.bin}");',
+                            '\treturn 1;',
+                            '}',
+                            'char ${3:buffer}[${4:1024}];',
+                            'size_t ${5:bytesRead} = fread(${3:buffer}, 1, sizeof(${3:buffer}), ${1:fp});',
+                            '$0',
+                            'fclose(${1:fp});'
+                        ].join('\n'),
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Read binary file using fopen mode "rb" and fread',
+                        range
                     }
                 ]
 
@@ -1104,7 +1289,7 @@ function Editor({
                 if (packageMatch) {
                     const insertPos = model.getPositionAt(code.indexOf(packageMatch[0]) + packageMatch[0].length)
                     model.applyEdits([{
-                        range: new monacoEditor.Range(insertPos.lineNumber, insertPos.column, insertPos.lineNumber, insertPos.column),
+                        range: new monaco.Range(insertPos.lineNumber, insertPos.column, insertPos.lineNumber, insertPos.column),
                         text: `\nimport ${fullImport};`
                     }])
                 } else {
@@ -1123,7 +1308,7 @@ function Editor({
                     }
 
                     model.applyEdits([{
-                        range: new monacoEditor.Range(insertLine, insertColumn, insertLine, insertColumn),
+                        range: new monaco.Range(insertLine, insertColumn, insertLine, insertColumn),
                         text: `import ${fullImport};\n`
                     }])
                 }
@@ -1131,7 +1316,7 @@ function Editor({
         })
 
         // Register code action provider for quick fixes
-        monacoEditor.languages.registerCodeActionProvider('java', {
+        const actionProvider = monaco.languages.registerCodeActionProvider('java', {
             provideCodeActions: (model, _range, _context, _token) => {
                 const actions: monacoEditor.languages.CodeAction[] = []
                 const code = model.getValue()
@@ -1197,7 +1382,7 @@ function Editor({
                                 title: `Import '${className}'`,
                                 kind: 'quickfix',
                                 diagnostics: [{
-                                    severity: monacoEditor.MarkerSeverity.Warning,
+                                    severity: monaco.MarkerSeverity.Warning,
                                     message: `Cannot resolve symbol '${className}'`,
                                     startLineNumber: lineNumber,
                                     startColumn: startCol,
@@ -1229,6 +1414,7 @@ function Editor({
                 return { actions, dispose: () => {} }
             }
         })
+        registeredCompletionProviders.push(actionProvider)
 
         // Set markers for missing imports on content change
         const updateDiagnostics = () => {
@@ -1261,20 +1447,20 @@ function Editor({
                         const endCol = startCol + className.length
 
                         markers.push({
-                            severity: monacoEditor.MarkerSeverity.Warning,
+                            severity: monaco.MarkerSeverity.Warning,
                             message: `Cannot resolve symbol '${className}'. Press Alt+Enter to import.`,
                             startLineNumber: lineNumber,
                             startColumn: startCol,
                             endLineNumber: lineNumber,
                             endColumn: endCol,
                             source: 'Java',
-                            tags: [monacoEditor.MarkerTag.Unnecessary]
+                            tags: [monaco.MarkerTag.Unnecessary]
                         })
                     }
                 }
             }
 
-            monacoEditor.editor.setModelMarkers(model, 'java-imports', markers)
+            monaco.editor.setModelMarkers(model, 'java-imports', markers)
         }
 
         // Run diagnostics on content change
@@ -1303,7 +1489,7 @@ function Editor({
     useEffect(() => {
         const model = editorRef.current?.getModel()
         if (model && monacoRef.current) {
-            monacoRef.current.editor.setModelLanguage(model, language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp')
+            monacoRef.current.editor.setModelLanguage(model, language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : language === 'plaintext' ? 'plaintext' : 'cpp')
         }
     }, [language])
 
@@ -1345,7 +1531,7 @@ function Editor({
         if (!model || !monacoRef.current) return
 
         const markers: monacoEditor.editor.IMarkerData[] = parsedErrors.map(err => ({
-            severity: err.severity === 'error' ? monacoEditor.MarkerSeverity.Error : monacoEditor.MarkerSeverity.Warning,
+            severity: err.severity === 'error' ? monacoRef.current!.MarkerSeverity.Error : monacoRef.current!.MarkerSeverity.Warning,
             message: err.message,
             startLineNumber: err.line,
             startColumn: err.column || 1,
@@ -1361,7 +1547,7 @@ function Editor({
         <div className="h-full w-full">
             <MonacoEditor
                 height="100%"
-                defaultLanguage={language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : 'cpp'}
+                defaultLanguage={language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : language === 'plaintext' ? 'plaintext' : 'cpp'}
                 theme="vs-dark"
                 value={value}
                 onChange={onChange}

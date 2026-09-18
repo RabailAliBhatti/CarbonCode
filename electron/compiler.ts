@@ -5,7 +5,7 @@ import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
 
-export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python'
+export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python' | 'plaintext'
 
 export interface RuntimeInfo {
     language: SupportedLanguage
@@ -19,6 +19,7 @@ export interface RunRequest {
     language: SupportedLanguage
     code: string
     filePath?: string | null
+    rootPath?: string | null
     cppStandard?: string
     cStandard?: string
 }
@@ -840,7 +841,8 @@ function createThrottledStreamHandler(
 function spawnProcess(
     command: string, args: string[], cwd: string,
     onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void,
-    env?: NodeJS.ProcessEnv
+    env?: NodeJS.ProcessEnv,
+    tempDirToCleanup?: string
 ): ChildProcess {
     currentProcess = spawn(command, args, {
         cwd, shell: false, detached: true, windowsHide: true, ...(env ? { env } : {})
@@ -867,40 +869,54 @@ function spawnProcess(
         stderrH.flush()
         currentProcess = null
         onExit(code || 0)
-        setTimeout(() => cleanupDir(cwd), 500)
+        if (tempDirToCleanup) {
+            setTimeout(() => cleanupDir(tempDirToCleanup), 500)
+        }
     })
 
     currentProcess.on('error', (err) => {
         onStderr(`Spawn Error: ${err.message}`)
         currentProcess = null
         onExit(1)
+        if (tempDirToCleanup) {
+            setTimeout(() => cleanupDir(tempDirToCleanup), 500)
+        }
     })
 
     return currentProcess
 }
 
 export function startInteractiveProcess(
-    executablePath: string, tempDir: string,
-    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
+    executablePath: string,
+    cwd: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void,
+    tempDirToCleanup?: string
 ): ChildProcess {
     const cmd = process.platform === 'win32' ? executablePath : `./${basename(executablePath)}`
     const env = isBundledCompiler ? getBundledMingwEnv() : undefined
-    return spawnProcess(cmd, [], tempDir, onStdout, onStderr, onExit, env)
+    return spawnProcess(cmd, [], cwd, onStdout, onStderr, onExit, env, tempDirToCleanup)
 }
 
 export function startJavaProcess(
-    javaPath: string, tempDir: string, mainClass: string,
+    javaPath: string,
+    tempDir: string,
+    mainClass: string,
+    cwd: string,
     onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
 ): ChildProcess {
-    return spawnProcess(javaPath, ['-cp', tempDir, mainClass], tempDir, onStdout, onStderr, onExit)
+    const cpSep = process.platform === 'win32' ? ';' : ':'
+    const classpath = tempDir === cwd ? tempDir : `${tempDir}${cpSep}${cwd}`
+    return spawnProcess(javaPath, ['-cp', classpath, mainClass], cwd, onStdout, onStderr, onExit, undefined, tempDir)
 }
 
 export function startPythonProcess(
-    pythonPath: string, tempDir: string,
-    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void
+    pythonPath: string,
+    scriptPath: string,
+    cwd: string,
+    onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void,
+    tempDirToCleanup?: string
 ): ChildProcess {
-    const scriptPath = join(tempDir, 'main.py')
-    return spawnProcess(pythonPath, ['-u', scriptPath], tempDir, onStdout, onStderr, onExit)
+    return spawnProcess(pythonPath, ['-u', scriptPath], cwd, onStdout, onStderr, onExit, undefined, tempDirToCleanup)
 }
 
 /**

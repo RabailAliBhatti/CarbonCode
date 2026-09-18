@@ -184,6 +184,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             <option value="cpp">C++</option>
                             <option value="c">C</option>
                             <option value="java">Java</option>
+                            <option value="plaintext">Text</option>
                         </select>
                         <svg className="w-3 h-3 text-carbon-text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -192,7 +193,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
 
                 {/* Standard Selector */}
-                {language === 'cpp' ? (
+                {language === 'plaintext' ? (
+                    <div className="text-[11px] text-carbon-text-muted hidden sm:inline px-2 py-0.5 rounded bg-carbon-surface border border-carbon-border-subtle flex items-center gap-1.5">
+                        <svg className="w-3 h-3 text-carbon-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Plain Text</span>
+                    </div>
+                ) : language === 'cpp' ? (
                     <div className="flex items-center gap-1.5">
                         <span className="text-xs text-carbon-text-muted hidden md:inline">Standard</span>
                         <div className="relative group">
@@ -254,15 +262,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <div className="flex items-center gap-2">
                 <button
                     onClick={onRun}
-                    disabled={isCompiling || !hasCompiler}
+                    disabled={isCompiling || !hasCompiler || language === 'plaintext'}
                     className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold text-white transition-all shadow-md ${
-                        isCompiling
-                            ? 'bg-carbon-warning/80 cursor-wait'
-                            : hasCompiler
-                                ? 'bg-gradient-to-r from-carbon-accent to-carbon-accent-secondary hover:from-carbon-accent-highlight hover:to-carbon-accent shadow-glow active:scale-95'
-                                : 'bg-carbon-border text-carbon-text-muted cursor-not-allowed'
+                        language === 'plaintext'
+                            ? 'bg-carbon-border/60 text-carbon-text-muted cursor-not-allowed opacity-60'
+                            : isCompiling
+                                ? 'bg-carbon-warning/80 cursor-wait'
+                                : hasCompiler
+                                    ? 'bg-gradient-to-r from-carbon-accent to-carbon-accent-secondary hover:from-carbon-accent-highlight hover:to-carbon-accent shadow-glow active:scale-95'
+                                    : 'bg-carbon-border text-carbon-text-muted cursor-not-allowed'
                     }`}
-                    title={!hasCompiler ? (language === 'python' ? 'No Python interpreter detected' : 'No compiler detected') : (language === 'python' ? 'Run Python (F5)' : 'Compile & Run (F5)')}
+                    title={
+                        language === 'plaintext'
+                            ? 'Text file (not executable) — switch to a code file to run'
+                            : !hasCompiler
+                                ? (language === 'python' ? 'No Python interpreter detected' : 'No compiler detected')
+                                : (language === 'python' ? 'Run Python (F5)' : 'Compile & Run (F5)')
+                    }
                 >
                     {isCompiling ? (
                         <>

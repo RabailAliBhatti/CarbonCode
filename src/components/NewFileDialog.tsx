@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 interface NewFileDialogProps {
     isOpen: boolean
-    onSelect: (language: 'c' | 'cpp' | 'java' | 'python') => void
+    onSelect: (language: 'c' | 'cpp' | 'java' | 'python' | 'plaintext') => void
     onCancel: () => void
 }
 
@@ -177,6 +177,40 @@ export const NewFileDialog: React.FC<NewFileDialogProps> = ({ isOpen, onSelect, 
                             </div>
                             <svg className={`w-4 h-4 transition-all duration-200 ${
                                 hoveredCard === 'java' ? 'text-orange-400 translate-x-0 opacity-100' : 'text-carbon-text-muted -translate-x-2 opacity-0'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    {/* Text / Data File Card */}
+                    <button
+                        onClick={() => onSelect('plaintext')}
+                        onMouseEnter={() => setHoveredCard('plaintext')}
+                        onMouseLeave={() => setHoveredCard(null)}
+                        className={`w-full p-3.5 rounded-xl border transition-all duration-200 text-left group ${
+                            hoveredCard === 'plaintext'
+                                ? 'bg-carbon-elevated border-sky-500/50 shadow-lg shadow-sky-500/10'
+                                : 'bg-carbon-bg border-carbon-border-subtle hover:border-carbon-border'
+                        }`}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-200 ${
+                                hoveredCard === 'plaintext'
+                                    ? 'bg-sky-500/20 text-sky-400'
+                                    : 'bg-carbon-elevated text-sky-400'
+                            }`}>
+                                TXT
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-carbon-text-primary font-medium text-sm">Text / Data File</span>
+                                    <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 text-[11px] font-mono font-medium">.txt</span>
+                                </div>
+                                <p className="text-xs text-carbon-text-muted mt-0.5">Input, output, CSV, or raw data file</p>
+                            </div>
+                            <svg className={`w-4 h-4 transition-all duration-200 ${
+                                hoveredCard === 'plaintext' ? 'text-sky-400 translate-x-0 opacity-100' : 'text-carbon-text-muted -translate-x-2 opacity-0'
                             }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>

@@ -133,6 +133,9 @@ if __name__ == "__main__":
 `
 
 const getDefaultContent = (language: SupportedLanguage, authorName?: string) => {
+    if (language === 'plaintext') {
+        return ''
+    }
     if (language === 'python') {
         return authorName ? generateDefaultPythonCode(authorName) : DEFAULT_PYTHON_CODE
     }
@@ -193,7 +196,7 @@ export function useFileManager() {
     // Create new tab with optional author name for template
     const createNewTab = useCallback((language: SupportedLanguage = 'cpp', authorName?: string) => {
         const content = getDefaultContent(language, authorName)
-        const fileName = language === 'python' ? 'untitled.py' : language === 'java' ? 'Untitled.java' : language === 'c' ? 'Untitled.c' : 'Untitled.cpp'
+        const fileName = language === 'python' ? 'untitled.py' : language === 'java' ? 'Untitled.java' : language === 'c' ? 'Untitled.c' : language === 'plaintext' ? 'untitled.txt' : 'Untitled.cpp'
         const newTab: FileTab = {
             id: generateId(),
             fileName,

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.0.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/version-4.1.0-blue?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square" alt="Platform" />
   <img src="https://img.shields.io/badge/electron-28-9cf?style=flat-square" alt="Electron" />
@@ -22,6 +22,10 @@ CarbonCode is a modern, cross-platform offline IDE for C, C++, Java, and Python 
 
 ## ✨ Features
 
+- 📂 **Full Student File Handling Support** - Practice file handling in C, C++, Java, and Python with relative paths (e.g. `data.txt`, `output.csv`) running directly in your workspace directory
+- 📄 **Text & Data File Management** - Create, view, and edit `.txt`, `.csv`, `.dat`, `.in`, `.out`, `.log`, and `.json` files right from the File Explorer with distinct badges and inline creation
+- 💡 **Rich File Handling IntelliSense** - Autocomplete and prebuilt snippets for `<fstream>`, `<filesystem>`, Java `File`/`Files`/`Path`/`Scanner`/`PrintWriter`, Python `open`/`pathlib`, and C `<stdio.h>`
+- 🔄 **Auto-Refreshing Workspace** - Program output files (e.g. `output.txt`) immediately show up in the File Explorer upon execution
 - 🐍 **Full Python Support** - Native Python 3 runner with unbuffered execution, 60+ built-ins, 35+ stdlib completions, and PEP 8 formatting
 - 🖥️ **Monaco Code Editor** - VS Code-grade editor with dark navy theme, high-contrast syntax highlighting, bracket matching, and indentation guides
 - 🔍 **Go to Definition & Navigation** - F12 to jump to symbol definitions, Shift+F12 for references across C, C++, Java, and Python
@@ -33,7 +37,7 @@ CarbonCode is a modern, cross-platform offline IDE for C, C++, Java, and Python 
 - 📁 **File Explorer & Global Search** - Integrated tree view and Ctrl+Shift+F project search/replace across files
 - 📑 **Multi-Tab Interface** - Work on multiple files simultaneously with dirty-state tracking and unsaved change protection
 - ☕ **Java JDK Support** - Automatic JDK and `javac` detection with standard library IntelliSense
-- 💾 **Offline First** - Zero network dependencies for compilation, running, or editing
+- 💾 **100% Offline First** - Bundled offline Monaco Editor and local compiler runtime with zero network dependencies
 
 ## 📋 Prerequisites
 

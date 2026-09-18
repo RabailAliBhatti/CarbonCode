@@ -284,7 +284,22 @@ export const PYTHON_MODULE_MEMBERS: Record<string, PythonCompletion[]> = {
         { label: 'timedelta', kind: 'Class', detail: 'class datetime.timedelta(days=0, seconds=0, microseconds=0, milliseconds=0, minutes=0, hours=0, weeks=0)', documentation: 'A duration expressing the difference between two date, time, or datetime instances.' }
     ],
     pathlib: [
-        { label: 'Path', kind: 'Class', detail: 'class pathlib.Path(*pathsegments)', documentation: 'PurePath subclass that can also perform system calls on path objects.' }
+        { label: 'Path', kind: 'Class', detail: 'class pathlib.Path(*pathsegments)', documentation: 'PurePath subclass that can also perform system calls on path objects.' },
+        { label: 'PurePath', kind: 'Class', detail: 'class pathlib.PurePath(*pathsegments)', documentation: 'Pure pathname manipulation without filesystem calls.' }
+    ],
+    csv: [
+        { label: 'reader', kind: 'Function', detail: 'csv.reader(csvfile, dialect="excel", **fmtparams)', documentation: 'Return a reader object which iterates over lines in the given csvfile.' },
+        { label: 'writer', kind: 'Function', detail: 'csv.writer(csvfile, dialect="excel", **fmtparams)', documentation: 'Return a writer object responsible for converting data into delimited strings on the given file-like object.' },
+        { label: 'DictReader', kind: 'Class', detail: 'class csv.DictReader(f, fieldnames=None, restkey=None, restval=None, dialect="excel", *args, **kwds)', documentation: 'Create an object that operates like a regular reader but maps the information in each row to a dict.' },
+        { label: 'DictWriter', kind: 'Class', detail: 'class csv.DictWriter(f, fieldnames, restval="", extrasaction="raise", dialect="excel", *args, **kwds)', documentation: 'Create an object which operates like a regular writer but maps dictionaries onto output rows.' }
+    ],
+    shutil: [
+        { label: 'copy', kind: 'Function', detail: 'shutil.copy(src, dst, *, follow_symlinks=True)', documentation: 'Copy data and mode bits ("cp src dst").' },
+        { label: 'copy2', kind: 'Function', detail: 'shutil.copy2(src, dst, *, follow_symlinks=True)', documentation: 'Copy data and all file metadata ("cp -p src dst").' },
+        { label: 'copytree', kind: 'Function', detail: 'shutil.copytree(src, dst, symlinks=False, ignore=None, ...)', documentation: 'Recursively copy an entire directory tree.' },
+        { label: 'rmtree', kind: 'Function', detail: 'shutil.rmtree(path, ignore_errors=False, onerror=None)', documentation: 'Delete an entire directory tree.' },
+        { label: 'move', kind: 'Function', detail: 'shutil.move(src, dst, copy_function=copy2)', documentation: 'Recursively move a file or directory to another location.' },
+        { label: 'which', kind: 'Function', detail: 'shutil.which(cmd, mode=os.F_OK | os.X_OK, path=None)', documentation: 'Given a command, return the path to the executable, or None if not found.' }
     ],
     collections: [
         { label: 'defaultdict', kind: 'Class', detail: 'class collections.defaultdict(default_factory=None, /[, ...])', documentation: 'dict subclass that calls a factory function to supply missing values.' },
@@ -317,6 +332,34 @@ export const PYTHON_MODULE_MEMBERS: Record<string, PythonCompletion[]> = {
         { label: 'Callable', kind: 'Class', detail: 'Callable[[Arg1, Arg2], ReturnType]', documentation: 'Callable type; Callable[[int], str] is a function of (int) -> str.' }
     ]
 }
+
+export const PYTHON_FILE_METHODS: PythonCompletion[] = [
+    { label: 'read', kind: 'Function', detail: 'f.read(size=-1) -> str', documentation: 'Read at most size characters/bytes from the stream.' },
+    { label: 'readline', kind: 'Function', detail: 'f.readline(size=-1) -> str', documentation: 'Read until newline or EOF.' },
+    { label: 'readlines', kind: 'Function', detail: 'f.readlines(hint=-1) -> list[str]', documentation: 'Return a list of lines from the stream.' },
+    { label: 'write', kind: 'Function', detail: 'f.write(text) -> int', documentation: 'Write string to stream and return the number of characters written.' },
+    { label: 'writelines', kind: 'Function', detail: 'f.writelines(lines)', documentation: 'Write a list of lines to the stream.' },
+    { label: 'close', kind: 'Function', detail: 'f.close()', documentation: 'Flush and close the IO object.' },
+    { label: 'flush', kind: 'Function', detail: 'f.flush()', documentation: 'Flush the write buffers of the stream if applicable.' },
+    { label: 'seek', kind: 'Function', detail: 'f.seek(cookie, whence=0) -> int', documentation: 'Change stream position.' },
+    { label: 'tell', kind: 'Function', detail: 'f.tell() -> int', documentation: 'Return the current stream position.' }
+]
+
+export const PYTHON_PATH_INSTANCE_MEMBERS: PythonCompletion[] = [
+    { label: 'exists', kind: 'Function', detail: 'path.exists() -> bool', documentation: 'Whether this path exists or points to an existing directory or file.' },
+    { label: 'is_file', kind: 'Function', detail: 'path.is_file() -> bool', documentation: 'Whether this path is a regular file.' },
+    { label: 'is_dir', kind: 'Function', detail: 'path.is_dir() -> bool', documentation: 'Whether this path is a directory.' },
+    { label: 'read_text', kind: 'Function', detail: 'path.read_text(encoding="utf-8") -> str', documentation: 'Open the file in text mode, read it, and close the file.' },
+    { label: 'write_text', kind: 'Function', detail: 'path.write_text(data, encoding="utf-8") -> int', documentation: 'Open the file in text mode, write to it, and close the file.' },
+    { label: 'read_bytes', kind: 'Function', detail: 'path.read_bytes() -> bytes', documentation: 'Open the file in bytes mode, read it, and close the file.' },
+    { label: 'write_bytes', kind: 'Function', detail: 'path.write_bytes(data) -> int', documentation: 'Open the file in bytes mode, write to it, and close the file.' },
+    { label: 'mkdir', kind: 'Function', detail: 'path.mkdir(mode=0o777, parents=False, exist_ok=False)', documentation: 'Create a new directory at this given path.' },
+    { label: 'unlink', kind: 'Function', detail: 'path.unlink(missing_ok=False)', documentation: 'Remove this file or symbolic link.' },
+    { label: 'parent', kind: 'Variable', detail: 'path.parent: Path', documentation: 'The logical parent of the path.' },
+    { label: 'name', kind: 'Variable', detail: 'path.name: str', documentation: 'The final path component, if any.' },
+    { label: 'stem', kind: 'Variable', detail: 'path.stem: str', documentation: 'The final path component, minus its last suffix.' },
+    { label: 'suffix', kind: 'Variable', detail: 'path.suffix: str', documentation: 'The path extension of the final component, if any.' }
+]
 
 // ---------------------------------------------------------------------------
 // 4. Python Snippets
@@ -376,6 +419,60 @@ export const PYTHON_SNIPPETS: PythonSnippet[] = [
         detail: 'With statement (context manager)',
         documentation: 'Open and safely manage resources such as files.',
         insertText: 'with open(${1:"file.txt"}, "${2:r}") as ${3:f}:\n    ${0:content = f.read()}'
+    },
+    {
+        label: 'readfile',
+        detail: 'Read text file line-by-line',
+        documentation: 'Safely read a text file using a with-open block.',
+        insertText: 'with open(${1:"data.txt"}, "r", encoding="utf-8") as ${2:f}:\n    for ${3:line} in ${2:f}:\n        ${0:print(${3:line}.strip())}'
+    },
+    {
+        label: 'writefile',
+        detail: 'Write text file',
+        documentation: 'Write text to a file using UTF-8 encoding.',
+        insertText: 'with open(${1:"output.txt"}, "w", encoding="utf-8") as ${2:f}:\n    ${2:f}.write(${0:"Hello, World!\\n"})'
+    },
+    {
+        label: 'appendfile',
+        detail: 'Append text to file',
+        documentation: 'Append text to a file using mode "a".',
+        insertText: 'with open(${1:"output.txt"}, "a", encoding="utf-8") as ${2:f}:\n    ${2:f}.write(${0:"Log entry\\n"})'
+    },
+    {
+        label: 'readcsv',
+        detail: 'Read CSV file',
+        documentation: 'Read rows from a CSV file using the csv module.',
+        insertText: 'import csv\n\nwith open(${1:"data.csv"}, mode="r", encoding="utf-8") as ${2:f}:\n    reader = csv.reader(${2:f})\n    header = next(reader)\n    for row in reader:\n        ${0:print(row)}'
+    },
+    {
+        label: 'writecsv',
+        detail: 'Write CSV file',
+        documentation: 'Write data rows to a CSV file using csv.writer.',
+        insertText: 'import csv\n\nwith open(${1:"output.csv"}, mode="w", newline="", encoding="utf-8") as ${2:f}:\n    writer = csv.writer(${2:f})\n    writer.writerow([${1:"Name"}, ${2:"Score"}])\n    ${0:writer.writerow(["Alice", 100])}'
+    },
+    {
+        label: 'readjson',
+        detail: 'Read JSON file',
+        documentation: 'Parse and load JSON data from a file using json.load.',
+        insertText: 'import json\n\nwith open(${1:"data.json"}, "r", encoding="utf-8") as ${2:f}:\n    data = json.load(${2:f})\n    ${0:print(data)}'
+    },
+    {
+        label: 'writejson',
+        detail: 'Write JSON file',
+        documentation: 'Serialize and dump a Python dictionary or list to a JSON file.',
+        insertText: 'import json\n\nwith open(${1:"output.json"}, "w", encoding="utf-8") as ${2:f}:\n    json.dump(${1:data}, ${2:f}, indent=4)\n    $0'
+    },
+    {
+        label: 'pathlib-read',
+        detail: 'Read file using pathlib.Path',
+        documentation: 'Read file contents using modern pathlib.Path.read_text.',
+        insertText: 'from pathlib import Path\n\npath = Path(${1:"data.txt"})\nif path.exists():\n    content = path.read_text(encoding="utf-8")\n    ${0:print(content)}'
+    },
+    {
+        label: 'pathlib-write',
+        detail: 'Write file using pathlib.Path',
+        documentation: 'Write text to file using pathlib.Path.write_text.',
+        insertText: 'from pathlib import Path\n\npath = Path(${1:"output.txt"})\npath.write_text(${2:"Hello, World!"}, encoding="utf-8")\n$0'
     },
     {
         label: 'lc',
@@ -644,22 +741,32 @@ export function getPythonCompletionItems(model: any, position: any, monaco: any)
         return { suggestions }
     }
 
-    // 3. Dot-access member completion (e.g. os. or math. or sys.)
+    // 3. Dot-access member completion (e.g. os., math., sys., f., path.)
     const dotMatch = textUntilPosition.match(/([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)\.([a-zA-Z_]\w*)?$/)
     if (dotMatch) {
-        const modName = dotMatch[1]
-        const members = getPostImportCompletions(modName)
+        const target = dotMatch[1]
+        let members = getPostImportCompletions(target)
+        if (!members || members.length === 0) {
+            const lower = target.toLowerCase()
+            if (['f', 'file', 'fp', 'infile', 'outfile', 'in_file', 'out_file', 'stream', 'reader', 'writer'].some(id => lower === id || lower.endsWith('_' + id) || lower.endsWith('file'))) {
+                members = PYTHON_FILE_METHODS
+            } else if (lower.includes('path')) {
+                members = PYTHON_PATH_INSTANCE_MEMBERS
+            }
+        }
         if (members && members.length > 0) {
             for (const m of members) {
+                const isFunc = m.kind === 'Function'
                 suggestions.push({
                     label: m.label,
-                    kind: m.kind === 'Function' ? monaco.languages.CompletionItemKind.Function
+                    kind: isFunc ? monaco.languages.CompletionItemKind.Function
                         : m.kind === 'Class' ? monaco.languages.CompletionItemKind.Class
                             : m.kind === 'Constant' ? monaco.languages.CompletionItemKind.Constant
                                 : monaco.languages.CompletionItemKind.Variable,
                     detail: m.detail,
                     documentation: m.documentation,
-                    insertText: m.label,
+                    insertText: isFunc ? `${m.label}($1)` : m.label,
+                    insertTextRules: isFunc ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
                     range,
                     sortText: '0_' + m.label
                 })

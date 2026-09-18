@@ -33,6 +33,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 }) => {
     const [files, setFiles] = useState<FileNode[]>([])
     const [loading, setLoading] = useState(false)
+    const [isCreatingFile, setIsCreatingFile] = useState(false)
+    const [newFileName, setNewFileName] = useState('')
 
     // Load directory when rootPath changes
     useEffect(() => {
@@ -42,6 +44,38 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             setFiles([])
         }
     }, [rootPath])
+
+    // Auto-refresh when programs finish running or files change
+    useEffect(() => {
+        if (!window.electronAPI?.onWorkspaceRefresh || !rootPath) return
+        const cleanup = window.electronAPI.onWorkspaceRefresh(() => {
+            loadDirectory(rootPath)
+        })
+        return () => cleanup?.()
+    }, [rootPath])
+
+    const handleCreateFile = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
+        const trimmed = newFileName.trim()
+        if (!trimmed || !rootPath) {
+            setIsCreatingFile(false)
+            setNewFileName('')
+            return
+        }
+        try {
+            const res = await window.electronAPI.createFile(rootPath, trimmed)
+            if (res.success && res.filePath) {
+                await loadDirectory(rootPath)
+                onFileSelect(res.filePath)
+            } else if (res.error) {
+                console.error('Failed to create file:', res.error)
+            }
+        } catch (err) {
+            console.error('Error creating file:', err)
+        }
+        setIsCreatingFile(false)
+        setNewFileName('')
+    }
 
     const loadDirectory = async (dirPath: string) => {
         setLoading(true)
@@ -112,36 +146,56 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         const ext = fileName.split('.').pop()?.toLowerCase()
 
         if (ext === 'c') {
-            return <span className="w-4 h-4 text-xs font-bold text-cyan-400 flex items-center justify-center">C</span>
+            return <span className="w-4 h-4 text-xs font-bold text-cyan-400 flex items-center justify-center shrink-0">C</span>
         }
         if (['cpp', 'cc', 'cxx'].includes(ext || '')) {
-            return <span className="w-4 h-4 text-xs font-bold text-blue-400 flex items-center justify-center">C++</span>
+            return <span className="w-4 h-4 text-xs font-bold text-blue-400 flex items-center justify-center shrink-0">C++</span>
         }
         if (['h', 'hpp', 'hxx'].includes(ext || '')) {
-            return <span className="w-4 h-4 text-xs font-bold text-blue-300 flex items-center justify-center">H</span>
+            return <span className="w-4 h-4 text-xs font-bold text-blue-300 flex items-center justify-center shrink-0">H</span>
         }
         if (['py', 'pyw'].includes(ext || '')) {
-            return <span className="w-4 h-4 text-xs font-bold text-yellow-400 flex items-center justify-center">Py</span>
+            return <span className="w-4 h-4 text-xs font-bold text-yellow-400 flex items-center justify-center shrink-0">Py</span>
         }
         if (ext === 'java') {
-            return <span className="w-4 h-4 text-xs font-bold text-orange-400 flex items-center justify-center">J</span>
+            return <span className="w-4 h-4 text-xs font-bold text-orange-400 flex items-center justify-center shrink-0">J</span>
+        }
+        if (['txt', 'text', 'log'].includes(ext || '')) {
+            return (
+                <svg className="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            )
+        }
+        if (['csv', 'tsv'].includes(ext || '')) {
+            return (
+                <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18m-9-4v8m-7 4h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            )
+        }
+        if (['in', 'dat'].includes(ext || '')) {
+            return <span className="w-4 h-4 text-[9px] font-bold text-violet-400 flex items-center justify-center shrink-0 font-mono">IN</span>
+        }
+        if (ext === 'out') {
+            return <span className="w-4 h-4 text-[8px] font-bold text-teal-400 flex items-center justify-center shrink-0 font-mono">OUT</span>
         }
         if (['json', 'jsonc'].includes(ext || '')) {
-            return <span className="w-4 h-4 text-xs font-bold text-yellow-400 flex items-center justify-center">{'{}'}</span>
+            return <span className="w-4 h-4 text-xs font-bold text-amber-400 flex items-center justify-center shrink-0">{'{}'}</span>
         }
         if (['md', 'markdown'].includes(ext || '')) {
-            return <span className="w-4 h-4 text-xs font-bold text-carbon-text-muted flex items-center justify-center">M↓</span>
+            return <span className="w-4 h-4 text-xs font-bold text-carbon-text-muted flex items-center justify-center shrink-0">M↓</span>
         }
-        if (['exe', 'out', 'bin'].includes(ext || '')) {
+        if (['exe', 'bin'].includes(ext || '')) {
             return (
-                <svg className="w-4 h-4 text-carbon-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-carbon-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 </svg>
             )
         }
 
         return (
-            <svg className="w-4 h-4 text-carbon-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-carbon-text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
         )
@@ -211,6 +265,28 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     Explorer
                 </span>
                 <div className="flex items-center gap-1">
+                    {rootPath && (
+                        <>
+                            <button
+                                onClick={() => setIsCreatingFile(true)}
+                                className="p-1 text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                title="New File in Folder"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => { if (rootPath) loadDirectory(rootPath); }}
+                                className="p-1 text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                title="Refresh Explorer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </>
+                    )}
                     <button
                         onClick={onOpenFolder}
                         className="p-1 text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
@@ -247,6 +323,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                             </svg>
                             <span className="truncate">{rootPath.split(/[\\/]/).pop()}</span>
                         </div>
+
+                        {/* Inline New File Form */}
+                        {isCreatingFile && (
+                            <form onSubmit={handleCreateFile} className="px-2 py-1 mb-1.5 flex items-center gap-1.5 bg-carbon-elevated/80 border border-carbon-accent/50 rounded-md">
+                                <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={newFileName}
+                                    onChange={(e) => setNewFileName(e.target.value)}
+                                    onBlur={() => {
+                                        if (!newFileName.trim()) setIsCreatingFile(false)
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            setIsCreatingFile(false)
+                                            setNewFileName('')
+                                        }
+                                    }}
+                                    placeholder="filename (e.g. input.txt)"
+                                    className="flex-1 bg-transparent text-xs text-carbon-text-primary outline-none font-mono placeholder:text-carbon-text-muted/60"
+                                />
+                            </form>
+                        )}
+
                         {files.map((node, index) => renderNode(node, [index]))}
                     </div>
                 ) : (

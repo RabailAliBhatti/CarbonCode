@@ -1,9 +1,10 @@
-export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python'
+export type SupportedLanguage = 'c' | 'cpp' | 'java' | 'python' | 'plaintext'
 
 export const getLanguageFromFileName = (fileName: string | null | undefined): SupportedLanguage => {
-    const ext = fileName?.split('.').pop()?.toLowerCase()
+    if (!fileName) return 'cpp'
+    const ext = fileName.split('.').pop()?.toLowerCase()
 
-    if (ext === 'py') {
+    if (ext === 'py' || ext === 'pyw') {
         return 'python'
     }
 
@@ -13,6 +14,14 @@ export const getLanguageFromFileName = (fileName: string | null | undefined): Su
 
     if (ext === 'c' || ext === 'h') {
         return 'c'
+    }
+
+    if (['cpp', 'cc', 'cxx', 'c++', 'hpp', 'hxx'].includes(ext || '')) {
+        return 'cpp'
+    }
+
+    if (['txt', 'csv', 'tsv', 'dat', 'in', 'out', 'log', 'text', 'json', 'md'].includes(ext || '')) {
+        return 'plaintext'
     }
 
     return 'cpp'
@@ -26,6 +35,8 @@ export const getLanguageLabel = (language: SupportedLanguage) => {
             return 'Java'
         case 'python':
             return 'Python'
+        case 'plaintext':
+            return 'Text'
         default:
             return 'C++'
     }

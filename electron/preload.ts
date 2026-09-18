@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFolder: () => ipcRenderer.invoke('dialog:open-folder'),
     openFolderByPath: (folderPath: string) => ipcRenderer.invoke('folder:open-by-path', folderPath),
     readDirectory: (dirPath: string) => ipcRenderer.invoke('file:read-directory', dirPath),
+    createFile: (dirPath: string, fileName: string) => ipcRenderer.invoke('fs:create-file', dirPath, fileName),
 
     // State management
     setDirty: (dirty: boolean) => ipcRenderer.invoke('state:set-dirty', dirty),
@@ -116,6 +117,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     watchFile: (filePath: string) => ipcRenderer.invoke('file:watch-start', filePath),
     unwatchFile: (filePath: string) => ipcRenderer.invoke('file:watch-stop', filePath),
     onFileChanged: (cb: (filePath: string) => void) => onIpc('file:changed', cb),
+    onWorkspaceRefresh: (cb: () => void) => onIpc('workspace:refresh', cb),
 
     // Session management
     onSessionDiscard: (cb: () => void) => onIpc('session:discard', cb)

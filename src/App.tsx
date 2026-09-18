@@ -430,7 +430,7 @@ function App() {
     // Debug handlers — ponytail: 5 identical wrappers → one-liners
     const handleDebugStart = useCallback(async () => {
         if (!activeTab) return
-        if (activeTab.language === 'java' || activeTab.language === 'python') {
+        if (activeTab.language === 'java' || activeTab.language === 'python' || activeTab.language === 'plaintext') {
             setJavaDebugUnsupported(true)
             return
         }
@@ -566,6 +566,10 @@ function App() {
             return
         }
 
+        if (activeLanguage === 'plaintext') {
+            return
+        }
+
         if (!hasActiveRuntime) {
             setCompilationResult({
                 success: false,
@@ -604,6 +608,7 @@ function App() {
             language: activeLanguage,
             code: currentCode,
             filePath: activeTab.filePath,
+            rootPath,
             cppStandard: settings.cppStandard,
             cStandard: settings.cStandard
         })

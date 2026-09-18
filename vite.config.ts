@@ -47,13 +47,5 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         emptyOutDir: true
-    },
-    // Optimize Monaco Editor bundling
-    optimizeDeps: {
-        include: ['monaco-editor']
-    },
-    // Handle Monaco Editor workers
-    worker: {
-        format: 'es'
     }
 })

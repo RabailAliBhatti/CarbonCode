@@ -9,6 +9,7 @@ declare global {
             openFolder: () => Promise<string | null>
             openFolderByPath: (folderPath: string) => Promise<string | null>
             readDirectory: (dirPath: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
+            createFile: (dirPath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
             setDirty: (dirty: boolean) => Promise<void>
             detectCompiler: (customPath?: string) => Promise<string | null>
             browseCompiler: () => Promise<string | null>
@@ -34,9 +35,10 @@ declare global {
             setCustomPythonPath: (customPath: string) => Promise<void>
             getPythonInfo: () => Promise<{ path: string | null; source: string; version?: string }>
             startProcess: (request: {
-                language: 'c' | 'cpp' | 'java' | 'python'
+                language: 'c' | 'cpp' | 'java' | 'python' | 'plaintext'
                 code: string
                 filePath?: string | null
+                rootPath?: string | null
                 cppStandard?: string
                 cStandard?: string
             }) => Promise<{ success: boolean; error?: string; compileTime?: number }>
@@ -103,6 +105,7 @@ declare global {
                 includePattern?: string
             }) => Promise<{ results: { file: string; line: number; column: number; matchText: string; lineContent: string }[]; truncated: boolean }>
             onFileChanged: (callback: (filePath: string) => void) => () => void
+            onWorkspaceRefresh: (callback: () => void) => () => void
             onSessionDiscard: (callback: () => void) => () => void
         }
     }
