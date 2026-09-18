@@ -8,6 +8,18 @@ release/
 public/monaco/
 src/shims/
 
+# AI & Agent artifacts
+.agent/
+.agents/
+.commandcode/
+
+# Internal plans & development notes
+JAVA_SUPPORT_IMPLEMENTATION_PLAN.md
+feature-gaps-plan.md
+new-design/
+RELEASE_NOTES_*.md
+*.bat
+
 # IDE
 .idea/
 .vscode/
