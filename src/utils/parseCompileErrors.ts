@@ -29,6 +29,22 @@ const INCLUDED_FROM_RE = /^In file included from (.+?):(\d+):/
 // Generic severity keyword (fallback)
 const SEVERITY_RE = /\b(error|warning)\b/i
 
+export function enhanceCompileErrorMessage(msg: string): string {
+    if (msg.includes("'std::filesystem' has not been declared") || (msg.includes("filesystem") && msg.includes("not been declared"))) {
+        return `${msg} (Requires C++17 or higher. Set C++ Standard to C++17 in the toolbar)`
+    }
+    if (msg.includes("'std::string_view' has not been declared") || (msg.includes("string_view") && msg.includes("not been declared"))) {
+        return `${msg} (Requires C++17 or higher. Set C++ Standard to C++17 in the toolbar)`
+    }
+    if (msg.includes("'std::ranges' has not been declared") || msg.includes("'std::format' has not been declared") || msg.includes("'std::span' has not been declared")) {
+        return `${msg} (Requires C++20 or higher. Set C++ Standard to C++20 in the toolbar)`
+    }
+    if (msg.includes("'std::print' has not been declared") || msg.includes("'std::println' has not been declared")) {
+        return `${msg} (Requires C++23. Set C++ Standard to C++23 in the toolbar)`
+    }
+    return msg
+}
+
 export function parseCompileErrors(raw: string, defaultFile?: string): CompileError[] {
     if (!raw || !raw.trim()) return []
 
@@ -187,7 +203,7 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
             line: lineNum,
             column,
             severity,
-            message,
+            message: enhanceCompileErrorMessage(message),
             code,
             raw: trimmed
         })

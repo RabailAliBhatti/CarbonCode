@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { SupportedLanguage } from '../types/language'
-import { CStandard } from '../hooks/useSettings'
+import { CStandard, ConsoleMode } from '../hooks/useSettings'
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
 
@@ -18,6 +18,8 @@ interface ToolbarProps {
     isCompiling: boolean
     hasCompiler: boolean
     onOpenSettings?: () => void
+    consoleMode?: ConsoleMode
+    onConsoleModeChange?: (mode: ConsoleMode) => void
 }
 
 const standardDescriptions: Record<CppStandard, string> = {
@@ -48,7 +50,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onSave,
     isCompiling,
     hasCompiler,
-    onOpenSettings
+    onOpenSettings,
+    consoleMode = 'integrated',
+    onConsoleModeChange
 }) => {
     const [menuOpen, setMenuOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -258,8 +262,42 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 )}
             </div>
 
-            {/* Right Section: Prominent Run Button */}
+            {/* Right Section: Console Mode & Prominent Run Button */}
             <div className="flex items-center gap-2">
+                {/* Console Mode Switcher (Integrated Panel vs Dev-C++ External CMD) */}
+                {onConsoleModeChange && (
+                    <div className="flex items-center bg-carbon-surface border border-carbon-border rounded-lg p-0.5 text-[11px] font-medium" title="Execution Console Mode">
+                        <button
+                            onClick={() => onConsoleModeChange('integrated')}
+                            className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${
+                                consoleMode === 'integrated'
+                                    ? 'bg-carbon-elevated text-carbon-accent shadow-sm font-semibold'
+                                    : 'text-carbon-text-muted hover:text-carbon-text-primary'
+                            }`}
+                            title="Run in Integrated Bottom/Right Panel"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                            <span className="hidden lg:inline">Panel</span>
+                        </button>
+                        <button
+                            onClick={() => onConsoleModeChange('external')}
+                            className={`px-2 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+                                consoleMode === 'external'
+                                    ? 'bg-carbon-accent text-carbon-bg shadow-sm font-bold'
+                                    : 'text-carbon-text-muted hover:text-carbon-text-primary'
+                            }`}
+                            title="Run in separate Dev-C++ CMD popup window (with interactive standard input & pause)"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span>CMD Screen</span>
+                        </button>
+                    </div>
+                )}
+
                 <button
                     onClick={onRun}
                     disabled={isCompiling || !hasCompiler || language === 'plaintext'}
@@ -277,7 +315,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             ? 'Text file (not executable) — switch to a code file to run'
                             : !hasCompiler
                                 ? (language === 'python' ? 'No Python interpreter detected' : 'No compiler detected')
-                                : (language === 'python' ? 'Run Python (F5)' : 'Compile & Run (F5)')
+                                : consoleMode === 'external'
+                                    ? 'Run in Separate Dev-C++ CMD Window (F5)'
+                                    : (language === 'python' ? 'Run Python (F5)' : 'Compile & Run (F5)')
                     }
                 >
                     {isCompiling ? (
@@ -290,7 +330,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
-                            <span>Run</span>
+                            <span>{consoleMode === 'external' ? 'Run (CMD)' : 'Run'}</span>
                         </>
                     )}
                 </button>

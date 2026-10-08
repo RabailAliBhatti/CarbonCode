@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import MonacoEditor, { OnMount, loader, Monaco } from '@monaco-editor/react'
 import type * as monacoEditor from 'monaco-editor'
 import { SupportedLanguage } from '../types/language'
@@ -141,6 +141,21 @@ interface EditorProps {
     rootPath?: string | null
     onOpenFile?: (filePath: string, line?: number, column?: number) => void
     formatOnSave?: boolean
+    activeTabId?: string | null
+    activeTab?: FileTab | null
+    onSave?: () => void
+    onSaveAs?: () => void
+    onCloseTab?: () => void
+    onOpenSettings?: () => void
+    onDebugStart?: () => void
+    onDebugStop?: () => void
+    onDebugStepOver?: () => void
+    onDebugStepInto?: () => void
+    onDebugStepOut?: () => void
+    onDebugContinue?: () => void
+    onToggleBreakpoint?: () => void
+    onToggleExplorer?: () => void
+    onToggleSearch?: () => void
 }
 
 // CarbonCode Dark theme colors
@@ -219,6 +234,18 @@ const editorThemeLight = {
     }
 }
 
+function toMonacoLanguage(lang?: SupportedLanguage): string {
+    switch (lang) {
+        case 'python': return 'python'
+        case 'java': return 'java'
+        case 'c': return 'c'
+        case 'plaintext': return 'plaintext'
+        case 'cpp':
+        default:
+            return 'cpp'
+    }
+}
+
 function Editor({
     value,
     language,
@@ -234,13 +261,95 @@ function Editor({
     tabs,
     rootPath,
     onOpenFile,
-    formatOnSave: _formatOnSave
+    formatOnSave: _formatOnSave,
+    activeTabId,
+    activeTab,
+    onSave,
+    onSaveAs,
+    onCloseTab,
+    onOpenSettings,
+    onDebugStart,
+    onDebugStop,
+    onDebugStepOver,
+    onDebugStepInto,
+    onDebugStepOut,
+    onDebugContinue,
+    onToggleBreakpoint,
+    onToggleExplorer,
+    onToggleSearch
 }: EditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null)
     const monacoRef = useRef<Monaco | null>(null)
     const diskFilesCacheRef = useRef<Map<string, ProjectJavaFile>>(new Map())
     const onOpenFileRef = useRef(onOpenFile)
+    onOpenFileRef.current = onOpenFile
     const tabSizeRef = useRef(tabSize)
+    tabSizeRef.current = tabSize
+    const languageRef = useRef(language)
+    languageRef.current = language
+    const rootPathRef = useRef(rootPath)
+    rootPathRef.current = rootPath
+
+    const onSaveRef = useRef(onSave)
+    onSaveRef.current = onSave
+    const onSaveAsRef = useRef(onSaveAs)
+    onSaveAsRef.current = onSaveAs
+    const onCloseTabRef = useRef(onCloseTab)
+    onCloseTabRef.current = onCloseTab
+    const onOpenSettingsRef = useRef(onOpenSettings)
+    onOpenSettingsRef.current = onOpenSettings
+    const onDebugStartRef = useRef(onDebugStart)
+    onDebugStartRef.current = onDebugStart
+    const onDebugStopRef = useRef(onDebugStop)
+    onDebugStopRef.current = onDebugStop
+    const onDebugStepOverRef = useRef(onDebugStepOver)
+    onDebugStepOverRef.current = onDebugStepOver
+    const onDebugStepIntoRef = useRef(onDebugStepInto)
+    onDebugStepIntoRef.current = onDebugStepInto
+    const onDebugStepOutRef = useRef(onDebugStepOut)
+    onDebugStepOutRef.current = onDebugStepOut
+    const onDebugContinueRef = useRef(onDebugContinue)
+    onDebugContinueRef.current = onDebugContinue
+    const onToggleBreakpointRef = useRef(onToggleBreakpoint)
+    onToggleBreakpointRef.current = onToggleBreakpoint
+    const onToggleExplorerRef = useRef(onToggleExplorer)
+    onToggleExplorerRef.current = onToggleExplorer
+    const onToggleSearchRef = useRef(onToggleSearch)
+    onToggleSearchRef.current = onToggleSearch
+
+    // Dedicated models map and view states map per tab to fully isolate undo/redo and cursors
+    const modelsMapRef = useRef<Map<string, monacoEditor.editor.ITextModel>>(new Map())
+    const viewStatesMapRef = useRef<Map<string, monacoEditor.editor.ICodeEditorViewState | null>>(new Map())
+    const prevTabIdRef = useRef<string | null>(null)
+    const isExternalUpdateRef = useRef<boolean>(false)
+    const onChangeRef = useRef(onChange)
+    onChangeRef.current = onChange
+    const onRunRef = useRef(onRun)
+    onRunRef.current = onRun
+
+    const currentActiveTab: FileTab | null = activeTab
+        || (activeTabId && tabs ? tabs.find(t => t.id === activeTabId) || null : null)
+        || (tabs && tabs.length > 0 ? tabs[0] : null)
+        || (value !== undefined ? { id: '__default__', fileName: 'untitled', filePath: null, content: value, isDirty: false, language } : null)
+
+    const getOrCreateTabModel = useCallback((tab: FileTab, monacoInstance: Monaco): monacoEditor.editor.ITextModel => {
+        let model = modelsMapRef.current.get(tab.id)
+        if (model && !model.isDisposed()) {
+            return model
+        }
+
+        const monacoLang = toMonacoLanguage(tab.language)
+        const uri = monacoInstance.Uri.parse(`inmemory://workspace/${tab.id}/${encodeURIComponent(tab.fileName || 'file')}`)
+        const existing = monacoInstance.editor.getModel(uri)
+        if (existing && !existing.isDisposed()) {
+            model = existing
+        } else {
+            model = monacoInstance.editor.createModel(tab.content, monacoLang, uri)
+        }
+
+        modelsMapRef.current.set(tab.id, model)
+        return model
+    }, [])
 
     useEffect(() => {
         onOpenFileRef.current = onOpenFile
@@ -1190,7 +1299,77 @@ function Editor({
 
         // Add keyboard shortcut for running code (F5)
         editor.addCommand(monaco.KeyCode.F5, () => {
-            onRun?.()
+            onRunRef.current?.()
+        })
+
+        // Save (Ctrl+S)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            onSaveRef.current?.()
+        })
+
+        // Save As (Ctrl+Shift+S)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => {
+            onSaveAsRef.current?.()
+        })
+
+        // Close Tab (Ctrl+W)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW, () => {
+            onCloseTabRef.current?.()
+        })
+
+        // Open Settings (Ctrl+,)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Comma, () => {
+            onOpenSettingsRef.current?.()
+        })
+
+        // Start Debugging (Ctrl+F5)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F5, () => {
+            onDebugStartRef.current?.()
+        })
+
+        // Stop Debugging (Ctrl+Shift+F5)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.F5, () => {
+            onDebugStopRef.current?.()
+        })
+
+        // Stop Execution (Shift+F5)
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F5, () => {
+            onDebugStopRef.current?.()
+        })
+
+        // Toggle Breakpoint (F9)
+        editor.addCommand(monaco.KeyCode.F9, () => {
+            onToggleBreakpointRef.current?.()
+        })
+
+        // Step Over (F10)
+        editor.addCommand(monaco.KeyCode.F10, () => {
+            onDebugStepOverRef.current?.()
+        })
+
+        // Step Into (F11)
+        editor.addCommand(monaco.KeyCode.F11, () => {
+            onDebugStepIntoRef.current?.()
+        })
+
+        // Step Out (Shift+F11)
+        editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F11, () => {
+            onDebugStepOutRef.current?.()
+        })
+
+        // Debug Continue (F8)
+        editor.addCommand(monaco.KeyCode.F8, () => {
+            onDebugContinueRef.current?.()
+        })
+
+        // Toggle Explorer (Ctrl+B)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => {
+            onToggleExplorerRef.current?.()
+        })
+
+        // Toggle Search (Ctrl+Shift+F)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => {
+            onToggleSearchRef.current?.()
         })
 
         // Add keyboard shortcut for duplicating line (Ctrl+D)
@@ -1268,7 +1447,7 @@ function Editor({
             contextMenuOrder: 1.5,
             run: (ed) => {
                 const model = ed.getModel()
-                if (!model || language !== 'java') return
+                if (!model || (model.getLanguageId() !== 'java' && languageRef.current !== 'java')) return
 
                 const position = ed.getPosition()
                 if (!position) return
@@ -1419,7 +1598,7 @@ function Editor({
         // Set markers for missing imports on content change
         const updateDiagnostics = () => {
             const model = editor.getModel()
-            if (!model || language !== 'java') return
+            if (!model || (model.getLanguageId() !== 'java' && languageRef.current !== 'java')) return
 
             const code = model.getValue()
             const markers: monacoEditor.editor.IMarkerData[] = []
@@ -1466,11 +1645,22 @@ function Editor({
         // Run diagnostics on content change
         editor.onDidChangeModelContent(() => {
             updateDiagnostics()
+            if (isExternalUpdateRef.current) return
+            const currentModel = editor.getModel()
+            if (currentModel) {
+                onChangeRef.current?.(currentModel.getValue())
+            }
         })
+
+        // Attach initial model for current active tab
+        if (currentActiveTab) {
+            const initialModel = getOrCreateTabModel(currentActiveTab, monaco)
+            editor.setModel(initialModel)
+            prevTabIdRef.current = currentActiveTab.id
+        }
 
         // Run initial diagnostics
         updateDiagnostics()
-
 
         // Focus the editor
         editor.focus()
@@ -1486,22 +1676,72 @@ function Editor({
         }
     }, [theme])
 
+    // Switch models when active tab changes with full undo/redo and cursor preservation
     useEffect(() => {
-        const model = editorRef.current?.getModel()
-        if (model && monacoRef.current) {
-            monacoRef.current.editor.setModelLanguage(model, language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : language === 'plaintext' ? 'plaintext' : 'cpp')
-        }
-    }, [language])
+        const editor = editorRef.current
+        const monaco = monacoRef.current
+        if (!editor || !monaco || !currentActiveTab) return
 
-    // Update editor when value prop changes externally
+        // 1. Save view state (cursor and scroll position) of the previous tab
+        if (prevTabIdRef.current && prevTabIdRef.current !== currentActiveTab.id) {
+            try {
+                const vs = editor.saveViewState()
+                if (vs) {
+                    viewStatesMapRef.current.set(prevTabIdRef.current, vs)
+                }
+            } catch { }
+        }
+
+        // 2. Get or create model for the newly active tab
+        const model = getOrCreateTabModel(currentActiveTab, monaco)
+
+        // 3. Ensure language is correct
+        const monacoLang = toMonacoLanguage(currentActiveTab.language)
+        if (model.getLanguageId() !== monacoLang) {
+            monaco.editor.setModelLanguage(model, monacoLang)
+        }
+
+        // 4. Switch editor model if different
+        if (editor.getModel() !== model) {
+            editor.setModel(model)
+            const savedVs = viewStatesMapRef.current.get(currentActiveTab.id)
+            if (savedVs) {
+                editor.restoreViewState(savedVs)
+            }
+            editor.focus()
+        }
+
+        prevTabIdRef.current = currentActiveTab.id
+    }, [currentActiveTab?.id, currentActiveTab?.language, currentActiveTab?.fileName, getOrCreateTabModel])
+
+    // Synchronize external content updates (e.g. reload from disk, format document)
     useEffect(() => {
-        if (editorRef.current) {
-            const currentValue = editorRef.current.getValue()
-            if (value !== currentValue) {
-                editorRef.current.setValue(value)
+        if (!currentActiveTab || !monacoRef.current) return
+        const model = modelsMapRef.current.get(currentActiveTab.id)
+        if (model && !model.isDisposed()) {
+            const currentModelVal = model.getValue()
+            if (currentActiveTab.content !== currentModelVal) {
+                isExternalUpdateRef.current = true
+                model.setValue(currentActiveTab.content)
+                isExternalUpdateRef.current = false
             }
         }
-    }, [value])
+    }, [currentActiveTab?.content])
+
+    // Clean up models for closed tabs
+    useEffect(() => {
+        if (!tabs) return
+        const currentTabIds = new Set(tabs.map(t => t.id))
+        for (const [id, model] of modelsMapRef.current.entries()) {
+            if (id !== '__default__' && !currentTabIds.has(id)) {
+                if (!model.isDisposed()) {
+                    model.dispose()
+                }
+                modelsMapRef.current.delete(id)
+                viewStatesMapRef.current.delete(id)
+            }
+        }
+    }, [tabs])
 
     // Handle window/container resize - update editor layout
     useEffect(() => {
@@ -1547,10 +1787,7 @@ function Editor({
         <div className="h-full w-full">
             <MonacoEditor
                 height="100%"
-                defaultLanguage={language === 'python' ? 'python' : language === 'java' ? 'java' : language === 'c' ? 'c' : language === 'plaintext' ? 'plaintext' : 'cpp'}
                 theme="vs-dark"
-                value={value}
-                onChange={onChange}
                 onMount={handleEditorMount}
                 options={{
                     fontSize: fontSize,

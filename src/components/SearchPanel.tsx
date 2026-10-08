@@ -145,7 +145,8 @@ function SearchPanel({ rootPath, onResultClick, onClose, onOpenFolder }: SearchP
                     let updated = fileContent
                     if (useRegex) {
                         try {
-                            const regex = new RegExp(query, caseSensitive ? 'g' : 'gi')
+                            const rawPattern = wholeWord ? `\\b${query}\\b` : query
+                            const regex = new RegExp(rawPattern, caseSensitive ? 'g' : 'gi')
                             const matches = fileContent.match(regex)
                             if (matches) replacedCount += matches.length
                             updated = fileContent.replace(regex, replaceText)
@@ -156,7 +157,8 @@ function SearchPanel({ rootPath, onResultClick, onClose, onOpenFolder }: SearchP
                         // String replacement
                         const flags = caseSensitive ? 'g' : 'gi'
                         const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                        const regex = new RegExp(escaped, flags)
+                        const rawPattern = wholeWord ? `\\b${escaped}\\b` : escaped
+                        const regex = new RegExp(rawPattern, flags)
                         const matches = fileContent.match(regex)
                         if (matches) replacedCount += matches.length
                         updated = fileContent.replace(regex, replaceText)

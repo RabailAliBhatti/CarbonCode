@@ -23,7 +23,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
             { description: 'Open File', keys: ['Ctrl', 'O'] },
             { description: 'Save File', keys: ['Ctrl', 'S'] },
             { description: 'Save As', keys: ['Ctrl', 'Shift', 'S'] },
-            { description: 'Close Current Tab', keys: ['Ctrl', 'Q'] },
+            { description: 'Close Current Tab', keys: ['Ctrl', 'W'] },
         ]
     },
     {

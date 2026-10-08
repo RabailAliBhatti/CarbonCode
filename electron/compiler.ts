@@ -22,6 +22,7 @@ export interface RunRequest {
     rootPath?: string | null
     cppStandard?: string
     cStandard?: string
+    runInExternalConsole?: boolean
 }
 
 // Store running processes for potential cancellation
@@ -567,6 +568,25 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
         // Write source code to temp file
         writeFileSync(sourceFile, code, 'utf-8')
 
+        // Auto-promote C++ standard if newer features are explicitly used in source code
+        let effectiveCppStandard = cppStandard || 'c++17'
+        const stdHierarchy: Record<string, number> = {
+            'c++11': 11,
+            'c++14': 14,
+            'c++17': 17,
+            'c++20': 20,
+            'c++23': 23
+        }
+        const currentStdLevel = stdHierarchy[effectiveCppStandard.toLowerCase()] || 17
+
+        if (currentStdLevel < 17 && (code.includes('<filesystem>') || code.includes('std::filesystem') || code.includes('<string_view>') || code.includes('std::string_view') || code.includes('<optional>') || code.includes('std::optional') || code.includes('<variant>') || code.includes('std::variant') || code.includes('<any>') || code.includes('std::any'))) {
+            effectiveCppStandard = 'c++17'
+        } else if (currentStdLevel < 20 && (code.includes('<ranges>') || code.includes('std::ranges') || code.includes('<concepts>') || code.includes('<format>') || code.includes('std::format') || code.includes('std::span') || code.includes('<span') || code.includes('<coroutine>') || code.includes('<numbers>') || code.includes('<barrier>') || code.includes('<latch>') || code.includes('<semaphore>') || code.includes('<stop_token>') || code.includes('<source_location>'))) {
+            effectiveCppStandard = 'c++20'
+        } else if (currentStdLevel < 23 && (code.includes('<print>') || code.includes('std::print') || code.includes('std::println'))) {
+            effectiveCppStandard = 'c++23'
+        }
+
         // Build compile command
         let compileCmd: string
         let compileArgs: string[]
@@ -576,9 +596,12 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
 
         if (compiler === 'cl.exe') {
             // MSVC compiler
+            const msvcStd = effectiveCppStandard === 'c++23'
+                ? '/std:c++latest'
+                : (effectiveCppStandard === 'c++11' ? '/std:c++14' : `/std:${effectiveCppStandard}`)
             compileArgs = [
                 '/EHsc',
-                `/std:${cppStandard.replace('c++', 'c++')}`,
+                msvcStd,
                 '/W4',
                 `/Fe:${executableFile}`,
                 sourceFile
@@ -587,7 +610,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
         } else {
             // GCC/Clang
             compileArgs = [
-                `-std=${cppStandard}`,
+                `-std=${effectiveCppStandard}`,
                 '-Wall',
                 '-Wextra',
                 '-o', executableFile,
@@ -607,9 +630,14 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
         if (!compileResult.success) {
             cleanupDir(tempDir)
 
+            let errorOutput = compileResult.stderr || compileResult.stdout
+            if (errorOutput.includes("'std::filesystem' has not been declared") || (errorOutput.includes("filesystem") && errorOutput.includes("not been declared"))) {
+                errorOutput += '\n\n💡 Tip: std::filesystem requires C++17 or higher. Set C++ Standard to C++17 or later in the top toolbar.'
+            }
+
             return {
                 success: false,
-                error: `🔧 Compilation Error:\n\n${compileResult.stderr || compileResult.stdout}`,
+                error: `🔧 Compilation Error:\n\n${errorOutput}`,
                 compileTime
             }
         }
@@ -917,6 +945,94 @@ export function startPythonProcess(
     tempDirToCleanup?: string
 ): ChildProcess {
     return spawnProcess(pythonPath, ['-u', scriptPath], cwd, onStdout, onStderr, onExit, undefined, tempDirToCleanup)
+}
+
+export function startExternalConsoleProcess(
+    options: {
+        title: string
+        command: string
+        args?: string[]
+        cwd: string
+        env?: NodeJS.ProcessEnv
+        tempDirToCleanup?: string
+    },
+    onExit: (code: number) => void
+): ChildProcess {
+    const tempDir = options.tempDirToCleanup || join(tmpdir(), `carboncode-ext-${randomUUID()}`)
+    if (!existsSync(tempDir)) {
+        mkdirSync(tempDir, { recursive: true })
+    }
+
+    const batFile = join(tempDir, 'run_external.bat')
+    const mingwBin = findBundledMingw()
+    const cleanTitle = options.title.replace(/[&|<>^"']/g, '')
+
+    let fullCommand = options.command.includes(' ') ? `"${options.command}"` : options.command
+    if (options.args && options.args.length > 0) {
+        const formattedArgs = options.args.map(a => a.includes(' ') ? `"${a}"` : a).join(' ')
+        fullCommand += ` ${formattedArgs}`
+    }
+
+    const batLines = [
+        '@echo off',
+        'chcp 65001 >nul',
+        `title CarbonCode - ${cleanTitle}`,
+        mingwBin ? `set "PATH=${mingwBin};%PATH%"` : '',
+        `cd /d "${options.cwd}"`,
+        'cls',
+        fullCommand,
+        'set CC_EXIT_CODE=%ERRORLEVEL%',
+        'echo.',
+        'echo --------------------------------',
+        'echo Process exited with return value %CC_EXIT_CODE%',
+        'echo Press any key to continue . . .',
+        'pause >nul',
+        'exit %CC_EXIT_CODE%'
+    ].filter(line => line !== '').join('\r\n')
+
+    writeFileSync(batFile, batLines, 'utf-8')
+
+    let proc: ChildProcess
+
+    if (process.platform === 'win32') {
+        proc = spawn('cmd.exe', ['/c', 'start', `CarbonCode - ${cleanTitle}`, '/wait', batFile], {
+            cwd: options.cwd,
+            shell: false,
+            windowsHide: false,
+            stdio: 'ignore'
+        })
+    } else if (process.platform === 'darwin') {
+        const script = `tell application "Terminal" to do script "cd \\"${options.cwd}\\" && ${fullCommand}; echo ''; echo '--------------------------------'; read -n 1 -s -r -p 'Press any key to continue . . .'; exit"`
+        proc = spawn('osascript', ['-e', script], { stdio: 'ignore' })
+    } else {
+        const bashCmd = `cd "${options.cwd}" && ${fullCommand}; echo ""; echo "--------------------------------"; read -n 1 -s -r -p "Press any key to continue . . ."`
+        proc = spawn('x-terminal-emulator', ['-e', `bash -c '${bashCmd}'`], { stdio: 'ignore' })
+    }
+
+    currentProcess = proc
+
+    proc.on('close', (code) => {
+        if (currentProcess === proc) {
+            currentProcess = null
+        }
+        onExit(code || 0)
+        if (options.tempDirToCleanup) {
+            setTimeout(() => cleanupDir(options.tempDirToCleanup!), 1000)
+        }
+    })
+
+    proc.on('error', (err) => {
+        console.error('External console process error:', err)
+        if (currentProcess === proc) {
+            currentProcess = null
+        }
+        onExit(1)
+        if (options.tempDirToCleanup) {
+            setTimeout(() => cleanupDir(options.tempDirToCleanup!), 1000)
+        }
+    })
+
+    return proc
 }
 
 /**

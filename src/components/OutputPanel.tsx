@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { CompileError } from '../utils/parseCompileErrors'
+import { OutputStyle, DosTheme, ConsoleMode } from '../hooks/useSettings'
 
 interface CompilationResult {
     success: boolean
@@ -16,12 +17,86 @@ interface OutputPanelProps {
     onInput: (data: string) => void
     onStop: () => void
     fontSize?: number
+    onFontSizeChange?: (size: number) => void
     parsedErrors?: CompileError[]
     onErrorClick?: (file: string | null, line: number, column?: number) => void
     onClear?: () => void
+    position?: 'bottom' | 'right'
+    onTogglePosition?: () => void
+    isMaximized?: boolean
+    onToggleMaximize?: () => void
+    outputStyle?: OutputStyle
+    onOutputStyleChange?: (style: OutputStyle) => void
+    dosTheme?: DosTheme
+    onDosThemeChange?: (theme: DosTheme) => void
+    consoleMode?: ConsoleMode
+    onConsoleModeChange?: (mode: ConsoleMode) => void
+    activeFileName?: string
 }
 
 const MAX_VISIBLE_LINES = 500
+
+const DOS_THEMES: Record<DosTheme, {
+    bg: string
+    text: string
+    prompt: string
+    accent: string
+    cursor: string
+    border: string
+    headerBg: string
+    headerText: string
+    divider: string
+    name: string
+}> = {
+    classic: {
+        bg: '#0C0C0C',
+        text: '#CCCCCC',
+        prompt: '#FFFFFF',
+        accent: '#569CD6',
+        cursor: '#CCCCCC',
+        border: '#2D2D2D',
+        headerBg: '#1A1A1A',
+        headerText: '#E0E0E0',
+        divider: '#444444',
+        name: 'Classic CMD'
+    },
+    matrix: {
+        bg: '#040F04',
+        text: '#22EE22',
+        prompt: '#55FF55',
+        accent: '#00FF41',
+        cursor: '#22EE22',
+        border: '#0A330A',
+        headerBg: '#081F08',
+        headerText: '#33FF33',
+        divider: '#0E440E',
+        name: 'Matrix Green'
+    },
+    amber: {
+        bg: '#0F0902',
+        text: '#FFB000',
+        prompt: '#FFCC33',
+        accent: '#FFA500',
+        cursor: '#FFB000',
+        border: '#3D2400',
+        headerBg: '#211405',
+        headerText: '#FFB000',
+        divider: '#4E3000',
+        name: 'Retro Amber'
+    },
+    turboc: {
+        bg: '#000080',
+        text: '#FFFF55',
+        prompt: '#FFFFFF',
+        accent: '#00AAAA',
+        cursor: '#FFFF55',
+        border: '#0000B0',
+        headerBg: '#000050',
+        headerText: '#FFFFFF',
+        divider: '#0055AA',
+        name: 'Turbo C++'
+    }
+}
 
 export const OutputPanel: React.FC<OutputPanelProps> = ({
     result,
@@ -30,21 +105,43 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     onInput,
     onStop,
     fontSize = 13,
+    onFontSizeChange,
     parsedErrors = [],
     onErrorClick,
-    onClear
+    onClear,
+    position = 'bottom',
+    onTogglePosition,
+    isMaximized = false,
+    onToggleMaximize,
+    outputStyle = 'modern',
+    onOutputStyleChange,
+    dosTheme = 'classic',
+    onDosThemeChange,
+    consoleMode = 'integrated',
+    onConsoleModeChange,
+    activeFileName = 'main.exe'
 }) => {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
     const [inputValue, setInputValue] = useState('')
     const [cursorPos, setCursorPos] = useState(0)
+    const [dosAcknowledged, setDosAcknowledged] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
     const outputRef = useRef<HTMLDivElement>(null)
 
     const hasOutput = result?.output && result.output.trim().length > 0
     const hasErrors = result?.error && result.error.trim().length > 0
+    const isDos = outputStyle === 'dos'
+    const theme = DOS_THEMES[dosTheme] || DOS_THEMES.classic
 
     // Auto-switch to errors tab if there are errors and no output
     const effectiveTab = hasErrors && !hasOutput && !isRunning ? 'errors' : activeTab
+
+    // Reset DOS acknowledged state when running changes
+    useEffect(() => {
+        if (isRunning) {
+            setDosAcknowledged(false)
+        }
+    }, [isRunning])
 
     // Virtualize output
     const { visibleLines, totalLines, startIndex } = useMemo(() => {
@@ -62,7 +159,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         if (outputRef.current) {
             outputRef.current.scrollTop = outputRef.current.scrollHeight
         }
-    }, [result?.output, inputValue])
+    }, [result?.output, inputValue, isRunning])
 
     useEffect(() => {
         if (isRunning) {
@@ -120,6 +217,8 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         if (isRunning && inputRef.current) {
             inputRef.current.focus()
             setCursorPos(inputRef.current.selectionStart ?? inputRef.current.value.length)
+        } else if (isDos && result && !isRunning && !dosAcknowledged) {
+            setDosAcknowledged(true)
         }
     }
 
@@ -130,23 +229,23 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         const exec = result.executionTime || 0
         const totalMs = compile + exec
         if (totalMs > 0) {
-            return (totalMs / 1000).toFixed(2) + 's'
+            return (totalMs / 1000).toFixed(3) + ' seconds'
         }
-        return null
+        return '0.000 seconds'
     }, [result])
 
     return (
         <div className="h-full flex flex-col bg-carbon-surface border border-carbon-border rounded-xl shadow-card overflow-hidden select-none">
             {/* Panel Header */}
-            <div className="h-10 px-3 flex items-center justify-between border-b border-carbon-border bg-carbon-surface shrink-0">
-                {/* Tabs */}
-                <div className="flex items-center gap-1">
+            <div className="h-9 px-3 flex items-center justify-between border-b border-carbon-border bg-carbon-surface shrink-0 gap-2 whitespace-nowrap overflow-x-auto select-none">
+                {/* Left Tabs & Mode Controls */}
+                <div className="flex items-center gap-1.5 shrink-0">
                     {/* Output Tab */}
                     <button
                         onClick={() => setActiveTab('output')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                             effectiveTab === 'output'
-                                ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border'
+                                ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border shadow-xs'
                                 : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/40'
                         }`}
                     >
@@ -160,9 +259,9 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                     {/* Errors Tab */}
                     <button
                         onClick={() => setActiveTab('errors')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                             effectiveTab === 'errors'
-                                ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border'
+                                ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border shadow-xs'
                                 : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/40'
                         }`}
                     >
@@ -172,17 +271,47 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         <span>Errors</span>
                         {hasErrors && <span className="w-1.5 h-1.5 rounded-full bg-carbon-error" />}
                     </button>
+
+                    {/* Format Toggle (Modern vs DOS) */}
+                    {onOutputStyleChange && (
+                        <button
+                            onClick={() => onOutputStyleChange(outputStyle === 'dos' ? 'modern' : 'dos')}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer ${
+                                isDos
+                                    ? 'bg-carbon-elevated text-carbon-accent border border-carbon-border font-semibold'
+                                    : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated/60'
+                            }`}
+                            title="Toggle DOS / Dev-C++ visual style inside panel"
+                        >
+                            <span>{isDos ? '📟 DOS Theme' : '⚡ Modern'}</span>
+                        </button>
+                    )}
+
+                    {/* DOS Theme Selector */}
+                    {isDos && onDosThemeChange && (
+                        <select
+                            value={dosTheme}
+                            onChange={(e) => onDosThemeChange(e.target.value as DosTheme)}
+                            className="bg-carbon-bg border border-carbon-border rounded px-1.5 py-0.5 text-[11px] font-mono text-carbon-text-secondary hover:text-carbon-text-primary outline-none cursor-pointer"
+                            title="DOS Color Palette"
+                        >
+                            <option value="classic">Classic CMD</option>
+                            <option value="matrix">Matrix Green</option>
+                            <option value="amber">Retro Amber</option>
+                            <option value="turboc">Turbo C++</option>
+                        </select>
+                    )}
                 </div>
 
                 {/* Right Header Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                     {/* Running status indicator / Stop button */}
                     {isRunning && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 mr-1">
                             <span className="w-2 h-2 rounded-full bg-carbon-success animate-ping" />
                             <button
                                 onClick={onStop}
-                                className="px-2 py-0.5 rounded bg-carbon-error/20 text-carbon-error hover:bg-carbon-error/30 text-xs font-medium transition-colors"
+                                className="px-2 py-0.5 rounded bg-carbon-error/20 text-carbon-error hover:bg-carbon-error/30 text-[11px] font-medium transition-colors"
                                 title="Stop Program"
                             >
                                 Stop
@@ -190,30 +319,120 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         </div>
                     )}
 
+                    {/* Font Size controls (A- / A+) */}
+                    {onFontSizeChange && (
+                        <div className="flex items-center border border-carbon-border/80 rounded-md bg-carbon-bg/60 p-0.5" title="Output Font Size">
+                            <button
+                                onClick={() => onFontSizeChange(Math.max(10, fontSize - 1))}
+                                className="px-1.5 py-0.5 text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                title="Decrease Output Font Size (A-)"
+                            >
+                                A-
+                            </button>
+                            <span className="text-[10px] font-mono text-carbon-text-secondary px-1 select-none min-w-[20px] text-center">
+                                {fontSize}
+                            </span>
+                            <button
+                                onClick={() => onFontSizeChange(Math.min(24, fontSize + 1))}
+                                className="px-1.5 py-0.5 text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                title="Increase Output Font Size (A+)"
+                            >
+                                A+
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Maximize / Restore button */}
+                    {onToggleMaximize && (
+                        <button
+                            onClick={onToggleMaximize}
+                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                            title={isMaximized ? "Restore Output Size" : "Maximize Output Panel"}
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {isMaximized ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M14 4h6m0 0v6m0-6l-7 7M4 10h6m0 0V4m0 6L3 3" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                )}
+                            </svg>
+                        </button>
+                    )}
+
+                    {/* Position Toggle button */}
+                    {onTogglePosition && (
+                        <button
+                            onClick={onTogglePosition}
+                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                            title={`Dock panel to ${position === 'bottom' ? 'right side' : 'bottom'}`}
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {position === 'bottom' ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                )}
+                            </svg>
+                        </button>
+                    )}
+
                     {/* Clear button */}
                     {onClear && (
                         <button
                             onClick={onClear}
-                            className="flex items-center gap-1 px-2 py-1 text-xs text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
                             title="Clear Output"
                         >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            <span>Clear</span>
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Monospace Interactive Output Stream */}
+            {/* Optional Retro DOS Window Titlebar when in DOS mode */}
+            {isDos && (
+                <div
+                    className="h-6 px-3 flex items-center justify-between border-b text-[11px] font-mono select-none shrink-0"
+                    style={{ backgroundColor: theme.headerBg, borderColor: theme.border, color: theme.headerText }}
+                >
+                    <div className="flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 opacity-90" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/>
+                            <path d="M3.5 4.5h9v1h-9v-1zm0 3h9v1h-9v-1zm0 3h5v1h-5v-1z"/>
+                        </svg>
+                        <span className="font-semibold tracking-wide truncate">
+                            {dosTheme === 'turboc' ? 'Turbo C++ IDE Console' : `Command Prompt - ${activeFileName}`}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs opacity-75 font-sans">
+                        <span className="hover:opacity-100 cursor-pointer">_</span>
+                        <span className="hover:opacity-100 cursor-pointer">□</span>
+                        <span className="hover:opacity-100 cursor-pointer">✕</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Interactive Output Stream Area */}
             <div
                 ref={outputRef}
                 onClick={handleTerminalClick}
-                className={`flex-1 overflow-y-auto p-3.5 font-mono bg-carbon-bg text-carbon-text-primary select-text leading-relaxed scrollbar-thin relative ${
+                tabIndex={isDos && result && !isRunning ? 0 : undefined}
+                onKeyDown={() => {
+                    if (isDos && result && !isRunning && !dosAcknowledged) {
+                        setDosAcknowledged(true)
+                    }
+                }}
+                className={`flex-1 overflow-y-auto p-3.5 font-mono select-text leading-relaxed scrollbar-thin relative outline-none ${
                     isRunning ? 'cursor-text' : ''
-                }`}
-                style={{ fontSize: `${fontSize}px` }}
+                } ${isDos ? 'font-mono' : ''}`}
+                style={{
+                    fontSize: `${fontSize}px`,
+                    backgroundColor: isDos ? theme.bg : undefined,
+                    color: isDos ? theme.text : undefined,
+                    fontFamily: isDos ? "'Cascadia Mono', 'Consolas', 'Courier New', 'Lucida Console', monospace" : undefined
+                }}
             >
                 {/* Hidden input to capture stdin keystrokes when program is running */}
                 {isRunning && (
@@ -236,9 +455,42 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         <div className="w-3.5 h-3.5 border-2 border-carbon-warning border-t-transparent rounded-full animate-spin" />
                         <span>Compiling project...</span>
                     </div>
-                ) : result ? (
+                ) : result || isRunning ? (
                     effectiveTab === 'output' ? (
                         <>
+                            {/* External Console Mode Status Notice */}
+                            {consoleMode === 'external' && isRunning && (
+                                <div className="p-3 mb-3 rounded-lg border border-carbon-accent/40 bg-carbon-accent/10 flex items-start gap-3">
+                                    <div className="w-7 h-7 rounded-lg bg-carbon-accent/20 flex items-center justify-center shrink-0 text-carbon-accent mt-0.5">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1 text-xs">
+                                        <div className="font-semibold text-carbon-accent flex items-center gap-2">
+                                            <span>Active in Dev-C++ Command Prompt Window</span>
+                                            <span className="w-2 h-2 rounded-full bg-carbon-success animate-ping" />
+                                        </div>
+                                        <div className="text-carbon-text-secondary text-[11px] mt-0.5">
+                                            A separate native Windows CMD screen is open. Type your input (cin / scanf / input) and view interactive output in that window.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* DOS Banner & Command Prompt */}
+                            {isDos && (
+                                <div className="mb-2 select-none" style={{ color: theme.prompt }}>
+                                    <div className="opacity-80">Microsoft Windows [Version 10.0.26200]</div>
+                                    <div className="opacity-80">(c) Microsoft Corporation. All rights reserved.</div>
+                                    <div className="mt-2 font-bold flex items-center gap-1.5" style={{ color: theme.accent }}>
+                                        <span>C:\CarbonCode\Workspace&gt;</span>
+                                        <span style={{ color: theme.prompt }}>{activeFileName}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Program Output Lines */}
                             {hasOutput || isRunning ? (
                                 <div className="whitespace-pre-wrap break-words">
                                     {totalLines > MAX_VISIBLE_LINES && (
@@ -257,9 +509,16 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                                                 return (
                                                     <div key={startIndex + i} className="min-h-[1.4em]">
                                                         <span>{line}</span>
-                                                        <span className="text-carbon-accent-highlight font-medium">{textBeforeCursor}</span>
-                                                        <span className="terminal-cursor" />
-                                                        <span className="text-carbon-accent-highlight font-medium">{textAfterCursor}</span>
+                                                        <span className="font-medium" style={{ color: isDos ? theme.prompt : undefined }}>
+                                                            {textBeforeCursor}
+                                                        </span>
+                                                        <span
+                                                            className={isDos ? "inline-block w-2 h-4 align-middle animate-pulse ml-0.5" : "terminal-cursor"}
+                                                            style={isDos ? { backgroundColor: theme.cursor } : undefined}
+                                                        />
+                                                        <span className="font-medium" style={{ color: isDos ? theme.prompt : undefined }}>
+                                                            {textAfterCursor}
+                                                        </span>
                                                     </div>
                                                 )
                                             }
@@ -272,41 +531,64 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                                     })()}
                                 </div>
                             ) : (
-                                <div className="text-carbon-text-muted text-xs italic">
-                                    {result.success
-                                        ? 'Program completed with no output.'
-                                        : 'No output. Check the Errors tab for details.'
-                                    }
-                                </div>
+                                !isDos && (
+                                    <div className="text-carbon-text-muted text-xs italic">
+                                        {result?.success
+                                            ? 'Program completed with no output.'
+                                            : 'No output. Check the Errors tab for details.'
+                                        }
+                                    </div>
+                                )
                             )}
 
-                            {/* Execution Status Indicator - under output as before */}
+                            {/* Program Exit Status Indicator */}
                             {result && !isCompiling && !isRunning && (
-                                <div className={`mt-4 pt-3 border-t border-carbon-border/60 flex items-center justify-between select-none ${
-                                    result.success ? 'text-carbon-success' : 'text-carbon-error'
-                                }`}>
-                                    <div className="flex items-center gap-2 text-xs font-medium">
-                                        {result.success ? (
-                                            <>
-                                                <svg className="w-4 h-4 text-carbon-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                <span>Program executed successfully</span>
-                                            </>
+                                isDos ? (
+                                    /* Classic Dev-C++ / DOS Console Exit Signature */
+                                    <div className="mt-4 pt-2 select-none font-mono" style={{ color: theme.text }}>
+                                        <div className="opacity-60">--------------------------------</div>
+                                        <div className="mt-1 font-semibold" style={{ color: result.success ? (dosTheme === 'matrix' ? '#33FF33' : '#55FF55') : '#FF6666' }}>
+                                            Process exited after {totalTimeSeconds} with return value {result.success ? 0 : 1}
+                                        </div>
+                                        {!dosAcknowledged ? (
+                                            <div className="mt-2 flex items-center gap-1 opacity-90 animate-pulse" style={{ color: theme.prompt }}>
+                                                <span>Press any key to continue . . .</span>
+                                                <span className="inline-block w-2 h-3.5 align-middle" style={{ backgroundColor: theme.cursor }} />
+                                            </div>
                                         ) : (
-                                            <>
-                                                <svg className="w-4 h-4 text-carbon-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                                <span>Execution failed</span>
-                                            </>
+                                            <div className="mt-2 text-xs opacity-60 italic">
+                                                Ready for next execution. Press F5 to run again.
+                                            </div>
                                         )}
                                     </div>
+                                ) : (
+                                    /* Modern Carbon Status Indicator */
+                                    <div className={`mt-4 pt-3 border-t border-carbon-border/60 flex items-center justify-between select-none ${
+                                        result.success ? 'text-carbon-success' : 'text-carbon-error'
+                                    }`}>
+                                        <div className="flex items-center gap-2 text-xs font-medium">
+                                            {result.success ? (
+                                                <>
+                                                    <svg className="w-4 h-4 text-carbon-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    <span>Program executed successfully</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4 text-carbon-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                    <span>Execution failed</span>
+                                                </>
+                                            )}
+                                        </div>
 
-                                    {totalTimeSeconds && (
-                                        <span className="font-mono text-[11px] text-carbon-text-muted">{totalTimeSeconds}</span>
-                                    )}
-                                </div>
+                                        {totalTimeSeconds && (
+                                            <span className="font-mono text-[11px] text-carbon-text-muted">{totalTimeSeconds}</span>
+                                        )}
+                                    </div>
+                                )
                             )}
                         </>
                     ) : (

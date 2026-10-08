@@ -111,6 +111,70 @@ describe('Compiler Pipeline', () => {
             }
         })
 
+        it('should auto-promote C++11 or C++14 to C++17 when <filesystem> is used', async () => {
+            const { spawn } = await import('child_process')
+            const mockSpawn = vi.mocked(spawn)
+            const { existsSync } = await import('fs')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+
+            mockSpawn.mockImplementation((() => ({
+                stdout: { on: vi.fn() },
+                stderr: { on: vi.fn() },
+                on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+                    if (event === 'close') setTimeout(() => cb(0), 0)
+                }),
+                kill: vi.fn(),
+                stdin: { write: vi.fn() }
+            })) as any)
+
+            const { compileCode } = await import('../../electron/compiler')
+
+            await compileCode('#include <filesystem>\nint main() { std::filesystem::current_path(); }', 'c++11')
+
+            const spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('g++')
+            )
+
+            expect(spawnCall).toBeDefined()
+            if (spawnCall) {
+                const args = spawnCall[1] as string[]
+                expect(args.some(arg => String(arg).includes('-std=c++17'))).toBe(true)
+            }
+        })
+
+        it('should auto-promote to C++20 when <ranges> or <concepts> is used with C++14', async () => {
+            const { spawn } = await import('child_process')
+            const mockSpawn = vi.mocked(spawn)
+            const { existsSync } = await import('fs')
+
+            vi.mocked(existsSync).mockReturnValue(true)
+
+            mockSpawn.mockImplementation((() => ({
+                stdout: { on: vi.fn() },
+                stderr: { on: vi.fn() },
+                on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+                    if (event === 'close') setTimeout(() => cb(0), 0)
+                }),
+                kill: vi.fn(),
+                stdin: { write: vi.fn() }
+            })) as any)
+
+            const { compileCode } = await import('../../electron/compiler')
+
+            await compileCode('#include <ranges>\nint main() {}', 'c++14')
+
+            const spawnCall = mockSpawn.mock.calls.find(
+                call => call[0] && String(call[0]).includes('g++')
+            )
+
+            expect(spawnCall).toBeDefined()
+            if (spawnCall) {
+                const args = spawnCall[1] as string[]
+                expect(args.some(arg => String(arg).includes('-std=c++20'))).toBe(true)
+            }
+        })
+
         it('should handle MSVC (cl.exe) arguments differently', async () => {
             const { spawn } = await import('child_process')
             const mockSpawn = vi.mocked(spawn)
@@ -478,6 +542,18 @@ describe('Compiler Pipeline', () => {
             const result = await detectCCompiler('/custom/gcc')
 
             expect(result).toBe('/custom/gcc')
+        })
+    })
+
+    describe('Compile error enhancement', () => {
+        it('should append actionable tip when std::filesystem is undeclared', async () => {
+            const { parseCompileErrors } = await import('../utils/parseCompileErrors')
+            const rawGccOutput = `main.cpp:13:13: error: 'std::filesystem' has not been declared; did you mean 'std::system'?`
+            const errors = parseCompileErrors(rawGccOutput, 'test.cpp')
+
+            expect(errors.length).toBe(1)
+            expect(errors[0].message).toContain('Requires C++17 or higher')
+            expect(errors[0].message).toContain('Set C++ Standard to C++17 in the toolbar')
         })
     })
 })

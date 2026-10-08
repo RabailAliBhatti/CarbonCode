@@ -260,6 +260,27 @@ export function useFileManager() {
         }))
     }, [])
 
+    // Update tab language (e.g. from Toolbar language selector)
+    const updateTabLanguage = useCallback((tabId: string, language: SupportedLanguage) => {
+        setTabs(prev => prev.map(tab => {
+            if (tab.id === tabId) {
+                let newFileName = tab.fileName
+                if (!tab.filePath) {
+                    const baseName = tab.fileName.replace(/\.(cpp|cc|cxx|c|java|py|txt)$/i, '')
+                    const ext = language === 'python' ? '.py' : language === 'java' ? '.java' : language === 'c' ? '.c' : language === 'plaintext' ? '.txt' : '.cpp'
+                    newFileName = `${baseName}${ext}`
+                }
+                return {
+                    ...tab,
+                    language,
+                    fileName: newFileName,
+                    isDirty: true
+                }
+            }
+            return tab
+        }))
+    }, [])
+
     // Close tab
     const closeTab = useCallback(async (tabId: string): Promise<boolean> => {
         // Remove tab
@@ -366,6 +387,7 @@ export function useFileManager() {
         createNewTab,
         openFile,
         updateTabContent,
+        updateTabLanguage,
         markTabSaved,
         closeTab,
         closeOtherTabs,

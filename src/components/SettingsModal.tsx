@@ -1,4 +1,4 @@
-import { Settings, CppStandard, CStandard } from '../hooks/useSettings'
+import { Settings, CppStandard, CStandard, OutputStyle, DosTheme, ConsoleMode } from '../hooks/useSettings'
 
 interface SettingsModalProps {
     isVisible: boolean
@@ -243,11 +243,53 @@ function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: Settin
 
                     <div className="h-px bg-editor-border" />
 
-                    {/* Output Settings */}
+                    {/* Output & Terminal Settings */}
                     <section className="space-y-4">
-                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Output Panel</h3>
+                        <h3 className="text-sm font-semibold text-accent uppercase tracking-wider">Output & Terminal</h3>
 
                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1 col-span-2">
+                                <label className="text-sm text-text-primary">Console Window / Execution Mode</label>
+                                <select
+                                    value={settings.consoleMode || 'integrated'}
+                                    onChange={(e) => onUpdateSetting('consoleMode', e.target.value as ConsoleMode)}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                >
+                                    <option value="integrated">Integrated Panel (Inside IDE)</option>
+                                    <option value="external">External CMD Screen (Dev-C++ / DOS Popup)</option>
+                                </select>
+                                <p className="text-xs text-text-secondary">External mode pops up a separate native Windows Command Prompt with interactive standard input (cin/scanf) and pause on exit, just like Dev-C++.</p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">Terminal Format</label>
+                                <select
+                                    value={settings.outputStyle || 'modern'}
+                                    onChange={(e) => onUpdateSetting('outputStyle', e.target.value as OutputStyle)}
+                                    className="w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all"
+                                >
+                                    <option value="modern">Modern (Carbon Dark)</option>
+                                    <option value="dos">Classic DOS / Dev-C++</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm text-text-primary">DOS Theme</label>
+                                <select
+                                    value={settings.dosTheme || 'classic'}
+                                    onChange={(e) => onUpdateSetting('dosTheme', e.target.value as DosTheme)}
+                                    disabled={settings.outputStyle !== 'dos'}
+                                    className={`w-full bg-editor-sidebar border border-editor-border rounded px-3 py-1.5 text-sm text-text-bright focus:border-accent outline-none focus:ring-1 focus:ring-accent transition-all ${
+                                        settings.outputStyle !== 'dos' ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    <option value="classic">Classic CMD (Black & White)</option>
+                                    <option value="matrix">Matrix Phosphor (Green)</option>
+                                    <option value="amber">Retro CRT (Amber)</option>
+                                    <option value="turboc">Borland Turbo C++ (Blue & Yellow)</option>
+                                </select>
+                            </div>
+
                             <div className="space-y-1">
                                 <label className="text-sm text-text-primary">Output Font Size</label>
                                 <input

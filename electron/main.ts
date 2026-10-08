@@ -1,9 +1,9 @@
 import { app, BrowserWindow, Menu, ipcMain, dialog, globalShortcut, shell } from 'electron'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, mkdirSync, type FSWatcher } from 'fs'
 import { randomUUID } from 'crypto'
 import os from 'os'
-import { detectCompiler, detectJavaRuntime, detectPython, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startPythonProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, setCustomPythonPath, getCompilerInfo, getPythonInfo, RuntimeInfo, RunRequest } from './compiler'
+import { detectCompiler, detectJavaRuntime, detectPython, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startPythonProcess, startExternalConsoleProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, setCustomPythonPath, getCompilerInfo, getPythonInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
 
@@ -30,6 +30,7 @@ function createWindow() {
         resizable: false,
         alwaysOnTop: true,
         transparent: true,
+        hasShadow: false,
         skipTaskbar: true,
         center: true,
         webPreferences: {
@@ -196,8 +197,19 @@ function createApplicationMenu() {
                     click: () => mainWindow?.webContents.send('menu:save-as')
                 },
                 {
+                    label: 'Close Tab',
+                    accelerator: 'CmdOrCtrl+W',
+                    click: () => mainWindow?.webContents.send('menu:close-tab')
+                },
+                {
                     label: 'Close Folder',
                     click: () => mainWindow?.webContents.send('menu:close-folder')
+                },
+                { type: 'separator' },
+                {
+                    label: 'Settings...',
+                    accelerator: 'CmdOrCtrl+,',
+                    click: () => mainWindow?.webContents.send('menu:settings')
                 },
                 { type: 'separator' },
                 {
@@ -574,6 +586,8 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         } catch { }
     }
 
+    const targetFileName = request.filePath ? basename(request.filePath) : (request.language === 'python' ? 'main.py' : request.language === 'java' ? 'Main.java' : request.language === 'c' ? 'main.c' : 'main.cpp')
+
     if (request.language === 'java') {
         // Static analysis: warn if Scanner is created but never read from
         const code = request.code
@@ -595,6 +609,31 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         }
 
         const targetCwd = executionCwd || compileResult.tempDir
+
+        if (request.runInExternalConsole) {
+            mainWindow?.webContents.send('process:stdout', `🖥️ Running in external console (Dev-C++ CMD window)...\n[Title: CarbonCode - ${targetFileName}]\n`)
+            const cpSep = process.platform === 'win32' ? ';' : ':'
+            const classpath = compileResult.tempDir === targetCwd ? compileResult.tempDir : `${compileResult.tempDir}${cpSep}${targetCwd}`
+            startExternalConsoleProcess({
+                title: targetFileName,
+                command: compileResult.executablePath,
+                args: ['-cp', classpath, compileResult.mainClass],
+                cwd: targetCwd,
+                tempDirToCleanup: compileResult.tempDir
+            }, (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+                mainWindow?.webContents.send('workspace:refresh')
+            })
+
+            if (warningMsg) {
+                mainWindow?.webContents.send('process:stdout', warningMsg)
+            }
+
+            return {
+                success: true,
+                compileTime: compileResult.compileTime
+            }
+        }
 
         startJavaProcess(
             compileResult.executablePath,
@@ -640,6 +679,25 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
 
         const targetCwd = executionCwd || os.tmpdir()
 
+        if (request.runInExternalConsole) {
+            mainWindow?.webContents.send('process:stdout', `🖥️ Running in external console (Dev-C++ CMD window)...\n[Title: CarbonCode - ${targetFileName}]\n`)
+            startExternalConsoleProcess({
+                title: targetFileName,
+                command: pythonInfo.runtimePath,
+                args: ['-u', scriptPath],
+                cwd: targetCwd,
+                tempDirToCleanup: tempDir
+            }, (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+                mainWindow?.webContents.send('workspace:refresh')
+            })
+
+            return {
+                success: true,
+                compileTime: 0
+            }
+        }
+
         startPythonProcess(
             pythonInfo.runtimePath,
             scriptPath,
@@ -676,6 +734,24 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
 
         const targetCwd = executionCwd || compileResult.tempDir
 
+        if (request.runInExternalConsole) {
+            mainWindow?.webContents.send('process:stdout', `🖥️ Running in external console (Dev-C++ CMD window)...\n[Title: CarbonCode - ${targetFileName}]\n`)
+            startExternalConsoleProcess({
+                title: targetFileName,
+                command: compileResult.executablePath,
+                cwd: targetCwd,
+                tempDirToCleanup: compileResult.tempDir
+            }, (code) => {
+                mainWindow?.webContents.send('process:exit', code)
+                mainWindow?.webContents.send('workspace:refresh')
+            })
+
+            return {
+                success: true,
+                compileTime: compileResult.compileTime
+            }
+        }
+
         startInteractiveProcess(
             compileResult.executablePath,
             targetCwd,
@@ -710,6 +786,24 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     }
 
     const targetCwd = executionCwd || compileResult.tempDir
+
+    if (request.runInExternalConsole) {
+        mainWindow?.webContents.send('process:stdout', `🖥️ Running in external console (Dev-C++ CMD window)...\n[Title: CarbonCode - ${targetFileName}]\n`)
+        startExternalConsoleProcess({
+            title: targetFileName,
+            command: compileResult.executablePath,
+            cwd: targetCwd,
+            tempDirToCleanup: compileResult.tempDir
+        }, (code) => {
+            mainWindow?.webContents.send('process:exit', code)
+            mainWindow?.webContents.send('workspace:refresh')
+        })
+
+        return {
+            success: true,
+            compileTime: compileResult.compileTime
+        }
+    }
 
     startInteractiveProcess(
         compileResult.executablePath,

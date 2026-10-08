@@ -14,8 +14,10 @@ export interface RunRequest {
     language: SupportedLanguage
     code: string
     filePath?: string | null
+    rootPath?: string | null
     cppStandard?: string
     cStandard?: string
+    runInExternalConsole?: boolean
 }
 
 export interface CompilationResult {

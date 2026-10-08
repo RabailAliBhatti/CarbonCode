@@ -302,11 +302,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             </div>
                             <div className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60">
                                 <span className="text-xs text-carbon-text-secondary">Run</span>
-                                <span className="px-2 py-0.5 rounded-md bg-carbon-elevated border border-carbon-border text-[11px] font-mono text-carbon-accent font-medium">F5 / F6</span>
+                                <span className="px-2 py-0.5 rounded-md bg-carbon-elevated border border-carbon-border text-[11px] font-mono text-carbon-accent font-medium">F5</span>
                             </div>
                             <div className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60">
                                 <span className="text-xs text-carbon-text-secondary">Close Tab</span>
-                                <span className="px-2 py-0.5 rounded-md bg-carbon-elevated border border-carbon-border text-[11px] font-mono text-carbon-text-primary font-medium">Ctrl+Q</span>
+                                <span className="px-2 py-0.5 rounded-md bg-carbon-elevated border border-carbon-border text-[11px] font-mono text-carbon-text-primary font-medium">Ctrl+W</span>
                             </div>
                         </div>
                     </div>
@@ -314,7 +314,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     {/* Bottom Motivational Quote */}
                     <div className="text-center py-2">
                         <p className="text-xs text-carbon-text-muted italic">
-                            — Build, test, and learn in C, C++, or Java with CarbonCode. —
+                            — Build, test, and learn in C, C++, Java, or Python with CarbonCode. —
                         </p>
                     </div>
                 </div>
@@ -402,6 +402,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                                     <span className="text-orange-400">J</span>
                                                 ) : file.language === 'c' ? (
                                                     <span className="text-cyan-400">C</span>
+                                                ) : file.language === 'plaintext' ? (
+                                                    <span className="text-slate-300 text-[8px]">TXT</span>
                                                 ) : (
                                                     <span className="text-blue-400">C++</span>
                                                 )}

@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 
 export type CppStandard = 'c++11' | 'c++14' | 'c++17' | 'c++20' | 'c++23'
 export type CStandard = 'c99' | 'c11' | 'c17' | 'c23'
+export type OutputStyle = 'modern' | 'dos'
+export type DosTheme = 'classic' | 'matrix' | 'amber' | 'turboc'
+export type ConsoleMode = 'integrated' | 'external'
 
 export interface Settings {
     fontSize: number
@@ -19,6 +22,11 @@ export interface Settings {
     formatOnSave: boolean
     outputFontSize: number
     outputPosition: 'bottom' | 'right'
+    outputStyle?: OutputStyle
+    dosTheme?: DosTheme
+    consoleMode?: ConsoleMode
+    outputHeight?: number
+    outputWidth?: number
     explorerWidth: number
     analyticsConsent: boolean | null  // null = not asked, true = opted in, false = opted out
 }
@@ -39,6 +47,11 @@ const DEFAULT_SETTINGS: Settings = {
     wordWrap: false,
     outputFontSize: 13,
     outputPosition: 'bottom',
+    outputStyle: 'modern',
+    dosTheme: 'classic',
+    consoleMode: 'integrated',
+    outputHeight: 240,
+    outputWidth: 400,
     explorerWidth: 250,
     analyticsConsent: null
 }

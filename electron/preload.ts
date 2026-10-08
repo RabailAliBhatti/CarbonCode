@@ -87,6 +87,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onCloseFolder: (cb: () => void) => onIpc('menu:close-folder', cb),
     onSave: (cb: () => void) => onIpc('menu:save', cb),
     onSaveAs: (cb: () => void) => onIpc('menu:save-as', cb),
+    onCloseTab: (cb: () => void) => onIpc('menu:close-tab', cb),
+    onOpenSettings: (cb: () => void) => onIpc('menu:settings', cb),
     onRun: (cb: () => void) => onIpc('menu:run', cb),
     onStop: (cb: () => void) => onIpc('menu:stop', cb),
     onDebugStart: (cb: () => void) => onIpc('menu:debug-start', cb),

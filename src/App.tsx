@@ -72,6 +72,7 @@ function App() {
         createNewTab,
         openFile,
         updateTabContent,
+        updateTabLanguage,
         markTabSaved,
         closeTab,
         duplicateTab,
@@ -142,7 +143,8 @@ function App() {
     const [parsedErrors, setParsedErrors] = useState<CompileError[]>([])
 
     // UI state
-    const [outputWidth, setOutputWidth] = useState<number>(400)
+    const [outputWidth, setOutputWidth] = useState<number>(settings.outputWidth || 400)
+    const [outputHeight, setOutputHeight] = useState<number>(settings.outputHeight || 240)
     const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 })
     const [rootPath, setRootPath] = useState<string | null>(null)
 
@@ -610,7 +612,8 @@ function App() {
             filePath: activeTab.filePath,
             rootPath,
             cppStandard: settings.cppStandard,
-            cStandard: settings.cStandard
+            cStandard: settings.cStandard,
+            runInExternalConsole: settings.consoleMode === 'external'
         })
 
         setIsCompiling(false)
@@ -641,7 +644,7 @@ function App() {
             })
         }
 
-    }, [activeTab, settings.cppStandard, settings.cStandard, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
+    }, [activeTab, settings.cppStandard, settings.cStandard, settings.consoleMode, hasActiveRuntime, activeLanguage, isRunning, isDetecting])
 
     // Close a tab, prompting the user to save if dirty. Returns true if the tab
     // was closed (or the user chose Don't Save), false if the user cancelled.
@@ -684,6 +687,33 @@ function App() {
         await closeWithPrompt(tabId)
     }, [closeWithPrompt])
 
+    const handleRunRef = useRef(handleRun)
+    handleRunRef.current = handleRun
+    const handleStopRef = useRef(handleStop)
+    handleStopRef.current = handleStop
+    const handleDebugStartRef = useRef(handleDebugStart)
+    handleDebugStartRef.current = handleDebugStart
+    const handleDebugStopRef = useRef(handleDebugStop)
+    handleDebugStopRef.current = handleDebugStop
+    const handleDebugStepOverRef = useRef(handleDebugStepOver)
+    handleDebugStepOverRef.current = handleDebugStepOver
+    const handleDebugStepIntoRef = useRef(handleDebugStepInto)
+    handleDebugStepIntoRef.current = handleDebugStepInto
+    const handleDebugStepOutRef = useRef(handleDebugStepOut)
+    handleDebugStepOutRef.current = handleDebugStepOut
+    const handleDebugContinueRef = useRef(handleDebugContinue)
+    handleDebugContinueRef.current = handleDebugContinue
+    const handleToggleBreakpointRef = useRef(handleToggleBreakpoint)
+    handleToggleBreakpointRef.current = handleToggleBreakpoint
+    const closeWithPromptRef = useRef(closeWithPrompt)
+    closeWithPromptRef.current = closeWithPrompt
+    const activeTabIdRef = useRef(activeTabId)
+    activeTabIdRef.current = activeTabId
+    const currentViewRef = useRef(currentView)
+    currentViewRef.current = currentView
+    const tabsRef = useRef(tabs)
+    tabsRef.current = tabs
+
     // Register menu event listeners
     useEffect(() => {
         if (!window.electronAPI) return
@@ -692,7 +722,13 @@ function App() {
         const cleanupCloseFolder = window.electronAPI.onCloseFolder(handleCloseFolder)
         const cleanupSave = window.electronAPI.onSave(handleSave)
         const cleanupSaveAs = window.electronAPI.onSaveAs(handleSaveAs)
-        const cleanupRun = window.electronAPI.onRun(handleRun)
+        const cleanupCloseTab = window.electronAPI.onCloseTab(() => {
+            if (activeTabIdRef.current) closeWithPromptRef.current(activeTabIdRef.current)
+        })
+        const cleanupSettings = window.electronAPI.onOpenSettings(() => {
+            setShowSettings(true)
+        })
+        const cleanupRun = window.electronAPI.onRun(() => handleRunRef.current())
         const cleanupStop = window.electronAPI.onStop(handleStop)
 
         // Debug menu listeners
@@ -715,6 +751,8 @@ function App() {
             cleanupCloseFolder?.()
             cleanupSave?.()
             cleanupSaveAs?.()
+            cleanupCloseTab?.()
+            cleanupSettings?.()
             cleanupRun?.()
             cleanupStop?.()
             cleanupDebugStart?.()
@@ -726,7 +764,7 @@ function App() {
             cleanupDebugToggleBp?.()
             cleanupSessionDiscard?.()
         }
-    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleRun, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint, discardAll])
+    }, [handleNewFile, handleOpenFile, handleCloseFolder, handleSave, handleSaveAs, handleStop, handleDebugStart, handleDebugStop, handleDebugStepOver, handleDebugStepInto, handleDebugStepOut, handleDebugContinue, handleToggleBreakpoint, discardAll])
 
     // Tab context menu state
     const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
@@ -836,54 +874,110 @@ function App() {
         }, 50)
     }, [tabs, activeTab, switchToTab, openFile, pathsEqual])
 
-    // Keyboard shortcuts
+    // Global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // F5 - Run code
-            if (e.key === 'F5' && !e.shiftKey) {
+            // F5 - Run code (no modifiers)
+            if (e.key === 'F5' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
                 e.preventDefault()
-                if (!isCompiling && !isRunning && hasActiveRuntime) {
-                    handleRun()
-                }
+                handleRunRef.current()
+                return
             }
             // Shift+F5 - Stop execution
-            if (e.shiftKey && e.key === 'F5') {
+            if (e.key === 'F5' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
                 e.preventDefault()
-                if (isRunning) {
-                    handleStop()
+                handleStopRef.current()
+                return
+            }
+            // Ctrl+F5 - Start debugging
+            if (e.key === 'F5' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugStartRef.current()
+                return
+            }
+            // Ctrl+Shift+F5 - Stop debugging
+            if (e.key === 'F5' && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugStopRef.current()
+                return
+            }
+            // F8 - Debug continue
+            if (e.key === 'F8' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugContinueRef.current()
+                return
+            }
+            // F9 - Toggle breakpoint
+            if (e.key === 'F9' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleToggleBreakpointRef.current()
+                return
+            }
+            // F10 - Debug step over
+            if (e.key === 'F10' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugStepOverRef.current()
+                return
+            }
+            // F11 - Debug step into
+            if (e.key === 'F11' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugStepIntoRef.current()
+                return
+            }
+            // Shift+F11 - Debug step out
+            if (e.key === 'F11' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                handleDebugStepOutRef.current()
+                return
+            }
+            // Ctrl+W - Close active tab
+            if (e.ctrlKey && (e.key === 'w' || e.key === 'W')) {
+                e.preventDefault()
+                if (activeTabIdRef.current) {
+                    closeWithPromptRef.current(activeTabIdRef.current)
                 }
+                return
+            }
+            // Ctrl+, - Open Settings
+            if (e.ctrlKey && e.key === ',') {
+                e.preventDefault()
+                setShowSettings(true)
+                return
             }
             // Ctrl+B - Toggle explorer
-            if (e.ctrlKey && e.key === 'b') {
+            if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) {
                 e.preventDefault()
                 setShowExplorer(prev => !prev)
+                return
             }
-            // Ctrl+F/H - Find/Replace
-            if (e.ctrlKey && (e.key === 'f' || e.key === 'h')) {
+            // Ctrl+F or Ctrl+H - Find/Replace
+            if (e.ctrlKey && !e.shiftKey && (e.key === 'f' || e.key === 'F' || e.key === 'h' || e.key === 'H')) {
                 e.preventDefault()
                 setShowFind(true)
+                return
             }
             // Ctrl+Shift+F - Search in files
-            if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
                 e.preventDefault()
-                if (currentView === 'dashboard') {
-                    if (tabs.length === 0) {
+                if (currentViewRef.current === 'dashboard') {
+                    if (tabsRef.current.length === 0) {
                         createNewTab('cpp', authorName || undefined)
                     }
                     setCurrentView('editor')
                 }
                 setShowSearch(prev => !prev)
-                if (showSearch) setShowFind(false)
+                return
             }
             // Escape - Close dialogs
             if (e.key === 'Escape') {
-                if (showFind) setShowFind(false)
-                if (showSearch) setShowSearch(false)
+                setShowFind(false)
+                setShowSearch(false)
             }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isCompiling, isRunning, hasActiveRuntime, handleRun, handleStop, showFind, showSearch])
+    }, [createNewTab, authorName])
 
     // Start coding (dismiss welcome screen, create first tab if none)
     const handleStartCoding = useCallback(() => {
@@ -938,6 +1032,11 @@ function App() {
             {/* Top Unified Command Bar (from Dashboard Design New.png and Coding Screen.png) */}
             <Toolbar
                 language={activeLanguage}
+                onLanguageChange={(lang) => {
+                    if (activeTabId) {
+                        updateTabLanguage(activeTabId, lang)
+                    }
+                }}
                 cppStandard={settings.cppStandard}
                 onCppStandardChange={(std) => updateSetting('cppStandard', std)}
                 cStandard={settings.cStandard}
@@ -949,6 +1048,8 @@ function App() {
                 isCompiling={isCompiling}
                 hasCompiler={hasActiveRuntime}
                 onOpenSettings={() => setShowSettings(true)}
+                consoleMode={settings.consoleMode || 'integrated'}
+                onConsoleModeChange={(mode) => updateSetting('consoleMode', mode)}
             />
 
             {/* Main Application Area: Navigation Rail + Main Workspace */}
@@ -1024,6 +1125,12 @@ function App() {
                             cursorPosition={cursorPosition}
                             settings={settings}
                             onRun={handleRun}
+                            onSave={() => handleSave()}
+                            onSaveAs={() => handleSaveAs()}
+                            onCloseTab={() => {
+                                if (activeTabId) closeWithPrompt(activeTabId)
+                            }}
+                            onOpenSettings={() => setShowSettings(true)}
                             parsedErrors={parsedErrors}
                             showExplorer={showExplorer}
                             onToggleExplorer={() => setShowExplorer(prev => !prev)}
@@ -1039,16 +1146,28 @@ function App() {
                             onDebugStepInto={handleDebugStepInto}
                             onDebugStepOut={handleDebugStepOut}
                             onDebugContinue={handleDebugContinue}
+                            onToggleBreakpoint={handleToggleBreakpoint}
+                            onToggleSearch={() => setShowSearch(prev => !prev)}
                             compilationResult={compilationResult}
                             isCompiling={isCompiling}
                             isRunning={isRunning}
                             onInput={handleInput}
                             onStop={handleStop}
                             onErrorClick={handleLocationClick}
-                            outputWidth={outputWidth}
-                            onOutputWidthChange={setOutputWidth}
+                            outputWidth={settings.outputWidth || outputWidth}
+                            onOutputWidthChange={(w) => {
+                                setOutputWidth(w)
+                                updateSetting('outputWidth', w)
+                            }}
+                            outputHeight={settings.outputHeight || outputHeight}
+                            onOutputHeightChange={(h) => {
+                                setOutputHeight(h)
+                                updateSetting('outputHeight', h)
+                            }}
+                            onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
                             onClearOutput={() => setCompilationResult(null)}
                             onUpdateExplorerWidth={(w) => updateSetting('explorerWidth', w)}
+                            onUpdateSetting={updateSetting}
                         />
                     )}
                 </main>

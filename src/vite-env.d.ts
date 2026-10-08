@@ -41,6 +41,7 @@ declare global {
                 rootPath?: string | null
                 cppStandard?: string
                 cStandard?: string
+                runInExternalConsole?: boolean
             }) => Promise<{ success: boolean; error?: string; compileTime?: number }>
             writeProcess: (data: string) => Promise<void>
             stopProcess: () => Promise<void>
@@ -81,6 +82,8 @@ declare global {
             onCloseFolder: (callback: () => void) => () => void
             onSave: (callback: () => void) => () => void
             onSaveAs: (callback: () => void) => () => void
+            onCloseTab: (callback: () => void) => () => void
+            onOpenSettings: (callback: () => void) => () => void
             onRun: (callback: () => void) => () => void
             onStop: (callback: () => void) => () => void
             onDebugStart: (callback: () => void) => () => void

@@ -14,6 +14,7 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
     const [matchCase, setMatchCase] = useState(false)
     const [wholeWord, setWholeWord] = useState(false)
     const [useRegex, setUseRegex] = useState(false)
+    const [searchVersion, setSearchVersion] = useState(0)
 
     const [matches, setMatches] = useState<editor.FindMatch[]>([])
     const [currentMatchIndex, setCurrentMatchIndex] = useState(-1)
@@ -33,19 +34,20 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
         if (!editor || !searchText) {
             setMatches([])
             setCurrentMatchIndex(-1)
-            // Clear decorations if we were using them (Monaco handles selection highlighting automatically if we just select)
             return
         }
 
         const model = editor.getModel()
         if (!model) return
 
+        const wordSeparators = wholeWord ? '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/? \t\n\r' : null
+
         const findMatches = model.findMatches(
             searchText,
             true, // searchOnlyEditableRange
             useRegex,
             matchCase,
-            wholeWord ? ' ' : null,
+            wordSeparators,
             true // captureMatches
         )
 
@@ -73,7 +75,7 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
             setCurrentMatchIndex(-1)
         }
 
-    }, [editor, searchText, matchCase, wholeWord, useRegex])
+    }, [editor, searchText, matchCase, wholeWord, useRegex, searchVersion])
 
     // Navigate matches
     const navigate = (direction: 'next' | 'prev') => {
@@ -103,17 +105,7 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
             forceMoveMarkers: true
         }])
 
-        // The edit will trigger a re-search via the model change listener in App, 
-        // but we can also trigger a re-search here by depending on model content? 
-        // Actually, simple way: update search (useEffect will run)
-        // But useEffect depends on searchText, which hasn't changed.
-        // We need to re-run search.
-
-        // For now, let's just re-run search manually or force update
-        // A better way is to rely on editor.onDidChangeModelContent but that's complex to hook up here.
-        // Let's just create a quick re-run trigger
-        setSearchText(prev => prev + ' ')
-        setTimeout(() => setSearchText(prev => prev.slice(0, -1)), 0)
+        setSearchVersion(v => v + 1)
     }
 
     // Replace all
@@ -127,6 +119,7 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
         }))
 
         editor.executeEdits('find-replace', edits)
+        setSearchVersion(v => v + 1)
     }
 
     // Handle keyboard shortcuts in input
@@ -238,12 +231,12 @@ function FindReplace({ editor, isVisible, onClose }: FindReplaceProps) {
                         </div>
 
                         {/* Replace Actions */}
-                        <button onClick={replaceCurrent} className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary" title="Replace (Ctrl+Shift+1)">
+                        <button onClick={replaceCurrent} className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary" title="Replace (Enter / Click)">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                         </button>
-                        <button onClick={replaceAll} className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary" title="Replace All (Ctrl+Alt+Enter)">
+                        <button onClick={replaceAll} className="p-1.5 hover:bg-white/10 rounded text-text-secondary hover:text-text-primary" title="Replace All">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
