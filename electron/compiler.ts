@@ -806,7 +806,7 @@ export async function compileCCode(code: string, cStandard: string, filePath?: s
 
 
 
-export async function compileJavaCode(code: string, filePath?: string | null): Promise<CompileResult & { mainClass?: string }> {
+export async function compileJavaCode(code: string, filePath?: string | null, rootPath?: string | null): Promise<CompileResult & { mainClass?: string }> {
     const runtime = await detectJavaRuntime()
 
     if (!runtime.compilerPath || !runtime.runtimePath) {
@@ -835,8 +835,29 @@ export async function compileJavaCode(code: string, filePath?: string | null): P
         writeFileSync(sourceFile, code, 'utf-8')
 
         const javacCmd = runtime.compilerPath
+        const javacArgs: string[] = ['-encoding', 'UTF-8']
+
+        const sourceDirs: string[] = []
+        if (filePath) {
+            try {
+                const dir = dirname(filePath)
+                if (dir && existsSync(dir)) sourceDirs.push(dir)
+            } catch { }
+        }
+        if (rootPath && existsSync(rootPath) && !sourceDirs.includes(rootPath)) {
+            sourceDirs.push(rootPath)
+        }
+
+        if (sourceDirs.length > 0) {
+            const sep = process.platform === 'win32' ? ';' : ':'
+            javacArgs.push('-sourcepath', sourceDirs.join(sep))
+            javacArgs.push('-cp', `${tempDir}${sep}${sourceDirs.join(sep)}`)
+        }
+
+        javacArgs.push(sourceFile)
+
         const compileStart = Date.now()
-        const compileResult = await runCompilationProcess(javacCmd, [sourceFile], tempDir, 30000)
+        const compileResult = await runCompilationProcess(javacCmd, javacArgs, tempDir, 30000)
         const compileTime = Date.now() - compileStart
 
         if (!compileResult.success) {
@@ -979,9 +1000,10 @@ export function startPythonProcess(
     scriptPath: string,
     cwd: string,
     onStdout: (d: string) => void, onStderr: (d: string) => void, onExit: (code: number) => void,
-    tempDirToCleanup?: string
+    tempDirToCleanup?: string,
+    env?: NodeJS.ProcessEnv
 ): ChildProcess {
-    return spawnProcess(pythonPath, ['-u', scriptPath], cwd, onStdout, onStderr, onExit, undefined, tempDirToCleanup)
+    return spawnProcess(pythonPath, ['-u', scriptPath], cwd, onStdout, onStderr, onExit, env, tempDirToCleanup)
 }
 
 export function startExternalConsoleProcess(

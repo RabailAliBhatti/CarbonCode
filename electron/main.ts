@@ -602,7 +602,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             warningMsg = '\n⚠️ Warning: Your code creates a Scanner to read from System.in, but no read method (next(), nextLine(), etc.) was found. The Scanner is unused.\n\n'
         }
 
-        const compileResult = await compileJavaCode(request.code, request.filePath)
+        const compileResult = await compileJavaCode(request.code, request.filePath, request.rootPath)
 
         if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir || !compileResult.mainClass) {
             return {
@@ -676,12 +676,39 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
             }
         }
 
-        const tempDir = join(os.tmpdir(), 'carboncode-py-' + randomUUID())
-        mkdirSync(tempDir, { recursive: true })
-        const scriptPath = join(tempDir, 'main.py')
-        writeFileSync(scriptPath, request.code, 'utf8')
+        let scriptPath: string
+        let tempDir: string | undefined
 
-        const targetCwd = executionCwd || os.tmpdir()
+        // If file exists on disk, run directly from disk so local imports work seamlessly
+        if (request.filePath) {
+            try {
+                writeFileSync(request.filePath, request.code, 'utf8')
+            } catch { }
+            scriptPath = request.filePath
+        } else {
+            tempDir = join(os.tmpdir(), 'carboncode-py-' + randomUUID())
+            mkdirSync(tempDir, { recursive: true })
+            scriptPath = join(tempDir, 'main.py')
+            writeFileSync(scriptPath, request.code, 'utf8')
+        }
+
+        const targetCwd = executionCwd || (request.filePath ? dirname(request.filePath) : os.tmpdir())
+
+        // Build PYTHONPATH including file directory and workspace root
+        const pyPaths = [targetCwd]
+        if (request.rootPath && existsSync(request.rootPath) && !pyPaths.includes(request.rootPath)) {
+            pyPaths.push(request.rootPath)
+        }
+        if (process.env.PYTHONPATH) {
+            pyPaths.push(process.env.PYTHONPATH)
+        }
+        const pySep = process.platform === 'win32' ? ';' : ':'
+        const pythonEnv: NodeJS.ProcessEnv = {
+            ...process.env,
+            PYTHONUNBUFFERED: '1',
+            PYTHONIOENCODING: 'utf-8',
+            PYTHONPATH: pyPaths.join(pySep)
+        }
 
         if (request.runInExternalConsole) {
             mainWindow?.webContents.send('process:stdout', `🖥️ Running in external console (Dev-C++ CMD window)...\n[Title: CarbonCode - ${targetFileName}]\n`)
@@ -690,6 +717,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
                 command: pythonInfo.runtimePath,
                 args: ['-u', scriptPath],
                 cwd: targetCwd,
+                env: pythonEnv,
                 tempDirToCleanup: tempDir
             }, (code) => {
                 mainWindow?.webContents.send('process:exit', code)
@@ -716,7 +744,8 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
                 mainWindow?.webContents.send('process:exit', code)
                 mainWindow?.webContents.send('workspace:refresh')
             },
-            tempDir
+            tempDir,
+            pythonEnv
         )
 
         return {
