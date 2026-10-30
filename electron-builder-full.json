@@ -28,7 +28,7 @@
                 ]
             }
         ],
-        "icon": "public/icon.png",
+        "icon": "public/icon.ico",
         "artifactName": "CarbonCode-Full-${version}.${ext}",
         "signAndEditExecutable": false
     },
@@ -37,8 +37,18 @@
         "perMachine": true,
         "include": "installer.nsh",
         "allowToChangeInstallationDirectory": true,
+        "allowElevation": true,
         "createDesktopShortcut": true,
         "createStartMenuShortcut": true,
-        "shortcutName": "CarbonCode"
+        "shortcutName": "CarbonCode",
+        "uninstallDisplayName": "CarbonCode IDE",
+        "deleteAppDataOnUninstall": false,
+        "installerIcon": "public/icon.ico",
+        "uninstallerIcon": "public/icon.ico",
+        "installerHeaderIcon": "public/icon.ico",
+        "displayLanguageSelector": false,
+        "installerLanguages": [
+            "en_US"
+        ]
     }
 }

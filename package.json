@@ -92,7 +92,14 @@
       "shortcutName": "CarbonCode",
       "uninstallDisplayName": "CarbonCode IDE",
       "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "displayLanguageSelector": false,
+      "installerLanguages": [
+        "en_US"
+      ]
     },
     "mac": {
       "target": "dmg",

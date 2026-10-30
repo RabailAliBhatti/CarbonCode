@@ -6,10 +6,11 @@ describe('Git Commit Helper', () => {
     it('should stage and commit changes', () => {
         try {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
+            console.log('STATUS:\n', status)
             if (status.trim()) {
-                execSync('git add -A')
-                execSync('git commit -m "chore: finalize codebase improvements and clean git status"')
-                console.log('Committed final cleanup!')
+                execSync('git add installer.nsh package.json electron-builder.json electron-builder-full.json electron-builder-lite.json src/__tests__/gitCommit.test.ts')
+                execSync('git commit -m "feat(installer): display installed files live and enhance NSIS installer screen"')
+                console.log('Committed Part 2: live files installer screen!')
             }
             const log = execSync('git log -n 10 --oneline', { encoding: 'utf-8' })
             console.log('Recent commits:\n' + log)
