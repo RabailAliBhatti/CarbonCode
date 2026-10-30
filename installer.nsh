@@ -9,15 +9,6 @@
     ShowUninstDetails show
 !macroend
 
-; Run at start of install section to ensure live details print is enabled
-!macro customCheckAppRunning
-    !insertmacro _CHECK_APP_RUNNING
-    SetDetailsPrint both
-    DetailPrint "Preparing CarbonCode installation..."
-    DetailPrint "Destination: $INSTDIR"
-    DetailPrint "Extracting core application binaries..."
-!macroend
-
 ; Run after archive extraction completes — enumerate and show all files being installed
 !macro customInstall
     SetDetailsPrint both
