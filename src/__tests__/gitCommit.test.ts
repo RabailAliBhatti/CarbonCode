@@ -8,7 +8,7 @@ describe('Git Commit Helper', () => {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
             if (status.trim()) {
                 execSync('git add -A')
-                execSync('git commit -m "fix(runner): enable project-context execution and local imports for Python and Java"')
+                execSync('git commit -m "fix(editor): scope compiler error markers to active file tab"')
                 console.log('Successfully committed via git runner!')
             }
         } catch (e: any) {

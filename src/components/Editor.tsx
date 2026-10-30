@@ -1765,12 +1765,31 @@ function Editor({
         }
     }, [])
 
-    // Set compile error markers
+    // Set compile error markers scoped strictly to the current active file
     useEffect(() => {
         const model = editorRef.current?.getModel()
         if (!model || !monacoRef.current) return
 
-        const markers: monacoEditor.editor.IMarkerData[] = parsedErrors.map(err => ({
+        // Normalize paths for reliable matching on Windows
+        const normalize = (p?: string | null) => (p || '').replace(/\\/g, '/').toLowerCase().trim()
+        const activePath = normalize(activeTab?.filePath)
+        const activeTitle = normalize(activeTab?.title)
+
+        // Filter errors: include only if error has no file specified (e.g. scratch buffer),
+        // or matches the current activeTab filePath or filename
+        const matchingErrors = parsedErrors.filter(err => {
+            if (!err.file) return true
+            const errPath = normalize(err.file)
+            if (activePath && (errPath === activePath || errPath.endsWith('/' + activeTitle) || activePath.endsWith('/' + errPath))) {
+                return true
+            }
+            if (!activePath && activeTitle && (errPath === activeTitle || errPath.endsWith('/' + activeTitle))) {
+                return true
+            }
+            return false
+        })
+
+        const markers: monacoEditor.editor.IMarkerData[] = matchingErrors.map(err => ({
             severity: err.severity === 'error' ? monacoRef.current!.MarkerSeverity.Error : monacoRef.current!.MarkerSeverity.Warning,
             message: err.message,
             startLineNumber: err.line,
@@ -1781,7 +1800,7 @@ function Editor({
         }))
 
         monacoRef.current.editor.setModelMarkers(model, 'compiler', markers)
-    }, [parsedErrors])
+    }, [parsedErrors, activeTabId, activeTab?.filePath, activeTab?.title])
 
     return (
         <div className="h-full w-full">
