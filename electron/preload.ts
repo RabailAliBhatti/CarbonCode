@@ -56,8 +56,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onProcessExit: (cb: (code: number) => void) => onIpc('process:exit', cb),
 
     // Debugger API
-    debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') =>
-        ipcRenderer.invoke('debugger:start', code, breakpoints, language),
+    debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp', filePath?: string | null, rootPath?: string | null) =>
+        ipcRenderer.invoke('debugger:start', code, breakpoints, language, filePath, rootPath),
+    debugEvaluate: (expression: string) =>
+        ipcRenderer.invoke('debugger:evaluate', expression),
     debugStop: () => ipcRenderer.invoke('debugger:stop'),
     debugStepOver: () => ipcRenderer.invoke('debugger:step-over'),
     debugStepInto: () => ipcRenderer.invoke('debugger:step-into'),

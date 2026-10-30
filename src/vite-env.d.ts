@@ -51,7 +51,8 @@ declare global {
             onProcessStdout: (callback: (data: string) => void) => () => void
             onProcessStderr: (callback: (data: string) => void) => () => void
             onProcessExit: (callback: (code: number) => void) => () => void
-            debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') => Promise<{ success: boolean; error?: string }>
+            debugStart: (code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp', filePath?: string | null, rootPath?: string | null) => Promise<{ success: boolean; error?: string }>
+            debugEvaluate: (expression: string) => Promise<{ success: boolean; value?: string; error?: string }>
             debugStop: () => Promise<void>
             debugStepOver: () => Promise<void>
             debugStepInto: () => Promise<void>

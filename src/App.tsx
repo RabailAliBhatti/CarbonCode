@@ -488,7 +488,7 @@ function App() {
         const code = editorRef.current?.getValue() || activeTab.content
         const bpArray = breakpoints.map(line => ({ line }))
         const debugLang = (activeTab.language === 'c' ? 'c' : 'cpp') as 'c' | 'cpp'
-        const result = await window.electronAPI.debugStart(code, bpArray, debugLang)
+        const result = await window.electronAPI.debugStart(code, bpArray, debugLang, activeTab.filePath, rootPath)
         if (result.success) {
             window.electronAPI?.trackEvent?.('debug_started', { language: activeLanguage })
         } else {
@@ -498,7 +498,7 @@ function App() {
                 error: result.error || 'Failed to start debugging'
             })
         }
-    }, [activeTab, breakpoints, activeLanguage])
+    }, [activeTab, breakpoints, activeLanguage, rootPath])
     const handleDebugStop = useCallback(async () => { await window.electronAPI.debugStop() }, [])
     const handleDebugStepOver = useCallback(async () => { await window.electronAPI.debugStepOver() }, [])
     const handleDebugStepInto = useCallback(async () => { await window.electronAPI.debugStepInto() }, [])

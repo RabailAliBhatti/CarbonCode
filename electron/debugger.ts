@@ -48,7 +48,7 @@ export class DebuggerService extends EventEmitter {
         return { ...this.state }
     }
 
-    async start(code: string, breakpoints: { line: number }[], language: 'c' | 'cpp' = 'cpp'): Promise<{ success: boolean; error?: string }> {
+    async start(code: string, breakpoints: { line: number }[], language: 'c' | 'cpp' = 'cpp', filePath?: string, rootPath?: string): Promise<{ success: boolean; error?: string }> {
         try {
             const isC = language === 'c'
             const sourceFileName = isC ? 'debug_main.c' : 'debug_main.cpp'
@@ -68,8 +68,22 @@ export class DebuggerService extends EventEmitter {
                 return { success: false, error: isC ? 'gcc compiler not found.' : 'g++ compiler not found.' }
             }
 
-            // Compile with debug symbols
-            const compileResult = await this.compile(compilerPath, sourcePath, this.executablePath)
+            // Resolve include directories for local project headers
+            const includeDirs: string[] = []
+            if (filePath) {
+                const fileDir = path.dirname(filePath)
+                includeDirs.push(fileDir)
+            }
+            if (rootPath && fs.existsSync(rootPath)) {
+                if (!includeDirs.includes(rootPath)) includeDirs.push(rootPath)
+                const inc = path.join(rootPath, 'include')
+                if (fs.existsSync(inc) && !includeDirs.includes(inc)) includeDirs.push(inc)
+                const src = path.join(rootPath, 'src')
+                if (fs.existsSync(src) && !includeDirs.includes(src)) includeDirs.push(src)
+            }
+
+            // Compile with debug symbols and include paths
+            const compileResult = await this.compile(compilerPath, sourcePath, this.executablePath, includeDirs)
             if (!compileResult.success) {
                 return { success: false, error: compileResult.error }
             }
@@ -209,6 +223,24 @@ export class DebuggerService extends EventEmitter {
         return locals
     }
 
+    async evaluateExpression(expression: string): Promise<{ success: boolean; value?: string; error?: string }> {
+        if (!this.gdbProcess || this.state.status !== 'stopped') {
+            return { success: false, error: 'Debugger must be paused at a breakpoint' }
+        }
+
+        const sanitized = expression.trim().replace(/"/g, '\\"')
+        const response = await this.sendCommand(`-data-evaluate-expression "${sanitized}"`)
+
+        if (response.includes('^done')) {
+            const valMatch = response.match(/value="([^"]*)"/)
+            return { success: true, value: valMatch ? valMatch[1] : '' }
+        } else if (response.includes('^error')) {
+            const msgMatch = response.match(/msg="([^"]*)"/)
+            return { success: false, error: msgMatch ? msgMatch[1] : 'Evaluation failed' }
+        }
+        return { success: false, error: 'No response from GDB' }
+    }
+
     private handleOutput(data: string): void {
         this.emit('stdout', data)
 
@@ -282,9 +314,10 @@ export class DebuggerService extends EventEmitter {
         })
     }
 
-    private compile(gppPath: string, sourcePath: string, outputPath: string): Promise<{ success: boolean; error?: string }> {
+    private compile(gppPath: string, sourcePath: string, outputPath: string, includeDirs: string[] = []): Promise<{ success: boolean; error?: string }> {
         return new Promise((resolve) => {
-            const proc = spawn(gppPath, ['-g', '-o', outputPath, sourcePath])
+            const incFlags = includeDirs.map(d => `-I${d}`)
+            const proc = spawn(gppPath, ['-g', ...incFlags, '-o', outputPath, sourcePath])
             let stderr = ''
 
             proc.stderr?.on('data', (data) => {

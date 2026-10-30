@@ -1028,8 +1028,12 @@ debugService.on('stderr', (data: string) => {
     mainWindow?.webContents.send('debugger:stderr', data)
 })
 
-ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp') => {
-    return await debugService.start(code, breakpoints, language)
+ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp', filePath?: string, rootPath?: string) => {
+    return await debugService.start(code, breakpoints, language, filePath, rootPath)
+})
+
+ipcMain.handle('debugger:evaluate', async (_, expression: string) => {
+    return await debugService.evaluateExpression(expression)
 })
 
 ipcMain.handle('debugger:stop', async () => {
