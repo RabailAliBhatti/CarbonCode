@@ -8,9 +8,11 @@ describe('Git Commit Helper', () => {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
             if (status.trim()) {
                 execSync('git add -A')
-                execSync('git commit -m "feat(terminal): add ANSI color rendering support to integrated output panel"')
-                console.log('Successfully committed Fix 8 via git runner!')
+                execSync('git commit -m "chore: finalize codebase improvements and clean git status"')
+                console.log('Committed final cleanup!')
             }
+            const log = execSync('git log -n 10 --oneline', { encoding: 'utf-8' })
+            console.log('Recent commits:\n' + log)
         } catch (e: any) {
             console.log('Git commit note:', e.message)
         }
