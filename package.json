@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "commit": "node scripts/git-commit.js",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build"
   },
@@ -51,6 +52,11 @@
     ],
     "appId": "com.rabailalibhatti.carboncode",
     "productName": "CarbonCode",
+    "publish": {
+      "provider": "github",
+      "owner": "RabailAliBhatti",
+      "repo": "CarbonCode"
+    },
     "copyright": "Copyright © 2026 Rabail Ali Bhatti",
     "directories": {
       "output": "release"

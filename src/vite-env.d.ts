@@ -110,6 +110,11 @@ declare global {
             onFileChanged: (callback: (filePath: string) => void) => () => void
             onWorkspaceRefresh: (callback: () => void) => () => void
             onSessionDiscard: (callback: () => void) => () => void
+            checkForUpdates: (manual?: boolean) => Promise<{ status: string; currentVersion: string; newVersion?: string; releaseNotes?: string; downloadUrl?: string; errorMessage?: string }>
+            downloadUpdate: (customUrl?: string) => Promise<boolean>
+            installUpdate: () => Promise<boolean>
+            getUpdateStatus: () => Promise<{ status: string; currentVersion: string; newVersion?: string; releaseNotes?: string; downloadUrl?: string; downloadPercent?: number; errorMessage?: string }>
+            onUpdateStatus: (callback: (info: { status: string; currentVersion: string; newVersion?: string; releaseNotes?: string; downloadUrl?: string; downloadPercent?: number; errorMessage?: string }) => void) => () => void
         }
     }
 }

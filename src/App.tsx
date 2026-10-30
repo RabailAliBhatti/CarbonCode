@@ -12,6 +12,7 @@ import NewFileDialog from './components/NewFileDialog'
 import NavigationRail, { NavItem } from './components/NavigationRail'
 import CodingScreen from './components/CodingScreen'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
+import UpdateNotificationToast from './components/UpdateNotificationToast'
 import { useFileManager } from './hooks/useFileManager'
 import { SupportedLanguage, getLanguageFromFileName } from './types/language'
 import { useSettings, CppStandard, CStandard } from './hooks/useSettings'
@@ -277,6 +278,12 @@ function App() {
                 setJavaRuntimeInfo(javaRuntime)
                 setPythonRuntimeInfo(pythonRuntime)
                 setAuthorName(name)
+                window.electronAPI?.trackEvent?.('toolchain_detected', {
+                    cpp_available: !!compiler ? 'yes' : 'no',
+                    cpp_source: compiler ? (compiler.includes('mingw') ? 'bundled_mingw' : 'custom_or_system') : 'none',
+                    java_available: !!javaRuntime?.compilerPath ? 'yes' : 'no',
+                    python_available: !!pythonRuntime?.runtimePath ? 'yes' : 'no'
+                })
             } finally {
                 setIsDetecting(false)
             }
@@ -622,7 +629,11 @@ function App() {
             executionStartRef.current = Date.now()
             setIsRunning(true)
             // Track analytics - code run successfully
-            window.electronAPI?.trackEvent?.('code_run', { language: activeLanguage, lineCount })
+            window.electronAPI?.trackEvent?.('code_run', { 
+                language: activeLanguage, 
+                lineCount,
+                consoleMode: settings.consoleMode || 'integrated'
+            })
             setCompilationResult({
                 success: true,
                 output: '',
@@ -1244,6 +1255,11 @@ function App() {
             <KeyboardShortcutsModal
                 isOpen={showShortcutsModal}
                 onClose={() => setShowShortcutsModal(false)}
+            />
+
+            {/* In-App Background Update Notification */}
+            <UpdateNotificationToast
+                onOpenSettings={() => setShowSettings(true)}
             />
         </div>
     )

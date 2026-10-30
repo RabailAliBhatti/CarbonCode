@@ -55,7 +55,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onConsoleModeChange
 }) => {
     const [menuOpen, setMenuOpen] = useState(false)
+    const [updateInfo, setUpdateInfo] = useState<{ status: string; newVersion?: string; downloadPercent?: number } | null>(null)
     const menuRef = useRef<HTMLDivElement>(null)
+
+    // Listen to background auto-updater status
+    useEffect(() => {
+        if (!window.electronAPI) return
+        window.electronAPI.getUpdateStatus?.().then((st) => {
+            if (st && (st.status === 'update-available' || st.status === 'downloading' || st.status === 'update-downloaded')) {
+                setUpdateInfo(st)
+            }
+        })
+        const unsubscribe = window.electronAPI.onUpdateStatus?.((info) => {
+            if (info && (info.status === 'update-available' || info.status === 'downloading' || info.status === 'update-downloaded')) {
+                setUpdateInfo(info)
+            } else {
+                setUpdateInfo(null)
+            }
+        })
+        return () => {
+            unsubscribe?.()
+        }
+    }, [])
 
     // Close menu on click outside
     useEffect(() => {
@@ -295,6 +316,43 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             </svg>
                             <span>CMD Screen</span>
                         </button>
+                    </div>
+                )}
+
+                {/* Auto-Update Notification Badge */}
+                {updateInfo && (
+                    <div className="flex items-center">
+                        {updateInfo.status === 'update-available' && (
+                            <button
+                                onClick={onOpenSettings}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-carbon-accent/15 border border-carbon-accent/50 text-carbon-accent text-xs font-semibold hover:bg-carbon-accent/25 transition-all shadow-sm animate-pulse"
+                                title={`CarbonCode ${updateInfo.newVersion || ''} is available. Click to open Settings and update.`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-carbon-accent" />
+                                <span>Update Available</span>
+                            </button>
+                        )}
+                        {updateInfo.status === 'downloading' && (
+                            <div
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-carbon-surface border border-carbon-border text-xs text-carbon-text-primary shadow-sm"
+                                title={`Downloading update: ${updateInfo.downloadPercent || 0}%`}
+                            >
+                                <div className="w-2.5 h-2.5 border-2 border-carbon-accent border-t-transparent rounded-full animate-spin" />
+                                <span>Updating {updateInfo.downloadPercent || 0}%</span>
+                            </div>
+                        )}
+                        {updateInfo.status === 'update-downloaded' && (
+                            <button
+                                onClick={() => window.electronAPI?.installUpdate?.()}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/60 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/30 transition-all shadow-glow"
+                                title="Click to restart CarbonCode and apply the update now"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Restart to Update</span>
+                            </button>
+                        )}
                     </div>
                 )}
 

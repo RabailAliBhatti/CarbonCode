@@ -6,6 +6,7 @@ import os from 'os'
 import { detectCompiler, detectJavaRuntime, detectPython, compileCode, compileCCode, compileJavaCode, startInteractiveProcess, startJavaProcess, startPythonProcess, startExternalConsoleProcess, writeToProcess, killProcess, setCustomCompilerPath, setCustomJavaPath, setCustomPythonPath, getCompilerInfo, getPythonInfo, RuntimeInfo, RunRequest } from './compiler'
 import { getDebugger, DebugState } from './debugger'
 import * as analytics from './analytics'
+import { initUpdater } from './updater'
 
 // Set app name BEFORE anything else for Windows taskbar
 app.name = 'CarbonCode'
@@ -67,6 +68,9 @@ function createWindow() {
 
     // Force the window title
     mainWindow.setTitle('CarbonCode')
+
+    // Initialize background auto-updater
+    initUpdater(mainWindow)
 
     // Fast, responsive splash to main window transition
     let splashClosed = false
@@ -1044,13 +1048,16 @@ ipcMain.handle('analytics:track', (_, eventName: string, params?: Record<string,
             analytics.trackCodeCompiled(params?.language as string || 'unknown', params?.lineCount as number || 0)
             break
         case 'code_run':
-            analytics.trackCodeRun(params?.language as string || 'unknown', params?.lineCount as number || 0)
+            analytics.trackCodeRun(params?.language as string || 'unknown', params?.lineCount as number || 0, params?.consoleMode as string)
             break
         case 'code_run_error':
             analytics.trackCodeRunError(params?.language as string || 'unknown', params?.lineCount as number || 0, params?.errorMessage as string || '')
             break
         case 'debug_started':
             analytics.trackDebugStarted(params?.language as string || 'unknown')
+            break
+        default:
+            analytics.trackGeneric(eventName, params)
             break
     }
 })

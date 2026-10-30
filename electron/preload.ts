@@ -122,5 +122,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onWorkspaceRefresh: (cb: () => void) => onIpc('workspace:refresh', cb),
 
     // Session management
-    onSessionDiscard: (cb: () => void) => onIpc('session:discard', cb)
+    onSessionDiscard: (cb: () => void) => onIpc('session:discard', cb),
+
+    // Auto-updater API
+    checkForUpdates: (manual?: boolean) => ipcRenderer.invoke('updater:check', manual),
+    downloadUpdate: (customUrl?: string) => ipcRenderer.invoke('updater:download', customUrl),
+    installUpdate: () => ipcRenderer.invoke('updater:install'),
+    getUpdateStatus: () => ipcRenderer.invoke('updater:get-status'),
+    onUpdateStatus: (cb: (info: any) => void) => onIpc('updater:status-changed', cb)
 })
