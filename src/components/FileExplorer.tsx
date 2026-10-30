@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface FileNode {
     name: string
@@ -35,12 +35,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const [loading, setLoading] = useState(false)
     const [isCreatingFile, setIsCreatingFile] = useState(false)
     const [newFileName, setNewFileName] = useState('')
+    const expandedPathsRef = useRef<Set<string>>(new Set())
 
     // Load directory when rootPath changes
     useEffect(() => {
         if (rootPath) {
+            expandedPathsRef.current.clear()
             loadDirectory(rootPath)
         } else {
+            expandedPathsRef.current.clear()
             setFiles([])
         }
     }, [rootPath])
@@ -77,24 +80,37 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         setNewFileName('')
     }
 
+    const readDirectoryRecursive = async (dirPath: string): Promise<FileNode[]> => {
+        const contents = await window.electronAPI.readDirectory(dirPath)
+        const nodes: FileNode[] = await Promise.all(
+            contents
+                .filter((item: { name: string }) => !item.name.startsWith('.'))
+                .map(async (item: { name: string; isDirectory: boolean; path: string }) => {
+                    const isExpanded = item.isDirectory && expandedPathsRef.current.has(item.path)
+                    let children: FileNode[] | undefined = undefined
+                    if (item.isDirectory) {
+                        children = isExpanded ? await readDirectoryRecursive(item.path) : []
+                    }
+                    return {
+                        name: item.name,
+                        path: item.path,
+                        isDirectory: item.isDirectory,
+                        expanded: isExpanded,
+                        children
+                    }
+                })
+        )
+        return nodes.sort((a: FileNode, b: FileNode) => {
+            if (a.isDirectory && !b.isDirectory) return -1
+            if (!a.isDirectory && b.isDirectory) return 1
+            return a.name.localeCompare(b.name)
+        })
+    }
+
     const loadDirectory = async (dirPath: string) => {
         setLoading(true)
         try {
-            const contents = await window.electronAPI.readDirectory(dirPath)
-            const nodes: FileNode[] = contents
-                .filter((item: { name: string }) => !item.name.startsWith('.'))
-                .map((item: { name: string; isDirectory: boolean; path: string }) => ({
-                    name: item.name,
-                    path: item.path,
-                    isDirectory: item.isDirectory,
-                    expanded: false,
-                    children: item.isDirectory ? [] : undefined
-                }))
-                .sort((a: FileNode, b: FileNode) => {
-                    if (a.isDirectory && !b.isDirectory) return -1
-                    if (!a.isDirectory && b.isDirectory) return 1
-                    return a.name.localeCompare(b.name)
-                })
+            const nodes = await readDirectoryRecursive(dirPath)
             setFiles(nodes)
         } catch (error) {
             console.error('Failed to load directory:', error)
@@ -121,22 +137,27 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         const targetNode = (current as FileNode[])[path[path.length - 1]]
         targetNode.expanded = !targetNode.expanded
 
-        if (targetNode.expanded && (!targetNode.children || targetNode.children.length === 0)) {
-            const contents = await window.electronAPI.readDirectory(targetNode.path)
-            targetNode.children = contents
-                .filter((item: { name: string }) => !item.name.startsWith('.'))
-                .map((item: { name: string; isDirectory: boolean; path: string }) => ({
-                    name: item.name,
-                    path: item.path,
-                    isDirectory: item.isDirectory,
-                    expanded: false,
-                    children: item.isDirectory ? [] : undefined
-                }))
-                .sort((a: FileNode, b: FileNode) => {
-                    if (a.isDirectory && !b.isDirectory) return -1
-                    if (!a.isDirectory && b.isDirectory) return 1
-                    return a.name.localeCompare(b.name)
-                })
+        if (targetNode.expanded) {
+            expandedPathsRef.current.add(targetNode.path)
+            if (!targetNode.children || targetNode.children.length === 0) {
+                const contents = await window.electronAPI.readDirectory(targetNode.path)
+                targetNode.children = contents
+                    .filter((item: { name: string }) => !item.name.startsWith('.'))
+                    .map((item: { name: string; isDirectory: boolean; path: string }) => ({
+                        name: item.name,
+                        path: item.path,
+                        isDirectory: item.isDirectory,
+                        expanded: false,
+                        children: item.isDirectory ? [] : undefined
+                    }))
+                    .sort((a: FileNode, b: FileNode) => {
+                        if (a.isDirectory && !b.isDirectory) return -1
+                        if (!a.isDirectory && b.isDirectory) return 1
+                        return a.name.localeCompare(b.name)
+                    })
+            }
+        } else {
+            expandedPathsRef.current.delete(targetNode.path)
         }
 
         setFiles(newFiles)
