@@ -8,8 +8,8 @@ describe('Git Commit Helper', () => {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
             if (status.trim()) {
                 execSync('git add -A')
-                execSync('git commit -m "feat(debugger): support local project headers and watch expressions in GDB"')
-                console.log('Successfully committed Fix 7 via git runner!')
+                execSync('git commit -m "feat(terminal): add ANSI color rendering support to integrated output panel"')
+                console.log('Successfully committed Fix 8 via git runner!')
             }
         } catch (e: any) {
             console.log('Git commit note:', e.message)

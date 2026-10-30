@@ -98,6 +98,125 @@ const DOS_THEMES: Record<DosTheme, {
     }
 }
 
+interface AnsiStyle {
+    color?: string
+    backgroundColor?: string
+    fontWeight?: string
+    fontStyle?: string
+    textDecoration?: string
+    opacity?: number
+}
+
+const ANSI_FG: Record<number, string> = {
+    30: '#4e4e4e',
+    31: '#f87171',
+    32: '#4ade80',
+    33: '#facc15',
+    34: '#60a5fa',
+    35: '#c084fc',
+    36: '#22d3ee',
+    37: '#f3f4f6',
+    39: '',
+    90: '#9ca3af',
+    91: '#ef4444',
+    92: '#22c55e',
+    93: '#eab308',
+    94: '#3b82f6',
+    95: '#a855f7',
+    96: '#06b6d4',
+    97: '#ffffff',
+}
+
+const ANSI_BG: Record<number, string> = {
+    40: '#1f2937',
+    41: '#7f1d1d',
+    42: '#14532d',
+    43: '#713f12',
+    44: '#1e3a8a',
+    45: '#581c87',
+    46: '#164e63',
+    47: '#374151',
+    49: '',
+}
+
+function parseAnsi(text: string): React.ReactNode {
+    if (!text) return '\u00A0'
+    if (!text.includes('\x1b[') && !text.includes('\u001b[')) {
+        return text
+    }
+
+    // Strip non-color ANSI escape codes (e.g. cursor moves \x1b[2K, \x1b[?25h)
+    const sanitized = text.replace(/\x1b\[[0-9;]*[A-Za-ln-z]/g, '')
+    const regex = /\x1b\[([0-9;]*)m/g
+    const parts: React.ReactNode[] = []
+    let lastIndex = 0
+    let currentStyle: AnsiStyle = {}
+    let match: RegExpExecArray | null
+    let keyIdx = 0
+
+    while ((match = regex.exec(sanitized)) !== null) {
+        if (match.index > lastIndex) {
+            const chunk = sanitized.slice(lastIndex, match.index)
+            if (chunk) {
+                parts.push(
+                    <span key={keyIdx++} style={{ ...currentStyle }}>
+                        {chunk}
+                    </span>
+                )
+            }
+        }
+
+        const codes = match[1] ? match[1].split(';').map(n => parseInt(n, 10)) : [0]
+        for (const code of codes) {
+            if (code === 0) {
+                currentStyle = {}
+            } else if (code === 1) {
+                currentStyle.fontWeight = 'bold'
+            } else if (code === 2) {
+                currentStyle.opacity = 0.7
+            } else if (code === 3) {
+                currentStyle.fontStyle = 'italic'
+            } else if (code === 4) {
+                currentStyle.textDecoration = 'underline'
+            } else if (code === 22) {
+                delete currentStyle.fontWeight
+                delete currentStyle.opacity
+            } else if (code === 23) {
+                delete currentStyle.fontStyle
+            } else if (code === 24) {
+                delete currentStyle.textDecoration
+            } else if (ANSI_FG[code] !== undefined) {
+                if (ANSI_FG[code]) {
+                    currentStyle.color = ANSI_FG[code]
+                } else {
+                    delete currentStyle.color
+                }
+            } else if (ANSI_BG[code] !== undefined) {
+                if (ANSI_BG[code]) {
+                    currentStyle.backgroundColor = ANSI_BG[code]
+                } else {
+                    delete currentStyle.backgroundColor
+                }
+            }
+        }
+
+        lastIndex = regex.lastIndex
+    }
+
+    if (lastIndex < sanitized.length) {
+        const remaining = sanitized.slice(lastIndex)
+        if (remaining) {
+            parts.push(
+                <span key={keyIdx++} style={{ ...currentStyle }}>
+                    {remaining}
+                </span>
+            )
+        }
+    }
+
+    return parts.length > 0 ? parts : (sanitized || '\u00A0')
+}
+
 export const OutputPanel: React.FC<OutputPanelProps> = ({
     result,
     isCompiling,
@@ -508,7 +627,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                                             if (isLast && isRunning) {
                                                 return (
                                                     <div key={startIndex + i} className="min-h-[1.4em]">
-                                                        <span>{line}</span>
+                                                        <span>{parseAnsi(line)}</span>
                                                         <span className="font-medium" style={{ color: isDos ? theme.prompt : undefined }}>
                                                             {textBeforeCursor}
                                                         </span>
@@ -524,7 +643,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                                             }
                                             return (
                                                 <div key={startIndex + i} className="min-h-[1.4em]">
-                                                    {line || '\u00A0'}
+                                                    {parseAnsi(line)}
                                                 </div>
                                             )
                                         })
