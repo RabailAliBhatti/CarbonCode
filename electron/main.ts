@@ -726,7 +726,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     }
 
     if (request.language === 'c') {
-        const compileResult = await compileCCode(request.code, request.cStandard || 'c17')
+        const compileResult = await compileCCode(request.code, request.cStandard || 'c17', request.filePath, request.rootPath)
 
         if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
             return {
@@ -779,7 +779,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     }
 
     // C++ path
-    const compileResult = await compileCode(request.code, request.cppStandard || 'c++17')
+    const compileResult = await compileCode(request.code, request.cppStandard || 'c++17', request.filePath, request.rootPath)
 
     if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
         return {

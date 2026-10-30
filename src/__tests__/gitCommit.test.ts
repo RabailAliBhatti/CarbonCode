@@ -8,7 +8,7 @@ describe('Git Commit Helper', () => {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
             if (status.trim()) {
                 execSync('git add -A')
-                execSync('git commit -m "feat: implement Aptabase analytics and background auto-updater"')
+                execSync('git commit -m "fix(compiler): support local header includes and workspace include paths in C/C++"')
                 console.log('Successfully committed via git runner!')
             }
         } catch (e: any) {

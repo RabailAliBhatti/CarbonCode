@@ -1,6 +1,6 @@
 import { execSync, spawn, ChildProcess, SpawnOptions } from 'child_process'
 import { writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
-import { basename, extname, join } from 'path'
+import { basename, extname, join, dirname } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { app } from 'electron'
@@ -543,9 +543,32 @@ export interface CompileResult {
 }
 
 /**
+ * Resolve include directories from the active source file and workspace root
+ */
+function getIncludeDirs(filePath?: string | null, rootPath?: string | null): string[] {
+    const dirs: string[] = []
+    if (filePath) {
+        try {
+            const dir = dirname(filePath)
+            if (dir && existsSync(dir) && !dirs.includes(dir)) {
+                dirs.push(dir)
+            }
+        } catch { }
+    }
+    if (rootPath) {
+        try {
+            if (existsSync(rootPath) && !dirs.includes(rootPath)) {
+                dirs.push(rootPath)
+            }
+        } catch { }
+    }
+    return dirs
+}
+
+/**
  * Compile C++ code only
  */
-export async function compileCode(code: string, cppStandard: string): Promise<CompileResult> {
+export async function compileCode(code: string, cppStandard: string, filePath?: string | null, rootPath?: string | null): Promise<CompileResult> {
     const compiler = await detectCompiler()
 
     if (!compiler) {
@@ -593,6 +616,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
 
         // Get the actual compiler path (might be bundled)
         const compilerPath = getCompilerPath() || compiler
+        const includeDirs = getIncludeDirs(filePath, rootPath)
 
         if (compiler === 'cl.exe') {
             // MSVC compiler
@@ -606,6 +630,9 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
                 `/Fe:${executableFile}`,
                 sourceFile
             ]
+            for (const inc of includeDirs) {
+                compileArgs.push(`/I${inc}`)
+            }
             compileCmd = compilerPath
         } else {
             // GCC/Clang
@@ -616,6 +643,9 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
                 '-o', executableFile,
                 sourceFile
             ]
+            for (const inc of includeDirs) {
+                compileArgs.push(`-I${inc}`)
+            }
             compileCmd = compilerPath
         }
 
@@ -673,7 +703,7 @@ export async function compileCode(code: string, cppStandard: string): Promise<Co
 /**
  * Compile C code only
  */
-export async function compileCCode(code: string, cStandard: string): Promise<CompileResult> {
+export async function compileCCode(code: string, cStandard: string, filePath?: string | null, rootPath?: string | null): Promise<CompileResult> {
     const compiler = await detectCCompiler()
 
     if (!compiler) {
@@ -700,6 +730,7 @@ export async function compileCCode(code: string, cStandard: string): Promise<Com
         let compileArgs: string[]
 
         const compilerPath = detectedCCompilerPath || compiler
+        const includeDirs = getIncludeDirs(filePath, rootPath)
 
         if (compiler === 'cl.exe' || compilerPath.toLowerCase().endsWith('cl.exe')) {
             // MSVC C compiler
@@ -711,6 +742,9 @@ export async function compileCCode(code: string, cStandard: string): Promise<Com
                 `/Fe:${executableFile}`,
                 sourceFile
             ]
+            for (const inc of includeDirs) {
+                compileArgs.push(`/I${inc}`)
+            }
             compileCmd = compilerPath
         } else {
             // GCC / Clang
@@ -721,6 +755,9 @@ export async function compileCCode(code: string, cStandard: string): Promise<Com
                 '-o', executableFile,
                 sourceFile
             ]
+            for (const inc of includeDirs) {
+                compileArgs.push(`-I${inc}`)
+            }
             compileCmd = compilerPath
         }
 
