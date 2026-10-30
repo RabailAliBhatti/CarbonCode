@@ -173,35 +173,72 @@ function App() {
     const activeTabRef = useRef(activeTab)
     activeTabRef.current = activeTab
 
+    // High-performance stream buffer for stdout/stderr to prevent UI freeze on high throughput
+    const pendingStdoutRef = useRef<string>('')
+    const pendingStderrRef = useRef<string>('')
+    const outputRafIdRef = useRef<number | null>(null)
+
+    const flushOutputBuffer = useCallback(() => {
+        if (outputRafIdRef.current) {
+            cancelAnimationFrame(outputRafIdRef.current)
+            outputRafIdRef.current = null
+        }
+
+        const outChunk = pendingStdoutRef.current
+        const errChunk = pendingStderrRef.current
+
+        if (!outChunk && !errChunk) return
+
+        pendingStdoutRef.current = ''
+        pendingStderrRef.current = ''
+
+        setCompilationResult(prev => {
+            let newOut = prev?.output || ''
+            let newErr = prev?.error || ''
+
+            if (outChunk) {
+                newOut = appendOutput(newOut, outChunk)
+            }
+            if (errChunk) {
+                newErr = appendOutput(newErr, errChunk)
+                const parsed = parseCompileErrors(newErr, activeTabRef.current?.filePath || undefined)
+                if (parsed.length > 0) {
+                    setParsedErrors(parsed)
+                }
+            }
+
+            return {
+                success: prev?.success ?? true,
+                output: newOut,
+                error: newErr,
+                compileTime: prev?.compileTime,
+                executionTime: prev?.executionTime
+            }
+        })
+    }, [])
+
+    const scheduleOutputFlush = useCallback(() => {
+        if (!outputRafIdRef.current) {
+            outputRafIdRef.current = requestAnimationFrame(flushOutputBuffer)
+        }
+    }, [flushOutputBuffer])
+
     // Listeners for process output
     useEffect(() => {
         if (!window.electronAPI) return
 
         const cleanStdout = window.electronAPI.onProcessStdout((data) => {
-            setCompilationResult(prev => ({
-                success: true, // Optimistic
-                output: appendOutput(prev?.output || '', data),
-                error: prev?.error || '',
-                compileTime: prev?.compileTime,
-                executionTime: prev?.executionTime
-            }))
+            pendingStdoutRef.current += data
+            scheduleOutputFlush()
         })
 
         const cleanStderr = window.electronAPI.onProcessStderr((data) => {
-            setCompilationResult(prev => {
-                const combined = appendOutput(prev?.error || '', data)
-                const parsed = parseCompileErrors(combined, activeTabRef.current?.filePath || undefined)
-                if (parsed.length > 0) {
-                    setParsedErrors(parsed)
-                }
-                return {
-                    ...prev!,
-                    error: combined
-                }
-            })
+            pendingStderrRef.current += data
+            scheduleOutputFlush()
         })
 
         const cleanExit = window.electronAPI.onProcessExit((code) => {
+            flushOutputBuffer()
             setIsRunning(false)
             const elapsed = Date.now() - executionStartRef.current
             setCompilationResult(prev => {
@@ -227,11 +264,15 @@ function App() {
         })
 
         return () => {
+            if (outputRafIdRef.current) {
+                cancelAnimationFrame(outputRafIdRef.current)
+                outputRafIdRef.current = null
+            }
             cleanStdout?.()
             cleanStderr?.()
             cleanExit?.()
         }
-    }, [])
+    }, [scheduleOutputFlush, flushOutputBuffer])
 
     const handleStop = useCallback(async () => {
         await window.electronAPI.stopProcess()
