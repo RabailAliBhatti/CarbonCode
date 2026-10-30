@@ -22,8 +22,24 @@ function saveTabsToStorage(tabs: FileTab[], activeTabId: string | null): void {
     try {
         if (tabs.length === 0) {
             localStorage.removeItem(STORAGE_KEY)
-        } else {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }))
+            return
+        }
+
+        // Lean serialization: For clean saved files on disk, strip the bulky content string
+        // so we never exhaust the 5MB browser localStorage quota
+        const leanTabs = tabs.map(tab => {
+            if (tab.filePath && !tab.isDirty && tab.content.length > 500) {
+                return { ...tab, content: '' } // content will be restored from disk on recovery
+            }
+            return tab
+        })
+
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: leanTabs, activeTabId }))
+        } catch {
+            // QuotaExceededError fallback: strip content from all disk-backed files
+            const minimalTabs = tabs.map(tab => tab.filePath ? { ...tab, content: '' } : tab)
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: minimalTabs, activeTabId }))
         }
     } catch { }
 }
@@ -342,12 +358,29 @@ export function useFileManager() {
     // Check if any tab has unsaved changes
     const hasUnsavedChanges = tabs.some(tab => tab.isDirty)
 
-    const acceptRecovery = useCallback(() => {
+    const acceptRecovery = useCallback(async () => {
         setHasRecoveryData(false)
         if (pendingRecoveryRef.current) {
-            setTabs(pendingRecoveryRef.current.tabs)
-            setActiveTabId(pendingRecoveryRef.current.activeTabId)
+            const rawTabs = pendingRecoveryRef.current.tabs
+            const activeId = pendingRecoveryRef.current.activeTabId
             pendingRecoveryRef.current = null
+
+            // If any tab had empty content because of lean serialization, restore it from disk
+            const restoredTabs = await Promise.all(
+                rawTabs.map(async (tab) => {
+                    if (tab.filePath && (!tab.content || tab.content === '')) {
+                        try {
+                            const diskContent = await window.electronAPI?.readFile?.(tab.filePath)
+                            if (typeof diskContent === 'string') {
+                                return { ...tab, content: diskContent, isDirty: false }
+                            }
+                        } catch { }
+                    }
+                    return tab
+                })
+            )
+            setTabs(restoredTabs)
+            setActiveTabId(activeId)
         }
     }, [])
 

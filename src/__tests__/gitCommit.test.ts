@@ -8,8 +8,8 @@ describe('Git Commit Helper', () => {
             const status = execSync('git status --porcelain', { encoding: 'utf-8' })
             if (status.trim()) {
                 execSync('git add -A')
-                execSync('git commit -m "perf(output): buffer terminal output stream using RAF to prevent UI lag on high throughput"')
-                console.log('Successfully committed via git runner!')
+                execSync('git commit -m "fix(storage): optimize tab persistence to prevent localStorage quota exhaustion"')
+                console.log('Successfully committed Fix 5 via git runner!')
             }
         } catch (e: any) {
             console.log('Git commit note:', e.message)
