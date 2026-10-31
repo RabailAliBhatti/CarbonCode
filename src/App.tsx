@@ -9,6 +9,7 @@ import SearchPanel from './components/SearchPanel'
 import SettingsModal from './components/SettingsModal'
 import AnalyticsConsentDialog from './components/AnalyticsConsentDialog'
 import NewFileDialog from './components/NewFileDialog'
+import { NewProjectModal } from './components/NewProjectModal'
 import NavigationRail, { NavItem } from './components/NavigationRail'
 import CodingScreen from './components/CodingScreen'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
@@ -55,6 +56,7 @@ function App() {
     const [showSettings, setShowSettings] = useState(false)
     const [showAnalyticsConsent, setShowAnalyticsConsent] = useState(false)
     const [showNewFileDialog, setShowNewFileDialog] = useState(false)
+    const [showNewProjectModal, setShowNewProjectModal] = useState(false)
 
     // Check if we need to show analytics consent on first launch
     useEffect(() => {
@@ -396,28 +398,11 @@ function App() {
     }, [activeTabId, updateTabContent])
 
     // New file handler
-    const handleNewFile = useCallback(async () => {
-        setShowNewFileDialog(true)
+    
+    // New project wizard handlers
+    const handleNewProject = useCallback(() => {
+        setShowNewProjectModal(true)
     }, [])
-
-    const handleNewFileSelect = useCallback((language: SupportedLanguage) => {
-        setShowNewFileDialog(false)
-        createNewTab(language, authorName || undefined)
-        setCurrentView('editor')
-        window.electronAPI?.trackEvent?.('file_created', { language })
-    }, [createNewTab, authorName])
-
-    // Open file handler
-    const handleOpenFile = useCallback(async () => {
-        const file = await window.electronAPI.openFile()
-        if (file) {
-            openFile(file.filePath, file.content)
-            const fileLang = getLanguageFromFileName(file.filePath)
-            window.electronAPI?.trackEvent?.('file_opened', { language: fileLang })
-            addRecentFile(file.filePath, file.filePath.split(/[/\\]/).pop() || 'file', fileLang)
-            setCurrentView('editor')
-        }
-    }, [openFile])
 
     // Open specific file by path (from Recent Files card, Explorer, or Definition Navigation)
     const handleOpenFileByPath = useCallback(async (filePath: string, line?: number, column?: number) => {
@@ -438,6 +423,17 @@ function App() {
             }
         }
     }, [openFile])
+
+    const handleProjectCreated = useCallback((projectPath: string, primaryFile: string | null) => {
+        setRootPath(projectPath)
+        setShowExplorer(true)
+        setCurrentView('editor')
+        window.electronAPI.addRecentFolder(projectPath)
+        loadProjectSettings(projectPath)
+        if (primaryFile) {
+            handleOpenFileByPath(primaryFile)
+        }
+    }, [handleOpenFileByPath])
 
     // Open folder handler
     const handleOpenFolder = useCallback(async () => {
@@ -1009,6 +1005,12 @@ function App() {
                 setShowFind(true)
                 return
             }
+            // Ctrl+Shift+N - New Project Wizard
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
+                e.preventDefault()
+                setShowNewProjectModal(true)
+                return
+            }
             // Ctrl+Shift+F - Search in files
             if (e.ctrlKey && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
                 e.preventDefault()
@@ -1095,6 +1097,7 @@ function App() {
                 onCStandardChange={(std) => updateSetting('cStandard', std)}
                 onRun={handleRun}
                 onNewFile={handleNewFile}
+                onNewProject={handleNewProject}
                 onOpenFile={handleOpenFile}
                 onSave={handleSave}
                 isCompiling={isCompiling}
@@ -1283,6 +1286,13 @@ function App() {
                     window.electronAPI?.setAnalyticsConsent?.(consent)
                     setShowAnalyticsConsent(false)
                 }}
+            />
+
+            {/* New Project Wizard Modal */}
+            <NewProjectModal
+                isOpen={showNewProjectModal}
+                onClose={() => setShowNewProjectModal(false)}
+                onProjectCreated={handleProjectCreated}
             />
 
             {/* New File Dialog */}

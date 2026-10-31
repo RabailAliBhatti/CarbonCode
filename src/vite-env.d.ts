@@ -8,6 +8,13 @@ declare global {
             readFile: (filePath: string) => Promise<string | null>
             openFolder: () => Promise<string | null>
             openFolderByPath: (folderPath: string) => Promise<string | null>
+            createProjectFromTemplate: (payload: {
+                templateId: string
+                projectName: string
+                parentDir: string
+                files: Array<{ path: string; content: string }>
+                primaryFile: string
+            }) => Promise<{ success: boolean; projectPath?: string; primaryFilePath?: string | null; error?: string }>
             readDirectory: (dirPath: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
             createFile: (dirPath: string, fileName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
             setDirty: (dirty: boolean) => Promise<void>

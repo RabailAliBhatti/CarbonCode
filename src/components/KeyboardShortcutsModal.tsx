@@ -20,6 +20,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
         category: 'File Operations',
         shortcuts: [
             { description: 'New File', keys: ['Ctrl', 'N'] },
+            { description: 'New Project (Wizard)', keys: ['Ctrl', 'Shift', 'N'] },
             { description: 'Open File', keys: ['Ctrl', 'O'] },
             { description: 'Save File', keys: ['Ctrl', 'S'] },
             { description: 'Save As', keys: ['Ctrl', 'Shift', 'S'] },

@@ -560,6 +560,10 @@ function getIncludeDirs(filePath?: string | null, rootPath?: string | null): str
             if (existsSync(rootPath) && !dirs.includes(rootPath)) {
                 dirs.push(rootPath)
             }
+            const incDir = join(rootPath, 'include')
+            if (existsSync(incDir) && !dirs.includes(incDir)) {
+                dirs.push(incDir)
+            }
         } catch { }
     }
     return dirs
@@ -610,6 +614,28 @@ export async function compileCode(code: string, cppStandard: string, filePath?: 
             effectiveCppStandard = 'c++23'
         }
 
+        // Detect sibling or src/ .cpp files to compile multi-file projects seamlessly
+        const extraCppFiles: string[] = []
+        if (filePath && rootPath) {
+            try {
+                const targetDirs = [dirname(filePath), join(rootPath, 'src')]
+                const currentBase = basename(filePath)
+                for (const d of targetDirs) {
+                    if (existsSync(d)) {
+                        const entries = readdirSync(d)
+                        for (const entry of entries) {
+                            if (entry.endsWith('.cpp') && entry !== currentBase && !entry.startsWith('test_')) {
+                                const fullEntryPath = join(d, entry)
+                                if (!extraCppFiles.includes(fullEntryPath)) {
+                                    extraCppFiles.push(fullEntryPath)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch { }
+        }
+
         // Build compile command
         let compileCmd: string
         let compileArgs: string[]
@@ -645,6 +671,12 @@ export async function compileCode(code: string, cppStandard: string, filePath?: 
             ]
             for (const inc of includeDirs) {
                 compileArgs.push(`-I${inc}`)
+            }
+            for (const extra of extraCppFiles) {
+                compileArgs.push(extra)
+            }
+            if (code.includes('raylib.h')) {
+                compileArgs.push('-lraylib', '-lopengl32', '-lgdi32', '-lwinmm')
             }
             compileCmd = compilerPath
         }
@@ -827,6 +859,10 @@ export async function compileJavaCode(code: string, filePath?: string | null, ro
         mainClass = basename(filePath, extname(filePath))
     }
 
+    const packageMatch = code.match(/\bpackage\s+([\w.]+)\s*;/)
+    const packageName = packageMatch ? packageMatch[1] : ''
+    const qualifiedMainClass = packageName ? `${packageName}.${mainClass}` : mainClass
+
     const sourceName = `${mainClass}.java`
     const sourceFile = join(tempDir, sourceName)
 
@@ -844,8 +880,12 @@ export async function compileJavaCode(code: string, filePath?: string | null, ro
                 if (dir && existsSync(dir)) sourceDirs.push(dir)
             } catch { }
         }
-        if (rootPath && existsSync(rootPath) && !sourceDirs.includes(rootPath)) {
-            sourceDirs.push(rootPath)
+        if (rootPath && existsSync(rootPath)) {
+            if (!sourceDirs.includes(rootPath)) sourceDirs.push(rootPath)
+            const srcSub = join(rootPath, 'src')
+            if (existsSync(srcSub) && !sourceDirs.includes(srcSub)) {
+                sourceDirs.push(srcSub)
+            }
         }
 
         if (sourceDirs.length > 0) {
@@ -875,7 +915,7 @@ export async function compileJavaCode(code: string, filePath?: string | null, ro
             tempDir,
             executablePath: runtime.runtimePath,
             compileTime,
-            mainClass
+            mainClass: qualifiedMainClass
         }
     } catch (e: unknown) {
         cleanupDir(tempDir)
@@ -1047,7 +1087,7 @@ export function startExternalConsoleProcess(
         'echo Press any key to continue . . .',
         'pause >nul',
         'exit %CC_EXIT_CODE%'
-    ].filter(line => line !== '').join('\r\n')
+    ].filter(line => line !== '').join('\n')
 
     writeFileSync(batFile, batLines, 'utf-8')
 

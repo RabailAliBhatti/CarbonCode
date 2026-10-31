@@ -13,6 +13,7 @@ interface ToolbarProps {
     onCStandardChange?: (std: CStandard) => void
     onRun: () => void
     onNewFile: () => void
+    onNewProject?: () => void
     onOpenFile: () => void
     onSave: () => void
     isCompiling: boolean
@@ -46,6 +47,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onCStandardChange,
     onRun,
     onNewFile,
+    onNewProject,
     onOpenFile,
     onSave,
     isCompiling,
@@ -118,6 +120,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                                 <span>New File</span>
                                 <span className="text-carbon-text-muted font-mono text-[10px]">Ctrl+N</span>
                             </button>
+                            {onNewProject && (
+                                <button
+                                    onClick={() => { setMenuOpen(false); onNewProject(); }}
+                                    className="w-full text-left px-3 py-2 hover:bg-carbon-elevated flex items-center justify-between text-carbon-accent font-medium"
+                                >
+                                    <span>New Project...</span>
+                                    <span className="text-carbon-accent/80 font-mono text-[10px]">Ctrl+Shift+N</span>
+                                </button>
+                            )}
                             <button
                                 onClick={() => { setMenuOpen(false); onOpenFile(); }}
                                 className="w-full text-left px-3 py-2 hover:bg-carbon-elevated flex items-center justify-between"

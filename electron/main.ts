@@ -991,6 +991,58 @@ function saveRecentFolders(folders: string[]): void {
     }
 }
 
+
+// Create a new project from a starter template
+ipcMain.handle('project:create-template', async (_, payload: {
+    templateId: string
+    projectName: string
+    parentDir: string
+    files: Array<{ path: string; content: string }>
+    primaryFile: string
+}) => {
+    try {
+        const { projectName, parentDir, files, primaryFile } = payload
+        if (!projectName || !parentDir) {
+            return { success: false, error: 'Project name and destination directory are required.' }
+        }
+        // Sanitize project name
+        const sanitizedName = projectName.replace(/[\\/:*?"<>|]/g, '').trim()
+        if (!sanitizedName) {
+            return { success: false, error: 'Invalid project name.' }
+        }
+
+        const projectDir = join(parentDir, sanitizedName)
+        if (existsSync(projectDir)) {
+            const existing = readdirSync(projectDir)
+            if (existing.length > 0) {
+                return { success: false, error: `Folder "${sanitizedName}" already exists and is not empty.` }
+            }
+        } else {
+            mkdirSync(projectDir, { recursive: true })
+        }
+
+        for (const file of files) {
+            const fullFilePath = join(projectDir, file.path)
+            const parent = dirname(fullFilePath)
+            if (!existsSync(parent)) {
+                mkdirSync(parent, { recursive: true })
+            }
+            writeFileSync(fullFilePath, file.content, 'utf-8')
+        }
+
+        const fullPrimaryPath = join(projectDir, primaryFile)
+
+        return {
+            success: true,
+            projectPath: projectDir,
+            primaryFilePath: existsSync(fullPrimaryPath) ? fullPrimaryPath : null
+        }
+    } catch (err: unknown) {
+        console.error('Failed to create project from template:', err)
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+})
+
 ipcMain.handle('recent-folders:get', () => {
     return loadRecentFolders()
 })

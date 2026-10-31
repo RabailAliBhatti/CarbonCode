@@ -13,6 +13,7 @@ interface WelcomeScreenProps {
     onNewFile: () => void
     onOpenFile: () => void
     onOpenFolder: () => void
+    onNewProject?: () => void
     onStartCoding: () => void
     onOpenRecentFolder?: (path: string) => void
     onOpenFileByPath?: (path: string) => void
@@ -29,6 +30,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     onNewFile,
     onOpenFile,
     onOpenFolder,
+    onNewProject,
     onStartCoding,
     onOpenFileByPath,
     onOpenShortcutsModal,
@@ -227,6 +229,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             <span>New File</span>
                         </button>
 
+                        {/* New Project (Starter Templates) */}
+                        {onNewProject && (
+                            <button
+                                onClick={onNewProject}
+                                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-carbon-surface border border-carbon-accent/50 text-carbon-accent text-sm font-semibold transition-all hover:bg-carbon-accent/10 hover:border-carbon-accent shadow-sm active:scale-95"
+                            >
+                                <span className="text-base">🚀</span>
+                                <span>New Project</span>
+                            </button>
+                        )}
+
                         {/* Open File */}
                         <button
                             onClick={onOpenFile}
@@ -321,6 +334,81 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
                 {/* Right Column: Context Information Sidebar (~340px) */}
                 <div className="w-full xl:w-80 flex flex-col gap-5 shrink-0">
+                    {/* Starter Templates Quick Launch Card */}
+                    <div className="rounded-2xl bg-carbon-surface border border-carbon-border p-5 shadow-card">
+                        <div className="flex items-center justify-between mb-2.5">
+                            <h3 className="text-xs font-semibold text-carbon-text-primary tracking-wider uppercase flex items-center gap-1.5">
+                                <span>🚀</span>
+                                <span>Starter Templates</span>
+                            </h3>
+                            {onNewProject && (
+                                <button
+                                    onClick={onNewProject}
+                                    className="text-xs text-carbon-accent hover:text-carbon-accent-highlight font-medium transition-colors"
+                                >
+                                    Wizard →
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-carbon-text-muted mb-3 leading-relaxed">
+                            1-Click multi-file scaffolding with headers, tests, and build scripts.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                onClick={onNewProject}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-base">🔷</span>
+                                    <div>
+                                        <div className="text-xs font-semibold text-carbon-text-primary group-hover:text-carbon-accent transition-colors">C++ OOP Package</div>
+                                        <div className="text-[10px] text-carbon-text-muted">Header guards & tests</div>
+                                    </div>
+                                </div>
+                                <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
+                            </button>
+                            <button
+                                onClick={onNewProject}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-base">🎮</span>
+                                    <div>
+                                        <div className="text-xs font-semibold text-carbon-text-primary group-hover:text-carbon-accent transition-colors">2D Graphics Game</div>
+                                        <div className="text-[10px] text-carbon-text-muted">60 FPS physics loop</div>
+                                    </div>
+                                </div>
+                                <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
+                            </button>
+                            <button
+                                onClick={onNewProject}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-base">🐍</span>
+                                    <div>
+                                        <div className="text-xs font-semibold text-carbon-text-primary group-hover:text-carbon-accent transition-colors">Python Modular App</div>
+                                        <div className="text-[10px] text-carbon-text-muted">src/ layout & unittests</div>
+                                    </div>
+                                </div>
+                                <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
+                            </button>
+                            <button
+                                onClick={onNewProject}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-base">☕</span>
+                                    <div>
+                                        <div className="text-xs font-semibold text-carbon-text-primary group-hover:text-carbon-accent transition-colors">Java Standard App</div>
+                                        <div className="text-[10px] text-carbon-text-muted">Package-aware OOP</div>
+                                    </div>
+                                </div>
+                                <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Quick Info Card */}
                     <div className="rounded-2xl bg-carbon-surface border border-carbon-border p-5 shadow-card">
                         <h3 className="text-xs font-semibold text-carbon-text-primary tracking-wider uppercase mb-3">Quick Info</h3>

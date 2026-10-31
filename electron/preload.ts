@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFolderByPath: (folderPath: string) => ipcRenderer.invoke('folder:open-by-path', folderPath),
     readDirectory: (dirPath: string) => ipcRenderer.invoke('file:read-directory', dirPath),
     createFile: (dirPath: string, fileName: string) => ipcRenderer.invoke('fs:create-file', dirPath, fileName),
+    createProjectFromTemplate: (payload: {
+        templateId: string
+        projectName: string
+        parentDir: string
+        files: Array<{ path: string; content: string }>
+        primaryFile: string
+    }) => ipcRenderer.invoke('project:create-template', payload),
 
     // State management
     setDirty: (dirty: boolean) => ipcRenderer.invoke('state:set-dirty', dirty),
