@@ -8,10 +8,10 @@
   "scripts": {
     "dev": "vite",
     "postinstall": "npm run prebuild",
-    "prebuild": "node -e \"const fs=require('fs'),p=require('path');const s=p.resolve('node_modules/monaco-editor/min/vs'),d=p.resolve('public/monaco/vs');if(fs.existsSync(s)&&!fs.existsSync(d)){fs.mkdirSync(d,{recursive:true});fs.cpSync(s,d,{recursive:true});}\"",
+    "prebuild": "node -e \"const fs=require('fs'),p=require('path');const s=p.resolve('node_modules/monaco-editor/min/vs'),d=p.resolve('public/monaco/vs');if(fs.existsSync(s)&&!fs.existsSync(d)){fs.mkdirSync(d,{recursive:true});fs.cpSync(s,d,{recursive:true});}\" && node scripts/patch-nsis.js",
     "build": "npm run prebuild && vite build && electron-builder --win",
-    "build:lite": "vite build && electron-builder --win --config electron-builder-lite.json",
-    "build:full": "vite build && electron-builder --win --config electron-builder-full.json",
+    "build:lite": "npm run prebuild && vite build && electron-builder --win --config electron-builder-lite.json",
+    "build:full": "npm run prebuild && vite build && electron-builder --win --config electron-builder-full.json",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
