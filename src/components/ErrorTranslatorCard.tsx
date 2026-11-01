@@ -154,3 +154,4 @@ export const ErrorTranslatorCard: React.FC<ErrorTranslatorCardProps> = ({
 }
 
 export default ErrorTranslatorCard
+

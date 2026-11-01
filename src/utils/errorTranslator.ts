@@ -736,3 +736,4 @@ export function applyQuickFix(
             return { message: 'Quick fix action completed.' }
     }
 }
+
