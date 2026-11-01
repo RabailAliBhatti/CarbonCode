@@ -389,44 +389,48 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     return (
         <div className="h-full flex flex-col bg-carbon-surface border border-carbon-border rounded-xl shadow-card overflow-hidden select-none">
             {/* Panel Header */}
-            <div className="h-9 px-3 flex items-center justify-between border-b border-carbon-border bg-carbon-surface shrink-0 gap-2 whitespace-nowrap overflow-x-auto select-none">
-                {/* Left Tabs & Mode Controls */}
-                <div className="flex items-center gap-1.5 shrink-0">
+            <div className="h-10 px-3 flex items-center justify-between border-b border-carbon-border bg-carbon-surface shrink-0 gap-2 whitespace-nowrap overflow-hidden select-none">
+                {/* Left Tabs & Error Modes */}
+                <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto scrollbar-none py-1">
                     {/* Output Tab */}
                     <button
                         onClick={() => setActiveTab('output')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
                             effectiveTab === 'output'
                                 ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border shadow-xs'
-                                : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/40'
+                                : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/50'
                         }`}
                     >
-                        <svg className="w-3.5 h-3.5 text-carbon-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-carbon-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span>Output</span>
-                        {hasOutput && <span className="w-1.5 h-1.5 rounded-full bg-carbon-success" />}
+                        {hasOutput && <span className="w-1.5 h-1.5 rounded-full bg-carbon-success shrink-0" />}
                     </button>
 
                     {/* Errors Tab */}
                     <button
                         onClick={() => setActiveTab('errors')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
                             effectiveTab === 'errors'
                                 ? 'bg-carbon-elevated text-carbon-text-primary border border-carbon-border shadow-xs'
-                                : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/40'
+                                : 'text-carbon-text-secondary hover:text-carbon-text-primary hover:bg-carbon-elevated/50'
                         }`}
                     >
-                        <svg className="w-3.5 h-3.5 text-carbon-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 text-carbon-error shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                         <span>Errors</span>
-                        {hasErrors && <span className="w-1.5 h-1.5 rounded-full bg-carbon-error" />}
+                        {hasErrors && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-carbon-error/20 text-carbon-error border border-carbon-error/30 shrink-0">
+                                {translatedErrors.length || '!'}
+                            </span>
+                        )}
                     </button>
 
                     {/* Explanations vs Compact View Toggle (active when on Errors tab) */}
                     {effectiveTab === 'errors' && hasErrors && (
-                        <div className="flex items-center bg-carbon-bg border border-carbon-border/70 rounded-md p-0.5 ml-1">
+                        <div className="flex items-center bg-carbon-bg border border-carbon-border/70 rounded-md p-0.5 ml-1 shrink-0">
                             <button
                                 onClick={() => setErrorViewMode('translated')}
                                 className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all flex items-center gap-1 ${
@@ -451,19 +455,37 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                             </button>
                         </div>
                     )}
+                </div>
+
+                {/* Right Header Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Running status indicator / Stop button */}
+                    {isRunning && (
+                        <div className="flex items-center gap-1.5 mr-1 bg-carbon-error/10 border border-carbon-error/30 rounded-md px-2 py-0.5">
+                            <span className="w-2 h-2 rounded-full bg-carbon-error animate-ping" />
+                            <button
+                                onClick={onStop}
+                                className="text-carbon-error hover:text-carbon-error font-medium text-xs transition-colors"
+                                title="Stop running process (Ctrl+C)"
+                            >
+                                Stop
+                            </button>
+                        </div>
+                    )}
 
                     {/* Format Toggle (Modern vs DOS) */}
                     {onOutputStyleChange && (
                         <button
                             onClick={() => onOutputStyleChange(outputStyle === 'dos' ? 'modern' : 'dos')}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer ${
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
                                 isDos
-                                    ? 'bg-carbon-elevated text-carbon-accent border border-carbon-border font-semibold'
+                                    ? 'bg-carbon-elevated text-carbon-accent border border-carbon-border font-semibold shadow-xs'
                                     : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated/60'
                             }`}
-                            title="Toggle DOS / Dev-C++ visual style inside panel"
+                            title="Toggle DOS / Dev-C++ console visual style"
                         >
-                            <span>{isDos ? '📟 DOS Theme' : '⚡ Modern'}</span>
+                            <span>{isDos ? '📟' : '⚡'}</span>
+                            <span className="hidden sm:inline">{isDos ? 'DOS Theme' : 'Modern'}</span>
                         </button>
                     )}
 
@@ -472,7 +494,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         <select
                             value={dosTheme}
                             onChange={(e) => onDosThemeChange(e.target.value as DosTheme)}
-                            className="bg-carbon-bg border border-carbon-border rounded px-1.5 py-0.5 text-[11px] font-mono text-carbon-text-secondary hover:text-carbon-text-primary outline-none cursor-pointer"
+                            className="bg-carbon-bg border border-carbon-border rounded px-2 py-1 text-xs font-mono text-carbon-text-secondary hover:text-carbon-text-primary outline-none cursor-pointer"
                             title="DOS Color Palette"
                         >
                             <option value="classic">Classic CMD</option>
@@ -481,40 +503,23 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                             <option value="turboc">Turbo C++</option>
                         </select>
                     )}
-                </div>
-
-                {/* Right Header Actions */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Running status indicator / Stop button */}
-                    {isRunning && (
-                        <div className="flex items-center gap-1.5 mr-1">
-                            <span className="w-2 h-2 rounded-full bg-carbon-success animate-ping" />
-                            <button
-                                onClick={onStop}
-                                className="px-2 py-0.5 rounded bg-carbon-error/20 text-carbon-error hover:bg-carbon-error/30 text-[11px] font-medium transition-colors"
-                                title="Stop Program"
-                            >
-                                Stop
-                            </button>
-                        </div>
-                    )}
 
                     {/* Font Size controls (A- / A+) */}
                     {onFontSizeChange && (
-                        <div className="flex items-center border border-carbon-border/80 rounded-md bg-carbon-bg/60 p-0.5" title="Output Font Size">
+                        <div className="flex items-center border border-carbon-border/80 rounded-md bg-carbon-bg/60 overflow-hidden" title={`Output Font Size: ${fontSize}px`}>
                             <button
                                 onClick={() => onFontSizeChange(Math.max(10, fontSize - 1))}
-                                className="px-1.5 py-0.5 text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                className="w-6 h-6 flex items-center justify-center text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated transition-colors"
                                 title="Decrease Output Font Size (A-)"
                             >
                                 A-
                             </button>
-                            <span className="text-[10px] font-mono text-carbon-text-secondary px-1 select-none min-w-[20px] text-center">
+                            <span className="text-[10px] font-mono text-carbon-text-secondary px-1 select-none min-w-[18px] text-center border-x border-carbon-border/50">
                                 {fontSize}
                             </span>
                             <button
                                 onClick={() => onFontSizeChange(Math.min(24, fontSize + 1))}
-                                className="px-1.5 py-0.5 text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                                className="w-6 h-6 flex items-center justify-center text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated transition-colors"
                                 title="Increase Output Font Size (A+)"
                             >
                                 A+
@@ -522,19 +527,18 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         </div>
                     )}
 
-                    {/* Maximize / Restore button */}
-                    {onToggleMaximize && (
+                    {/* Subtle divider */}
+                    <div className="h-4 w-px bg-carbon-border/80 mx-0.5" />
+
+                    {/* Clear button */}
+                    {onClear && (
                         <button
-                            onClick={onToggleMaximize}
-                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
-                            title={isMaximized ? "Restore Output Size" : "Maximize Output Panel"}
+                            onClick={onClear}
+                            className="w-7 h-7 flex items-center justify-center text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded-md transition-colors"
+                            title="Clear Output"
                         >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {isMaximized ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M14 4h6m0 0v6m0-6l-7 7M4 10h6m0 0V4m0 6L3 3" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                                )}
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
                     )}
@@ -543,7 +547,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                     {onTogglePosition && (
                         <button
                             onClick={onTogglePosition}
-                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
+                            className="w-7 h-7 flex items-center justify-center text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded-md transition-colors"
                             title={`Dock panel to ${position === 'bottom' ? 'right side' : 'bottom'}`}
                         >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -556,15 +560,19 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         </button>
                     )}
 
-                    {/* Clear button */}
-                    {onClear && (
+                    {/* Maximize / Restore button */}
+                    {onToggleMaximize && (
                         <button
-                            onClick={onClear}
-                            className="p-1 text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded transition-colors"
-                            title="Clear Output"
+                            onClick={onToggleMaximize}
+                            className="w-7 h-7 flex items-center justify-center text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated rounded-md transition-colors"
+                            title={isMaximized ? "Restore Output Size" : "Maximize Output Panel"}
                         >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                {isMaximized ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M14 4h6m0 0v6m0-6l-7 7M4 10h6m0 0V4m0 6L3 3" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                )}
                             </svg>
                         </button>
                     )}
