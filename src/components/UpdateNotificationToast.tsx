@@ -17,7 +17,7 @@ interface UpdateNotificationToastProps {
     onOpenSettings?: () => void
 }
 
-export const UpdateNotificationToast: React.FC<UpdateNotificationToastProps> = ({ onOpenSettings }) => {
+export const UpdateNotificationToast: React.FC<UpdateNotificationToastProps> = ({ onOpenSettings: _onOpenSettings }) => {
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
     const [isDismissed, setIsDismissed] = useState(false)
     const [showNotes, setShowNotes] = useState(false)

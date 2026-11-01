@@ -119,7 +119,7 @@ function App() {
     // UI state
     const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard')
     const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false)
-    const [showExplorer, setShowExplorer] = useState<boolean>(true)
+    const [showExplorer, setShowExplorer] = useState<boolean>(false)
     const [showFind, setShowFind] = useState<boolean>(false)
     const [showSearch, setShowSearch] = useState<boolean>(false)
 
@@ -400,7 +400,34 @@ function App() {
     }, [activeTabId, updateTabContent])
 
     // New file handler
-    
+    const handleNewFile = useCallback(async () => {
+        setShowNewFileDialog(true)
+    }, [])
+
+    const handleNewFileSelect = useCallback((language: SupportedLanguage) => {
+        setShowNewFileDialog(false)
+        createNewTab(language, authorName || undefined)
+        setCurrentView('editor')
+        if (!rootPath) {
+            setShowExplorer(false)
+        }
+        window.electronAPI?.trackEvent?.('file_created', { language })
+    }, [createNewTab, authorName, rootPath])
+
+    const handleOpenFile = useCallback(async () => {
+        const file = await window.electronAPI.openFile()
+        if (file) {
+            openFile(file.filePath, file.content)
+            const fileLang = getLanguageFromFileName(file.filePath)
+            window.electronAPI?.trackEvent?.('file_opened', { language: fileLang })
+            addRecentFile(file.filePath, file.filePath.split(/[\/\\]/).pop() || 'file', fileLang)
+            setCurrentView('editor')
+            if (!rootPath) {
+                setShowExplorer(false)
+            }
+        }
+    }, [openFile, rootPath])
+
     // New project wizard handlers
     const handleNewProject = useCallback(() => {
         setShowNewProjectModal(true)
@@ -1068,7 +1095,10 @@ function App() {
             createNewTab('cpp', authorName || undefined)
         }
         setCurrentView('editor')
-    }, [tabs.length, createNewTab, authorName])
+        if (!rootPath) {
+            setShowExplorer(false)
+        }
+    }, [tabs.length, createNewTab, authorName, rootPath])
 
     // Navigation rail item select handler
     const handleNavSelect = useCallback((item: NavItem) => {

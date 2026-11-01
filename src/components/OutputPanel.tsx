@@ -243,7 +243,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     dosTheme = 'classic',
     onDosThemeChange,
     consoleMode = 'integrated',
-    onConsoleModeChange,
+    onConsoleModeChange: _onConsoleModeChange,
     activeFileName = 'main.exe',
     onApplyQuickFix,
     activeLanguage,

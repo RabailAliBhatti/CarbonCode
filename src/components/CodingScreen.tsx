@@ -93,7 +93,7 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
     onRun,
     onSave,
     onSaveAs,
-    onCloseTab,
+    onCloseTab: _onCloseTab,
     onOpenSettings,
     parsedErrors,
     showExplorer,

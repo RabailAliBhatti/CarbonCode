@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings, CppStandard, CStandard, OutputStyle, DosTheme, ConsoleMode } from '../hooks/useSettings'
 
 interface UpdateInfo {

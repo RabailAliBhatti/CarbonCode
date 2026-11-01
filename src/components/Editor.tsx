@@ -196,38 +196,75 @@ const editorThemeDark = {
     }
 }
 
-// Light theme colors
+// Light theme colors (Dev-C++ Classic / Embarcadero styling)
 const editorThemeLight = {
     base: 'vs' as const,
     inherit: true,
     rules: [
-        { token: 'comment', foreground: '008000', fontStyle: 'italic' },
-        { token: 'keyword', foreground: '0000FF' },
-        { token: 'string', foreground: 'A31515' },
-        { token: 'number', foreground: '098658' },
-        { token: 'type', foreground: '267F99' },
-        { token: 'function', foreground: '795E26' },
-        { token: 'variable', foreground: '001080' },
-        { token: 'operator', foreground: '000000' },
-        { token: 'delimiter', foreground: '000000' },
-        { token: 'preprocessor', foreground: '800080' },
+        // Comments: Blue, Italic (exact Dev-C++ match)
+        { token: 'comment', foreground: '0066CC', fontStyle: 'italic' },
+        { token: 'comment.line', foreground: '0066CC', fontStyle: 'italic' },
+        { token: 'comment.block', foreground: '0066CC', fontStyle: 'italic' },
+
+        // Keywords: Bold Black (signature Dev-C++ style)
+        { token: 'keyword', foreground: '000000', fontStyle: 'bold' },
+        { token: 'keyword.cpp', foreground: '000000', fontStyle: 'bold' },
+        { token: 'keyword.c', foreground: '000000', fontStyle: 'bold' },
+        { token: 'keyword.java', foreground: '000000', fontStyle: 'bold' },
+        { token: 'keyword.python', foreground: '000000', fontStyle: 'bold' },
+
+        // Preprocessor (#include, #define, headers): Forest Green
+        { token: 'preprocessor', foreground: '008000', fontStyle: 'bold' },
+        { token: 'keyword.directive', foreground: '008000', fontStyle: 'bold' },
+        { token: 'keyword.directive.include', foreground: '008000', fontStyle: 'bold' },
+        { token: 'string.include', foreground: '008000' },
+        { token: 'string.include.identifier', foreground: '008000' },
+        { token: 'header', foreground: '008000' },
+
+        // Strings & Characters: Dev-C++ Classic Blue
+        { token: 'string', foreground: '0000FF' },
+        { token: 'string.quote', foreground: '0000FF' },
+        { token: 'string.escape', foreground: '800080' },
+        { token: 'character', foreground: '0000FF' },
+
+        // Numbers: Purple / Magenta
+        { token: 'number', foreground: '800080' },
+        { token: 'number.hex', foreground: '800080' },
+        { token: 'number.float', foreground: '800080' },
+
+        // Types (int, double, char, void): Bold Black
+        { token: 'type', foreground: '000000', fontStyle: 'bold' },
+        { token: 'type.identifier', foreground: '000000', fontStyle: 'bold' },
+
+        // Functions & Identifiers: Standard Black
+        { token: 'function', foreground: '000000' },
+        { token: 'variable', foreground: '000000' },
+        { token: 'identifier', foreground: '000000' },
+
+        // Operators & Delimiters (<<, >>, +, -, ;, (), {}): Red
+        { token: 'operator', foreground: 'CC0000' },
+        { token: 'operator.cpp', foreground: 'CC0000' },
+        { token: 'delimiter', foreground: 'CC0000' },
+        { token: 'delimiter.curly', foreground: 'CC0000' },
+        { token: 'delimiter.parenthesis', foreground: 'CC0000' },
+        { token: 'delimiter.bracket', foreground: 'CC0000' },
     ],
     colors: {
-        'editor.background': '#FFFFFE',
+        'editor.background': '#FFFFFF',
         'editor.foreground': '#000000',
-        'editor.lineHighlightBackground': '#F3F3F3',
-        'editor.selectionBackground': '#ADD6FF',
-        'editor.inactiveSelectionBackground': '#e5ebf1',
+        'editor.lineHighlightBackground': '#E8F6FE',
+        'editor.lineHighlightBorder': '#D2EDFC',
+        'editor.selectionBackground': '#B4D7FF',
+        'editor.inactiveSelectionBackground': '#E8F1FC',
         'editorCursor.foreground': '#000000',
-        'editorWhitespace.foreground': '#3B3B3B',
-        'editorIndentGuide.background': '#D3D3D3',
-        'editorIndentGuide.activeBackground': '#939393',
-        'editor.selectionHighlightBackground': '#ADD6FF4D',
-        'editorLineNumber.foreground': '#237893',
-        'editorLineNumber.activeForeground': '#0B216F',
-        'editorGutter.background': '#FFFFFE',
-        'editorBracketMatch.background': '#D8D8D8',
-        'editorBracketMatch.border': '#888888',
+        'editorWhitespace.foreground': '#E0E0E0',
+        'editorIndentGuide.background': '#00000000',
+        'editorIndentGuide.activeBackground': '#00000000',
+        'editorLineNumber.foreground': '#000000',
+        'editorLineNumber.activeForeground': '#000000',
+        'editorGutter.background': '#F2F2F2',
+        'editorBracketMatch.background': '#FFE5E5',
+        'editorBracketMatch.border': '#CC0000',
         'scrollbarSlider.background': '#64646433',
         'scrollbarSlider.hoverBackground': '#64646466',
         'scrollbarSlider.activeBackground': '#00000099',
@@ -1773,7 +1810,7 @@ function Editor({
         // Normalize paths for reliable matching on Windows
         const normalize = (p?: string | null) => (p || '').replace(/\\/g, '/').toLowerCase().trim()
         const activePath = normalize(activeTab?.filePath)
-        const activeTitle = normalize(activeTab?.title)
+        const activeTitle = normalize(activeTab?.fileName)
 
         // Filter errors: include only if error has no file specified (e.g. scratch buffer),
         // or matches the current activeTab filePath or filename
@@ -1800,7 +1837,7 @@ function Editor({
         }))
 
         monacoRef.current.editor.setModelMarkers(model, 'compiler', markers)
-    }, [parsedErrors, activeTabId, activeTab?.filePath, activeTab?.title])
+    }, [parsedErrors, activeTabId, activeTab?.filePath, activeTab?.fileName])
 
     return (
         <div className="h-full w-full">
@@ -1810,7 +1847,7 @@ function Editor({
                 onMount={handleEditorMount}
                 options={{
                     fontSize: fontSize,
-                    fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+                    fontFamily: "'Consolas', 'Cascadia Code', 'Fira Code', 'Courier New', monospace",
                     fontLigatures: true,
                     lineNumbers: 'on',
                     renderLineHighlight: 'all',
@@ -1832,11 +1869,11 @@ function Editor({
                     foldingHighlight: true,
                     showFoldingControls: 'mouseover',
                     bracketPairColorization: {
-                        enabled: true
+                        enabled: theme === 'dark'
                     },
                     guides: {
-                        bracketPairs: true,
-                        indentation: true
+                        bracketPairs: theme === 'dark',
+                        indentation: theme === 'dark'
                     },
                     suggest: {
                         showKeywords: true,
