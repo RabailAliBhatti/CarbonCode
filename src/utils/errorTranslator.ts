@@ -257,6 +257,46 @@ const ERROR_RULES: ErrorPatternRule[] = [
     },
 
     // -------------------------------------------------------------------------
+    // C++ / C / Java: Missing semicolon at end of statement
+    // -------------------------------------------------------------------------
+    {
+        category: 'Syntax Error',
+        languages: ['cpp', 'c', 'java'],
+        match: (msg) =>
+            (msg.includes("expected ';'") ||
+            msg.includes("expected ',' or ';'") ||
+            msg.includes("';' expected") ||
+            msg.includes("missing ';'")) &&
+            !msg.includes("after class") &&
+            !msg.includes("after struct"),
+        translate: (_msg, _raw, err, code) => {
+            const lines = code ? code.split(/\r?\n/) : []
+            const rawLine = (err.line >= 1 && err.line <= lines.length) ? lines[err.line - 1] : ''
+            const trimmedLine = rawLine.trimEnd()
+            const fixedLine = trimmedLine ? (trimmedLine.endsWith(';') ? trimmedLine : `${trimmedLine};`) : undefined
+
+            return {
+                category: 'Syntax Error',
+                title: 'Missing semicolon (;)',
+                humanExplanation: "In C, C++, and Java, statements must terminate with a semicolon (';'). The compiler reached the next line without finding a closing semicolon.",
+                cause: `Line ${err.line} is missing a terminating semicolon.`,
+                fixTip: `Add ';' to the end of statement on line ${err.line}.`,
+                codeSnippet: {
+                    bad: trimmedLine ? `${trimmedLine} // Missing ';'` : 'cout << "Hello" << endl // Missing semicolon!',
+                    good: fixedLine ? fixedLine : 'cout << "Hello" << endl; // Correct!'
+                },
+                quickFix: fixedLine ? {
+                    id: 'fix-insert-semicolon',
+                    title: `Insert ';' at end of line ${err.line}`,
+                    type: 'replace_line',
+                    targetLine: err.line,
+                    replacementText: fixedLine
+                } : undefined
+            }
+        }
+    },
+
+    // -------------------------------------------------------------------------
     // C++ / C: Missing semicolon after class/struct definition
     // -------------------------------------------------------------------------
     {

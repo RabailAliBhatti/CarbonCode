@@ -45,7 +45,80 @@ export function enhanceCompileErrorMessage(msg: string): string {
     return msg
 }
 
-export function parseCompileErrors(raw: string, defaultFile?: string): CompileError[] {
+/**
+ * Intelligently relocates 'expected ; before token' error to the actual previous statement
+ * that is missing the terminating semicolon.
+ */
+export function adjustErrorLineForMissingSemicolon(
+    lineNum: number,
+    message: string,
+    sourceCode?: string
+): { line: number; column?: number } {
+    if (!sourceCode || lineNum <= 1) return { line: lineNum }
+
+    // Check if the error indicates a missing semicolon before a token or statement
+    const isMissingSemicolon =
+        /expected\s+['"]?(?:,|;|or\s+;)+['"]?\s+before/i.test(message) ||
+        /expected\s+['"];['"]/i.test(message) ||
+        /missing\s+['"];['"]/i.test(message) ||
+        /expected\s+;\s+before/i.test(message) ||
+        /;\s+expected/i.test(message)
+
+    if (!isMissingSemicolon) {
+        return { line: lineNum }
+    }
+
+    const lines = sourceCode.split(/\r?\n/)
+    if (lineNum > lines.length + 1) return { line: lineNum }
+
+    // lineNum is 1-indexed. Scan backwards starting from the line immediately above lineNum
+    let targetLineIdx = lineNum - 2 // (lineNum - 1) - 1
+
+    while (targetLineIdx >= 0) {
+        const rawLine = lines[targetLineIdx]
+        const trimmed = rawLine.trim()
+
+        // Skip blank lines
+        if (trimmed.length === 0) {
+            targetLineIdx--
+            continue
+        }
+
+        // Skip comments (both single line // and full line /* ... */)
+        if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.endsWith('*/')) {
+            targetLineIdx--
+            continue
+        }
+
+        // Strip inline comments to examine code portion
+        const codeWithoutComment = trimmed.replace(/\/\/.*$/, '').trim()
+        if (codeWithoutComment.length === 0) {
+            targetLineIdx--
+            continue
+        }
+
+        // If this line already ends with a semicolon, brace, colon, or preprocessor directive,
+        // then the missing semicolon is not on this line.
+        if (
+            codeWithoutComment.endsWith(';') ||
+            codeWithoutComment.endsWith('{') ||
+            codeWithoutComment.endsWith('}') ||
+            codeWithoutComment.endsWith(':') ||
+            codeWithoutComment.startsWith('#')
+        ) {
+            break
+        }
+
+        // Found the statement line missing the semicolon!
+        const adjustedLine = targetLineIdx + 1
+        const column = rawLine.length + 1
+        return { line: adjustedLine, column }
+    }
+
+    return { line: lineNum }
+}
+
+export function parseCompileErrors(raw: string, defaultFile?: string, sourceCode?: string): CompileError[] {
     if (!raw || !raw.trim()) return []
 
     const lines = raw.split('\n')
@@ -58,6 +131,19 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
     for (const line of lines) {
         const trimmed = line.trim()
         if (!trimmed) continue
+
+        // Skip UI banner prefixes and status lines that are not compiler diagnostics
+        if (
+            trimmed.startsWith('🔧') ||
+            trimmed.startsWith('❌') ||
+            trimmed.startsWith('💡') ||
+            trimmed.includes('Compilation Error:') ||
+            trimmed.includes('Compilation failed:') ||
+            trimmed.includes('Program exited with code') ||
+            trimmed === 'Compilation finished with errors:'
+        ) {
+            continue
+        }
 
         // Python traceback header
         if (trimmed.startsWith('Traceback (most recent call last):')) {
@@ -104,7 +190,7 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
             } else {
                 errors.push({
                     file: defaultFile || null,
-                    line: 1,
+                    line: 0,
                     column: lastCaretCol,
                     severity: isWarning ? 'warning' : 'error',
                     message: errorMsg,
@@ -154,6 +240,16 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
             column = parseInt(match[3], 10)
             severity = match[4] as 'error' | 'warning'
             message = match[5]
+
+            // If compiler complains about missing semicolon before next token,
+            // pinpoint the actual previous non-empty line missing the semicolon!
+            if (sourceCode) {
+                const adjusted = adjustErrorLineForMissingSemicolon(lineNum, message, sourceCode)
+                lineNum = adjusted.line
+                if (adjusted.column) {
+                    column = adjusted.column
+                }
+            }
         } else {
             // Try MSVC format
             match = trimmed.match(MSVC_RE)
@@ -163,6 +259,14 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
                 severity = match[3] as 'error' | 'warning'
                 code = match[4]
                 message = match[5]
+
+                if (sourceCode) {
+                    const adjusted = adjustErrorLineForMissingSemicolon(lineNum, message, sourceCode)
+                    lineNum = adjusted.line
+                    if (adjusted.column) {
+                        column = adjusted.column
+                    }
+                }
             } else {
                 // Try Javac format (no column after first line)
                 match = trimmed.match(JAVAC_RE)
@@ -171,16 +275,24 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
                     lineNum = parseInt(match[2], 10)
                     severity = match[3] as 'error' | 'warning'
                     message = match[4]
+
+                    if (sourceCode) {
+                        const adjusted = adjustErrorLineForMissingSemicolon(lineNum, message, sourceCode)
+                        lineNum = adjusted.line
+                        if (adjusted.column) {
+                            column = adjusted.column
+                        }
+                    }
                 } else {
                     // Fallback: check for severity keyword anywhere
                     const sevMatch = trimmed.match(SEVERITY_RE)
                     if (sevMatch) {
                         file = lastIncludedFile || defaultFile || null
-                        lineNum = lastIncludedLine || 1
+                        lineNum = lastIncludedLine || 0
                         severity = sevMatch[1].toLowerCase() as 'error' | 'warning'
                         message = trimmed
                     } else {
-                        // Skip non-error lines (like "Compilation finished with errors:")
+                        // Skip non-error lines
                         continue
                     }
                 }
@@ -190,10 +302,12 @@ export function parseCompileErrors(raw: string, defaultFile?: string): CompileEr
         // Map temp compilation files to defaultFile if provided
         if (file && defaultFile && (
             file.includes('carboncode-') ||
-            file === 'main.cpp' || file === 'main.c' || file === 'main.py' ||
+            file.includes('cpp-ide-') ||
+            file === 'main.cpp' || file === 'main.c' || file === 'main.py' || file === 'Main.java' ||
             file.endsWith('/main.cpp') || file.endsWith('\\main.cpp') ||
             file.endsWith('/main.c') || file.endsWith('\\main.c') ||
-            file.endsWith('/main.py') || file.endsWith('\\main.py')
+            file.endsWith('/main.py') || file.endsWith('\\main.py') ||
+            file.endsWith('/Main.java') || file.endsWith('\\Main.java')
         )) {
             file = defaultFile
         }

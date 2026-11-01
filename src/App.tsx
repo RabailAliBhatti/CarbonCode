@@ -205,7 +205,8 @@ function App() {
             }
             if (errChunk) {
                 newErr = appendOutput(newErr, errChunk)
-                const parsed = parseCompileErrors(newErr, activeTabRef.current?.filePath || undefined)
+                const currentCode = editorRef.current?.getValue() || activeTabRef.current?.content || undefined
+                const parsed = parseCompileErrors(newErr, activeTabRef.current?.filePath || activeTabRef.current?.fileName || undefined, currentCode)
                 if (parsed.length > 0) {
                     setParsedErrors(parsed)
                 }
@@ -248,7 +249,8 @@ function App() {
             setCompilationResult(prev => {
                 if (code !== 0) {
                     const finalError = (prev?.error || '') + `\nProgram exited with code ${code}`
-                    const parsed = parseCompileErrors(finalError, activeTabRef.current?.filePath || undefined)
+                    const currentCode = editorRef.current?.getValue() || activeTabRef.current?.content || undefined
+                    const parsed = parseCompileErrors(finalError, activeTabRef.current?.filePath || activeTabRef.current?.fileName || undefined, currentCode)
                     if (parsed.length > 0) {
                         setParsedErrors(parsed)
                     }
@@ -709,7 +711,7 @@ function App() {
             setParsedErrors([])
         } else {
             // Parse errors for clickable display
-            const parsed = parseCompileErrors(startResult.error || '', activeTab?.filePath || undefined)
+            const parsed = parseCompileErrors(startResult.error || '', activeTab?.filePath || activeTab?.fileName || undefined, currentCode)
             setParsedErrors(parsed)
             // Track analytics - code run error
             window.electronAPI?.trackEvent?.('code_run_error', { language: activeLanguage, lineCount, errorMessage: startResult.error || 'Unknown error' })

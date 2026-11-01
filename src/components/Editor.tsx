@@ -1812,29 +1812,43 @@ function Editor({
         const activePath = normalize(activeTab?.filePath)
         const activeTitle = normalize(activeTab?.fileName)
 
-        // Filter errors: include only if error has no file specified (e.g. scratch buffer),
-        // or matches the current activeTab filePath or filename
+        // Filter errors: include only if matches the current activeTab filePath, filename, or temp name
         const matchingErrors = parsedErrors.filter(err => {
             if (!err.file) return true
             const errPath = normalize(err.file)
             if (activePath && (errPath === activePath || errPath.endsWith('/' + activeTitle) || activePath.endsWith('/' + errPath))) {
                 return true
             }
-            if (!activePath && activeTitle && (errPath === activeTitle || errPath.endsWith('/' + activeTitle))) {
+            if (activeTitle && (errPath === activeTitle || errPath.endsWith('/' + activeTitle))) {
+                return true
+            }
+            // If active tab is untitled or single file, match temporary compiler filenames
+            if (activeTitle && (errPath === 'main.cpp' || errPath === 'main.c' || errPath === 'main.py' || errPath === 'main.java')) {
                 return true
             }
             return false
         })
 
-        const markers: monacoEditor.editor.IMarkerData[] = matchingErrors.map(err => ({
-            severity: err.severity === 'error' ? monacoRef.current!.MarkerSeverity.Error : monacoRef.current!.MarkerSeverity.Warning,
-            message: err.message,
-            startLineNumber: err.line,
-            startColumn: err.column || 1,
-            endLineNumber: err.line,
-            endColumn: err.column ? err.column + 10 : 1000,
-            source: 'compiler'
-        }))
+        const markers: monacoEditor.editor.IMarkerData[] = matchingErrors
+            .filter(err => err.line && err.line > 0)
+            .map(err => {
+                const totalLines = model.getLineCount()
+                const line = Math.max(1, Math.min(err.line, totalLines))
+                const lineContent = model.getLineContent(line) || ''
+                const maxCol = Math.max(lineContent.length + 1, 2)
+                const startCol = err.column && err.column <= maxCol ? Math.max(1, err.column - 1) : 1
+                const endCol = maxCol
+
+                return {
+                    severity: err.severity === 'error' ? monacoRef.current!.MarkerSeverity.Error : monacoRef.current!.MarkerSeverity.Warning,
+                    message: err.message,
+                    startLineNumber: line,
+                    startColumn: startCol,
+                    endLineNumber: line,
+                    endColumn: endCol,
+                    source: 'compiler'
+                }
+            })
 
         monacoRef.current.editor.setModelMarkers(model, 'compiler', markers)
     }, [parsedErrors, activeTabId, activeTab?.filePath, activeTab?.fileName])

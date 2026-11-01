@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { translateCompileError, applyQuickFix } from '../utils/errorTranslator'
+import { parseCompileErrors, adjustErrorLineForMissingSemicolon } from '../utils/parseCompileErrors'
 import type { CompileError } from '../utils/parseCompileErrors'
 
 describe('Human-Readable Compiler Error Translator', () => {
@@ -361,6 +362,59 @@ describe('Human-Readable Compiler Error Translator', () => {
             expect(result.newCode).toBeDefined()
             expect(result.newCode?.endsWith('};')).toBe(true)
         })
+        it('should translate missing semicolon error and offer 1-click quick-fix', () => {
+            const userSource = '// Author: Rabail\n#include <iostream>\nint main() {\n    std::cout << "Hello" << std::endl\n\n    return 0;\n}'
+            const error: CompileError = {
+                file: 'main.cpp',
+                line: 4,
+                severity: 'error',
+                message: "expected ';' before 'return'",
+                raw: "main.cpp:6:5: error: expected ';' before 'return'"
+            }
+
+            const translated = translateCompileError(error, userSource, 'cpp')
+            expect(translated.category).toBe('Syntax Error')
+            expect(translated.title).toContain('Missing semicolon')
+            expect(translated.quickFix).toBeDefined()
+            expect(translated.quickFix?.type).toBe('replace_line')
+            expect(translated.quickFix?.replacementText).toContain('std::endl;')
+        })
+
+        it('should ignore compilation error banner and pinpoint missing semicolon to actual line', () => {
+            const userSource = [
+                '// Author: Rabail Ali',
+                '// Date: 11/1/2026',
+                '',
+                '#include <iostream>',
+                'using namespace std;',
+                '',
+                'int main() {',
+                '    cout << "Hello, World!" << endl;',
+                '    cout << "Welcome to CarbonCode!" << endl',
+                '',
+                '    return 0;',
+                '}'
+            ].join('\n')
+
+            const rawCompilerOutput = [
+                '🔧 Compilation Error:',
+                '',
+                "main.cpp:11:5: error: expected ';' before 'return'",
+                '   11 |     return 0;',
+                '      |     ^~~~~~'
+            ].join('\n')
+
+            const parsed = parseCompileErrors(rawCompilerOutput, 'Untitled.cpp', userSource)
+
+            // Must NOT create an error at line 1 (the comment)
+            expect(parsed.some(e => e.line === 1)).toBe(false)
+
+            // Must adjust the error line from 11 to line 9 (the statement actually missing ';')
+            expect(parsed.length).toBe(1)
+            expect(parsed[0].line).toBe(9)
+            expect(parsed[0].file).toBe('Untitled.cpp')
+        })
     })
 })
+
 
