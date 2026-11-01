@@ -399,7 +399,7 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
                 <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
                     {editorCard}
                 </div>
-            ) : isBottom || isExternalMode ? (
+            ) : isBottom ? (
                 /* Bottom Layout: Vertical Split inside center column */
                 <div className="flex-1 flex flex-col min-h-0 min-w-0 gap-2 overflow-hidden">
                     {editorCard}

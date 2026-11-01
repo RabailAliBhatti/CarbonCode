@@ -153,6 +153,14 @@ function App() {
     const [cursorPosition, setCursorPosition] = useState<{ line: number; column: number }>({ line: 1, column: 1 })
     const [rootPath, setRootPath] = useState<string | null>(null)
 
+    const handleUpdateSetting = useCallback((key: any, value: any) => {
+        updateSetting(key, value)
+        if (key === 'consoleMode' && value === 'external') {
+            setCompilationResult(null)
+            setParsedErrors([])
+        }
+    }, [updateSetting])
+
     // Apply theme
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', settings.theme)
@@ -1165,7 +1173,7 @@ function App() {
                 hasCompiler={hasActiveRuntime}
                 onOpenSettings={() => setShowSettings(true)}
                 consoleMode={settings.consoleMode || 'integrated'}
-                onConsoleModeChange={(mode) => updateSetting('consoleMode', mode)}
+                onConsoleModeChange={(mode) => handleUpdateSetting('consoleMode', mode)}
             />
 
             {/* Main Application Area: Navigation Rail + Main Workspace */}
@@ -1283,7 +1291,7 @@ function App() {
                             onToggleOutputPosition={() => updateSetting('outputPosition', settings.outputPosition === 'bottom' ? 'right' : 'bottom')}
                             onClearOutput={() => setCompilationResult(null)}
                             onUpdateExplorerWidth={(w) => updateSetting('explorerWidth', w)}
-                            onUpdateSetting={updateSetting}
+                            onUpdateSetting={handleUpdateSetting}
                             onApplyQuickFix={handleApplyQuickFix}
                         />
                     )}
@@ -1337,7 +1345,7 @@ function App() {
                 isVisible={showSettings}
                 onClose={() => setShowSettings(false)}
                 settings={settings}
-                onUpdateSetting={updateSetting}
+                onUpdateSetting={handleUpdateSetting}
             />
 
             {/* Analytics Consent Dialog */}

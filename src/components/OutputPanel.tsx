@@ -250,7 +250,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     currentCode
 }) => {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
-    const [errorViewMode, setErrorViewMode] = useState<'translated' | 'compact'>('translated')
+    const [errorViewMode, setErrorViewMode] = useState<'translated' | 'compact'>('compact')
     const [inputValue, setInputValue] = useState('')
     const [cursorPos, setCursorPos] = useState(0)
     const [dosAcknowledged, setDosAcknowledged] = useState(false)
@@ -444,9 +444,9 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                             </button>
                             <button
                                 onClick={() => setErrorViewMode('compact')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
                                     errorViewMode === 'compact'
-                                        ? 'bg-carbon-elevated text-carbon-text-primary shadow-xs'
+                                        ? 'bg-carbon-accent text-white shadow-xs'
                                         : 'text-carbon-text-muted hover:text-carbon-text-primary'
                                 }`}
                                 title="Show compact compiler log"
