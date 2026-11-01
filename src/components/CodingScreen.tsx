@@ -7,6 +7,7 @@ import DebugPanel from './DebugPanel'
 import { SupportedLanguage } from '../types/language'
 import { Settings } from '../hooks/useSettings'
 import type { CompileError } from '../utils/parseCompileErrors'
+import type { QuickFixAction } from '../utils/errorTranslator'
 
 interface CompilationResult {
     success: boolean
@@ -73,6 +74,7 @@ interface CodingScreenProps {
     onClearOutput?: () => void
     onUpdateExplorerWidth: (width: number) => void
     onUpdateSetting?: <K extends keyof Settings>(key: K, value: Settings[K]) => void
+    onApplyQuickFix?: (action: QuickFixAction) => void
 }
 
 export const CodingScreen: React.FC<CodingScreenProps> = ({
@@ -123,7 +125,8 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
     onToggleOutputPosition,
     onClearOutput,
     onUpdateExplorerWidth,
-    onUpdateSetting
+    onUpdateSetting,
+    onApplyQuickFix
 }) => {
     const isBottom = settings.outputPosition === 'bottom'
     const [isMaximized, setIsMaximized] = useState(false)
@@ -350,6 +353,9 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
             consoleMode={settings.consoleMode || 'integrated'}
             onConsoleModeChange={(mode) => onUpdateSetting?.('consoleMode', mode)}
             activeFileName={activeTab?.filePath ? activeTab.filePath.split(/[/\\]/).pop() : (activeTab?.fileName || 'main.exe')}
+            onApplyQuickFix={onApplyQuickFix}
+            activeLanguage={activeLanguage as any}
+            currentCode={activeTab?.content}
         />
     )
 

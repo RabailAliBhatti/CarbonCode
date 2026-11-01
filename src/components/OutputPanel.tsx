@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { CompileError } from '../utils/parseCompileErrors'
 import { OutputStyle, DosTheme, ConsoleMode } from '../hooks/useSettings'
+import { ErrorTranslatorCard } from './ErrorTranslatorCard'
+import { translateCompileError } from '../utils/errorTranslator'
+import type { QuickFixAction, TranslatedError } from '../utils/errorTranslator'
 
 interface CompilationResult {
     success: boolean
@@ -32,6 +35,9 @@ interface OutputPanelProps {
     consoleMode?: ConsoleMode
     onConsoleModeChange?: (mode: ConsoleMode) => void
     activeFileName?: string
+    onApplyQuickFix?: (action: QuickFixAction) => void
+    activeLanguage?: 'cpp' | 'c' | 'java' | 'python'
+    currentCode?: string
 }
 
 const MAX_VISIBLE_LINES = 500
@@ -238,9 +244,13 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     onDosThemeChange,
     consoleMode = 'integrated',
     onConsoleModeChange,
-    activeFileName = 'main.exe'
+    activeFileName = 'main.exe',
+    onApplyQuickFix,
+    activeLanguage,
+    currentCode
 }) => {
     const [activeTab, setActiveTab] = useState<'output' | 'errors'>('output')
+    const [errorViewMode, setErrorViewMode] = useState<'translated' | 'compact'>('translated')
     const [inputValue, setInputValue] = useState('')
     const [cursorPos, setCursorPos] = useState(0)
     const [dosAcknowledged, setDosAcknowledged] = useState(false)
@@ -251,6 +261,29 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     const hasErrors = result?.error && result.error.trim().length > 0
     const isDos = outputStyle === 'dos'
     const theme = DOS_THEMES[dosTheme] || DOS_THEMES.classic
+
+    // Translate errors into friendly explanations
+    const translatedErrors = useMemo<TranslatedError[]>(() => {
+        if (parsedErrors && parsedErrors.length > 0) {
+            return parsedErrors.map(err => translateCompileError(err, currentCode, activeLanguage))
+        }
+        if (result?.error && result.error.trim().length > 0) {
+            return [
+                translateCompileError(
+                    {
+                        file: activeFileName || null,
+                        line: 1,
+                        severity: 'error',
+                        message: result.error.trim(),
+                        raw: result.error.trim()
+                    },
+                    currentCode,
+                    activeLanguage
+                )
+            ]
+        }
+        return []
+    }, [parsedErrors, result?.error, currentCode, activeLanguage, activeFileName])
 
     // Auto-switch to errors tab if there are errors and no output
     const effectiveTab = hasErrors && !hasOutput && !isRunning ? 'errors' : activeTab
@@ -390,6 +423,34 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         <span>Errors</span>
                         {hasErrors && <span className="w-1.5 h-1.5 rounded-full bg-carbon-error" />}
                     </button>
+
+                    {/* Explanations vs Compact View Toggle (active when on Errors tab) */}
+                    {effectiveTab === 'errors' && hasErrors && (
+                        <div className="flex items-center bg-carbon-bg border border-carbon-border/70 rounded-md p-0.5 ml-1">
+                            <button
+                                onClick={() => setErrorViewMode('translated')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all flex items-center gap-1 ${
+                                    errorViewMode === 'translated'
+                                        ? 'bg-carbon-accent text-white shadow-xs'
+                                        : 'text-carbon-text-muted hover:text-carbon-text-primary'
+                                }`}
+                                title="Show plain-English friendly error cards with 1-click fixes"
+                            >
+                                <span>💡 Explanations</span>
+                            </button>
+                            <button
+                                onClick={() => setErrorViewMode('compact')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                                    errorViewMode === 'compact'
+                                        ? 'bg-carbon-elevated text-carbon-text-primary shadow-xs'
+                                        : 'text-carbon-text-muted hover:text-carbon-text-primary'
+                                }`}
+                                title="Show compact compiler log"
+                            >
+                                <span>📋 Compact</span>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Format Toggle (Modern vs DOS) */}
                     {onOutputStyleChange && (
@@ -712,8 +773,43 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         </>
                     ) : (
                         hasErrors ? (
-                            parsedErrors.length > 0 ? (
+                            errorViewMode === 'translated' && translatedErrors.length > 0 ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-xs text-carbon-text-muted pb-1 border-b border-carbon-border/50">
+                                        <span className="flex items-center gap-1.5 font-medium text-carbon-text-primary">
+                                            <span>💡</span>
+                                            <span>Human-Readable Error Explanations ({translatedErrors.length})</span>
+                                        </span>
+                                        <button
+                                            onClick={() => setErrorViewMode('compact')}
+                                            className="text-[11px] text-carbon-text-muted hover:text-carbon-accent transition-colors"
+                                        >
+                                            Switch to Compact Log
+                                        </button>
+                                    </div>
+                                    {translatedErrors.map((err, i) => (
+                                        <ErrorTranslatorCard
+                                            key={i}
+                                            error={err}
+                                            onJumpToLine={onErrorClick}
+                                            onApplyQuickFix={onApplyQuickFix}
+                                        />
+                                    ))}
+                                </div>
+                            ) : parsedErrors.length > 0 ? (
                                 <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-xs text-carbon-text-muted pb-1 border-b border-carbon-border/50">
+                                        <span className="font-medium text-carbon-text-primary">
+                                            Compact Error Log ({parsedErrors.length})
+                                        </span>
+                                        <button
+                                            onClick={() => setErrorViewMode('translated')}
+                                            className="text-[11px] text-carbon-accent hover:underline flex items-center gap-1"
+                                        >
+                                            <span>💡</span>
+                                            <span>Show Friendly Explanations</span>
+                                        </button>
+                                    </div>
                                     {parsedErrors.map((err, i) => {
                                         const isClickable = err.file !== null || err.line > 0
                                         const isError = err.severity === 'error'

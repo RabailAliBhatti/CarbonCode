@@ -19,6 +19,8 @@ import { SupportedLanguage, getLanguageFromFileName } from './types/language'
 import { useSettings, CppStandard, CStandard } from './hooks/useSettings'
 import { parseCompileErrors } from './utils/parseCompileErrors'
 import type { CompileError } from './utils/parseCompileErrors'
+import { applyQuickFix } from './utils/errorTranslator'
+import type { QuickFixAction } from './utils/errorTranslator'
 import { loadProjectSettings } from './utils/loadProjectSettings'
 import { addRecentFile } from './utils/recentFiles'
 import { formatDocument } from './utils/codeFormatter'
@@ -922,6 +924,33 @@ function App() {
         }, 50)
     }, [tabs, activeTab, switchToTab, openFile, pathsEqual])
 
+    // Apply 1-click Quick Fix from Human-Readable Error Translator
+    const handleApplyQuickFix = useCallback((action: QuickFixAction) => {
+        if (action.type === 'set_standard' && action.recommendedStandard) {
+            updateSetting('cppStandard', action.recommendedStandard as any)
+            return
+        }
+
+        if (!activeTabId) return
+        const currentTab = tabs.find(t => t.id === activeTabId)
+        if (!currentTab) return
+
+        const currentCode = editorRef.current?.getValue() || currentTab.content
+        const fixResult = applyQuickFix(action, currentCode)
+
+        if (fixResult.newCode !== undefined) {
+            if (editorRef.current) {
+                editorRef.current.setValue(fixResult.newCode)
+                if (action.targetLine) {
+                    editorRef.current.revealLineInCenter(action.targetLine)
+                    editorRef.current.setPosition({ lineNumber: action.targetLine, column: 1 })
+                    editorRef.current.focus()
+                }
+            }
+            updateTabContent(activeTabId, fixResult.newCode)
+        }
+    }, [activeTabId, tabs, updateSetting, updateTabContent])
+
     // Global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -1223,6 +1252,7 @@ function App() {
                             onClearOutput={() => setCompilationResult(null)}
                             onUpdateExplorerWidth={(w) => updateSetting('explorerWidth', w)}
                             onUpdateSetting={updateSetting}
+                            onApplyQuickFix={handleApplyQuickFix}
                         />
                     )}
                 </main>
