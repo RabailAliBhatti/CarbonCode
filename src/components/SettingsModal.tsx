@@ -21,7 +21,7 @@ interface SettingsModalProps {
 function SettingsModal({ isVisible, onClose, settings, onUpdateSetting }: SettingsModalProps) {
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
         status: 'up-to-date',
-        currentVersion: '4.2.1'
+        currentVersion: '4.2.2'
     })
     const [isChecking, setIsChecking] = useState(false)
 
