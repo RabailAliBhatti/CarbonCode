@@ -5,7 +5,7 @@ import https from 'https'
 import http from 'http'
 import * as fs from 'fs'
 import * as path from 'path'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { spawn } from 'child_process'
 
 const GITHUB_OWNER = 'RabailAliBhatti'
@@ -300,27 +300,109 @@ export async function downloadUpdate(url?: string): Promise<boolean> {
 }
 
 // Run downloaded installer and exit
-export function installUpdate(): boolean {
+export async function installUpdate(): Promise<boolean> {
     if (!downloadedInstallerPath || !fs.existsSync(downloadedInstallerPath)) {
         broadcastStatus({ status: 'error', errorMessage: 'Installer not found on disk' })
         return false
     }
 
     try {
-        // Spawn installer detached, then quit app
-        const child = spawn(downloadedInstallerPath, [], {
-            detached: true,
-            stdio: 'ignore'
-        })
-        child.unref()
+        let launched = false
 
-        // Cleanly exit application to release executable file locks
-        app.quit()
+        if (process.platform === 'win32') {
+            // Windows NSIS installers configured with perMachine: true require administrator privileges.
+            // Direct child_process.spawn fails with ERROR_ELEVATION_REQUIRED (740), mapped by libuv to EACCES.
+            // Launch via PowerShell Start-Process with -Verb RunAs to trigger Windows UAC elevation cleanly.
+            launched = await new Promise<boolean>((resolve) => {
+                const escapedPath = downloadedInstallerPath!.replace(/'/g, "''")
+                const ps = spawn('powershell.exe', [
+                    '-NoProfile',
+                    '-WindowStyle', 'Hidden',
+                    '-Command',
+                    `Start-Process -FilePath '${escapedPath}' -Verb RunAs`
+                ], {
+                    detached: true,
+                    stdio: 'ignore'
+                })
+
+                let settled = false
+
+                ps.on('error', (err) => {
+                    console.warn('[Updater] PowerShell launch failed, trying cmd start fallback:', err)
+                    if (!settled) {
+                        settled = true
+                        resolve(false)
+                    }
+                })
+
+                ps.unref()
+
+                // Give process a moment to ensure it didn't fail synchronously on spawn
+                setTimeout(() => {
+                    if (!settled) {
+                        settled = true
+                        resolve(true)
+                    }
+                }, 400)
+            })
+
+            // Fallback: cmd.exe start (which delegates to Windows ShellExecuteEx)
+            if (!launched) {
+                launched = await new Promise<boolean>((resolve) => {
+                    const cmd = spawn('cmd.exe', ['/c', 'start', '""', downloadedInstallerPath!], {
+                        detached: true,
+                        stdio: 'ignore',
+                        windowsHide: true
+                    })
+
+                    let settled = false
+
+                    cmd.on('error', (err) => {
+                        console.error('[Updater] cmd.exe fallback launch failed:', err)
+                        if (!settled) {
+                            settled = true
+                            resolve(false)
+                        }
+                    })
+
+                    cmd.unref()
+
+                    setTimeout(() => {
+                        if (!settled) {
+                            settled = true
+                            resolve(true)
+                        }
+                    }, 400)
+                })
+            }
+
+            // Fallback 3: Electron shell.openPath
+            if (!launched) {
+                const openErr = await shell.openPath(downloadedInstallerPath)
+                launched = !openErr
+            }
+        } else {
+            // macOS / Linux: use Electron shell.openPath
+            const openErr = await shell.openPath(downloadedInstallerPath)
+            launched = !openErr
+        }
+
+        if (!launched) {
+            broadcastStatus({ status: 'error', errorMessage: 'Could not launch the installer. Please run it manually from Temp.' })
+            return false
+        }
+
+        // Cleanly exit application to release executable file locks so the installer can overwrite files
         setTimeout(() => {
-            app.exit(0)
-        }, 800)
+            app.quit()
+            setTimeout(() => {
+                app.exit(0)
+            }, 1200)
+        }, 500)
+
         return true
     } catch (e: any) {
+        console.error('[Updater] installUpdate exception:', e)
         broadcastStatus({ status: 'error', errorMessage: `Failed to launch installer: ${e.message}` })
         return false
     }
