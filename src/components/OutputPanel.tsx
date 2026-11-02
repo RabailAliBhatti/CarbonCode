@@ -254,8 +254,25 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     const [inputValue, setInputValue] = useState('')
     const [cursorPos, setCursorPos] = useState(0)
     const [dosAcknowledged, setDosAcknowledged] = useState(false)
+    const [showConsoleSettings, setShowConsoleSettings] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
     const outputRef = useRef<HTMLDivElement>(null)
+    const consoleSettingsRef = useRef<HTMLDivElement>(null)
+
+    // Close settings popover on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (consoleSettingsRef.current && !consoleSettingsRef.current.contains(e.target as Node)) {
+                setShowConsoleSettings(false)
+            }
+        }
+        if (showConsoleSettings) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [showConsoleSettings])
 
     const hasOutput = result?.output && result.output.trim().length > 0
     const hasErrors = result?.error && result.error.trim().length > 0
@@ -473,62 +490,126 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                         </div>
                     )}
 
-                    {/* Format Toggle (Modern vs DOS) */}
-                    {onOutputStyleChange && (
-                        <button
-                            onClick={() => onOutputStyleChange(outputStyle === 'dos' ? 'modern' : 'dos')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
-                                isDos
-                                    ? 'bg-carbon-elevated text-carbon-accent border border-carbon-border font-semibold shadow-xs'
-                                    : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated/60'
-                            }`}
-                            title="Toggle DOS / Dev-C++ console visual style"
-                        >
-                            <span>{isDos ? '📟' : '⚡'}</span>
-                            <span className="hidden sm:inline">{isDos ? 'DOS Theme' : 'Modern'}</span>
-                        </button>
-                    )}
-
-                    {/* DOS Theme Selector */}
-                    {isDos && onDosThemeChange && (
-                        <select
-                            value={dosTheme}
-                            onChange={(e) => onDosThemeChange(e.target.value as DosTheme)}
-                            className="bg-carbon-bg border border-carbon-border rounded px-2 py-1 text-xs font-mono text-carbon-text-secondary hover:text-carbon-text-primary outline-none cursor-pointer"
-                            title="DOS Color Palette"
-                        >
-                            <option value="classic">Classic CMD</option>
-                            <option value="matrix">Matrix Green</option>
-                            <option value="amber">Retro Amber</option>
-                            <option value="turboc">Turbo C++</option>
-                        </select>
-                    )}
-
-                    {/* Font Size controls (A- / A+) */}
-                    {onFontSizeChange && (
-                        <div className="flex items-center border border-carbon-border/80 rounded-md bg-carbon-bg/60 overflow-hidden" title={`Output Font Size: ${fontSize}px`}>
+                    {/* Console Preferences Popover (Consolidates Format, Palette & Font Size) */}
+                    {(onFontSizeChange || onOutputStyleChange) && (
+                        <div className="relative" ref={consoleSettingsRef}>
                             <button
-                                onClick={() => onFontSizeChange(Math.max(10, fontSize - 1))}
-                                className="w-6 h-6 flex items-center justify-center text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated transition-colors"
-                                title="Decrease Output Font Size (A-)"
+                                onClick={() => setShowConsoleSettings(prev => !prev)}
+                                className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+                                    showConsoleSettings
+                                        ? 'bg-carbon-accent text-white shadow-xs'
+                                        : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated'
+                                }`}
+                                title="Console Settings (Font Size, Terminal Style & Retro Palettes)"
                             >
-                                A-
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
                             </button>
-                            <span className="text-[10px] font-mono text-carbon-text-secondary px-1 select-none min-w-[18px] text-center border-x border-carbon-border/50">
-                                {fontSize}
-                            </span>
-                            <button
-                                onClick={() => onFontSizeChange(Math.min(24, fontSize + 1))}
-                                className="w-6 h-6 flex items-center justify-center text-[11px] font-semibold text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated transition-colors"
-                                title="Increase Output Font Size (A+)"
-                            >
-                                A+
-                            </button>
+
+                            {showConsoleSettings && (
+                                <div className="absolute right-0 top-full mt-2 z-50 w-64 p-3 rounded-xl bg-carbon-surface border border-carbon-border shadow-2xl text-xs flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="flex items-center justify-between border-b border-carbon-border/60 pb-2">
+                                        <span className="font-semibold text-carbon-text-primary text-[12px] flex items-center gap-1.5">
+                                            <span>⚙️</span>
+                                            <span>Console Preferences</span>
+                                        </span>
+                                        <span className="text-[10px] text-carbon-text-muted font-mono">{fontSize}px · {isDos ? 'DOS' : 'Modern'}</span>
+                                    </div>
+
+                                    {/* Font Size Stepper & Quick Presets */}
+                                    {onFontSizeChange && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-[11px]">
+                                                <span className="text-carbon-text-secondary">Font Size</span>
+                                                <span className="font-mono font-semibold text-carbon-text-primary">{fontSize}px</span>
+                                            </div>
+                                            <div className="flex items-center justify-between border border-carbon-border rounded-lg bg-carbon-bg/60 p-1">
+                                                <button
+                                                    onClick={() => onFontSizeChange(Math.max(10, fontSize - 1))}
+                                                    className="px-2 py-0.5 rounded text-xs font-semibold text-carbon-text-muted hover:text-white hover:bg-carbon-elevated transition-colors"
+                                                    title="Decrease font size (A-)"
+                                                >
+                                                    A-
+                                                </button>
+                                                <div className="flex items-center gap-1">
+                                                    {[11, 13, 15, 18].map((size) => (
+                                                        <button
+                                                            key={size}
+                                                            onClick={() => onFontSizeChange(size)}
+                                                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                                                                fontSize === size
+                                                                    ? 'bg-carbon-accent text-white font-bold'
+                                                                    : 'text-carbon-text-muted hover:text-carbon-text-primary'
+                                                            }`}
+                                                        >
+                                                            {size}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    onClick={() => onFontSizeChange(Math.min(24, fontSize + 1))}
+                                                    className="px-2 py-0.5 rounded text-xs font-semibold text-carbon-text-muted hover:text-white hover:bg-carbon-elevated transition-colors"
+                                                    title="Increase font size (A+)"
+                                                >
+                                                    A+
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Visual Style: Modern vs DOS Retro */}
+                                    {onOutputStyleChange && (
+                                        <div className="space-y-1.5">
+                                            <span className="text-carbon-text-secondary text-[11px]">Terminal Style</span>
+                                            <div className="grid grid-cols-2 gap-1.5 bg-carbon-bg/60 p-1 rounded-lg border border-carbon-border">
+                                                <button
+                                                    onClick={() => onOutputStyleChange('modern')}
+                                                    className={`py-1 px-2 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1.5 ${
+                                                        !isDos
+                                                            ? 'bg-carbon-accent text-white shadow-xs font-semibold'
+                                                            : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated'
+                                                    }`}
+                                                >
+                                                    <span>⚡</span>
+                                                    <span>Modern</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => onOutputStyleChange('dos')}
+                                                    className={`py-1 px-2 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1.5 ${
+                                                        isDos
+                                                            ? 'bg-carbon-accent text-white shadow-xs font-semibold'
+                                                            : 'text-carbon-text-muted hover:text-carbon-text-primary hover:bg-carbon-elevated'
+                                                    }`}
+                                                >
+                                                    <span>📟</span>
+                                                    <span>Classic DOS</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* DOS Palette Dropdown (if DOS theme active) */}
+                                    {isDos && onDosThemeChange && (
+                                        <div className="space-y-1.5 animate-in fade-in duration-150">
+                                            <span className="text-carbon-text-secondary text-[11px]">Retro Palette</span>
+                                            <select
+                                                value={dosTheme}
+                                                onChange={(e) => onDosThemeChange(e.target.value as DosTheme)}
+                                                className="w-full bg-carbon-bg border border-carbon-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-carbon-text-primary outline-none focus:border-carbon-accent cursor-pointer"
+                                            >
+                                                <option value="classic">Classic CMD (White on Black)</option>
+                                                <option value="matrix">Matrix Green</option>
+                                                <option value="amber">Retro Amber</option>
+                                                <option value="turboc">Turbo C++ (Yellow on Navy)</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
-
-                    {/* Subtle divider */}
-                    <div className="h-4 w-px bg-carbon-border/80 mx-0.5" />
 
                     {/* Clear button */}
                     {onClear && (
