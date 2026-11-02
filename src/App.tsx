@@ -991,6 +991,12 @@ function App() {
     // Global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // F1 - Open Help & Shortcuts Cheatsheet
+            if (e.key === 'F1' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+                e.preventDefault()
+                setShowShortcutsModal(true)
+                return
+            }
             // F5 - Run code (no modifiers)
             if (e.key === 'F5' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
                 e.preventDefault()
@@ -1172,6 +1178,7 @@ function App() {
                 isCompiling={isCompiling}
                 hasCompiler={hasActiveRuntime}
                 onOpenSettings={() => setShowSettings(true)}
+                onOpenHelp={() => setShowShortcutsModal(true)}
                 consoleMode={settings.consoleMode || 'integrated'}
                 onConsoleModeChange={(mode) => handleUpdateSetting('consoleMode', mode)}
             />
