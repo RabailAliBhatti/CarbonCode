@@ -317,7 +317,14 @@ export class DebuggerService extends EventEmitter {
     private compile(gppPath: string, sourcePath: string, outputPath: string, includeDirs: string[] = []): Promise<{ success: boolean; error?: string }> {
         return new Promise((resolve) => {
             const incFlags = includeDirs.map(d => `-I${d}`)
-            const proc = spawn(gppPath, ['-g', ...incFlags, '-o', outputPath, sourcePath])
+            let extraLibs: string[] = []
+            try {
+                const srcContent = fs.readFileSync(sourcePath, 'utf8')
+                if (srcContent.includes('graphics.h') || srcContent.includes('windows.h') || srcContent.includes('wingdi.h')) {
+                    extraLibs = ['-lgdi32', '-luser32']
+                }
+            } catch {}
+            const proc = spawn(gppPath, ['-g', ...incFlags, '-o', outputPath, sourcePath, ...extraLibs])
             let stderr = ''
 
             proc.stderr?.on('data', (data) => {

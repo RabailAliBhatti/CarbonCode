@@ -20,6 +20,7 @@ interface ToolbarProps {
     hasCompiler: boolean
     onOpenSettings?: () => void
     onOpenHelp?: () => void
+    onExportImage?: () => void
     consoleMode?: ConsoleMode
     onConsoleModeChange?: (mode: ConsoleMode) => void
 }
@@ -55,6 +56,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     hasCompiler,
     onOpenSettings,
     onOpenHelp,
+    onExportImage,
     consoleMode = 'integrated',
     onConsoleModeChange
 }) => {
@@ -165,6 +167,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                                 <span>Save</span>
                                 <span className="text-carbon-text-muted font-mono text-[10px]">Ctrl+S</span>
                             </button>
+                            {onExportImage && (
+                                <button
+                                    onClick={() => { setMenuOpen(false); onExportImage(); }}
+                                    className="w-full text-left px-3 py-2 hover:bg-carbon-elevated flex items-center justify-between text-carbon-accent font-medium"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs">📸</span>
+                                        <span>Export Code Image</span>
+                                    </div>
+                                    <span className="text-carbon-accent/70 font-mono text-[10px]">Ctrl+Alt+S</span>
+                                </button>
+                            )}
                             <div className="my-1 border-t border-carbon-border" />
                             {onOpenHelp && (
                                 <button
@@ -238,6 +252,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                         </svg>
                         <span className="font-medium">Save</span>
                     </button>
+
+                    {/* Export Code Image */}
+                    {onExportImage && (
+                        <button
+                            onClick={onExportImage}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-carbon-surface border border-carbon-border text-xs text-carbon-text-primary hover:text-white hover:border-carbon-accent/60 hover:bg-carbon-elevated transition-all"
+                            title="Export Code Image / Share Snippet (Ctrl+Alt+S)"
+                        >
+                            <span className="text-xs">📸</span>
+                            <span className="font-medium hidden sm:inline">Share</span>
+                        </button>
+                    )}
                 </div>
             </div>
 

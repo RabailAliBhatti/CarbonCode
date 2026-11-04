@@ -1,3 +1,5 @@
+import { GRAPHICS_H_CONTENT } from './graphicsHeader'
+
 export interface TemplateFile {
     path: string // Relative path inside project (e.g. "include/Calculator.h", "src/main.cpp")
     content: string
@@ -232,14 +234,18 @@ A clean, modular Object-Oriented C++ project template configured for CarbonCode.
     },
     {
         id: 'cpp-game',
-        name: '2D Graphics & Game Starter',
+        name: '🎮 2D Beginner Graphics & Game',
         category: 'Game Dev',
         language: 'cpp',
         icon: '🎮',
-        description: 'Interactive 2D game loop with 60 FPS physics update, player movement, smooth keyboard input, and double-buffered graphics rendering.',
+        description: 'Zero-setup 2D graphics engine. Playable arcade game with 60 FPS physics, player controls, and falling gem collectibles (no external DLLs required).',
         defaultProjectName: 'My2DGame',
         primaryFile: 'src/main.cpp',
         files: [
+            {
+                path: 'include/graphics.h',
+                content: GRAPHICS_H_CONTENT
+            },
             {
                 path: 'include/game.h',
                 content: `#ifndef GAME_H
@@ -285,6 +291,8 @@ public:
     void renderAsciiFrame() const;
     bool running() const { return isRunning; }
     int getScore() const { return player.score; }
+    const Player& getPlayer() const { return player; }
+    const std::vector<Collectible>& getCollectibles() const { return collectibles; }
 };
 
 #endif // GAME_H
@@ -302,18 +310,18 @@ GameEngine::GameEngine() : isRunning(true), tickCount(0) {
 }
 
 void GameEngine::init() {
-    player.position = { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f };
+    player.position = { SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT - 65.0f };
     player.velocity = { 0.0f, 0.0f };
-    player.radius = 20.0f;
-    player.speed = 300.0f;
+    player.radius = 24.0f;
+    player.speed = 380.0f;
     player.score = 0;
 
     collectibles.clear();
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 7; ++i) {
         Collectible c;
         c.position = {
-            static_cast<float>(100 + (rand() % (SCREEN_WIDTH - 200))),
-            static_cast<float>(100 + (rand() % (SCREEN_HEIGHT - 200)))
+            static_cast<float>(50 + (rand() % (SCREEN_WIDTH - 100))),
+            static_cast<float>(rand() % (SCREEN_HEIGHT / 2))
         };
         c.radius = 12.0f;
         c.active = true;
@@ -347,7 +355,7 @@ void GameEngine::update(float deltaTime) {
         float dist = std::sqrt(dx * dx + dy * dy);
         if (dist < (player.radius + item.radius)) {
             item.active = false;
-            player.score += 100;
+            player.score += 10;
         }
     }
 }
@@ -366,61 +374,139 @@ void GameEngine::renderAsciiFrame() const {
 #include <chrono>
 #include <thread>
 #include "game.h"
+#include "graphics.h"
 
 int main() {
-    std::cout << "=======================================\\n";
-    std::cout << "    CarbonCode 2D Game Starter Loop    \\n";
-    std::cout << "=======================================\\n";
-    std::cout << "Resolution: " << SCREEN_WIDTH << "x" << SCREEN_HEIGHT << " @ " << TARGET_FPS << " FPS\\n";
-    std::cout << "Initializing 2D Game State & Simulation...\\n\\n";
+    // 1. Initialize hardware-native 2D window (Zero DLLs needed)
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CarbonCode 2D Arcade - Zero Setup Graphics");
+    SetTargetFPS(60);
 
     GameEngine game;
-
     const float dt = 1.0f / TARGET_FPS;
-    std::cout << "Simulating game physics and movement:\\n";
 
-    // Simulate 10 frames of motion
-    for (int frame = 1; frame <= 10; ++frame) {
-        // Sample input vector (moving right-down)
-        game.handleInput(1.0f, 0.5f);
+    // 2. Main 60 FPS Game Loop
+    while (!WindowShouldClose()) {
+        float moveX = 0.0f;
+        float moveY = 0.0f;
+
+        // Player Controls
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) moveX -= 1.0f;
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) moveX += 1.0f;
+        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) moveY -= 1.0f;
+        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) moveY += 1.0f;
+
+        game.handleInput(moveX, moveY);
         game.update(dt);
-        game.renderAsciiFrame();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        // 3. Render Frame
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        // Draw Collectible Gems
+        for (const auto& item : game.getCollectibles()) {
+            if (item.active) {
+                DrawCircle(static_cast<int>(item.position.x), static_cast<int>(item.position.y), static_cast<int>(item.radius), GOLD);
+                DrawCircleLines(static_cast<int>(item.position.x), static_cast<int>(item.position.y), static_cast<int>(item.radius), ORANGE);
+            }
+        }
+
+        // Draw Player Ship / Orb
+        const auto& p = game.getPlayer();
+        DrawCircle(static_cast<int>(p.position.x), static_cast<int>(p.position.y), static_cast<int>(p.radius), SKYBLUE);
+        DrawCircle(static_cast<int>(p.position.x), static_cast<int>(p.position.y), static_cast<int>(p.radius * 0.65f), BLUE);
+        DrawCircleLines(static_cast<int>(p.position.x), static_cast<int>(p.position.y), static_cast<int>(p.radius), DARKBLUE);
+
+        // Header HUD
+        DrawRectangle(0, 0, SCREEN_WIDTH, 44, DARKBLUE);
+        DrawText("🎮 CarbonCode 2D Arcade", 20, 12, 20, WHITE);
+
+        char scoreText[64];
+        sprintf(scoreText, "Score: %d pts", game.getScore());
+        DrawText(scoreText, SCREEN_WIDTH - 180, 12, 20, YELLOW);
+
+        // Footer prompt
+        DrawText("Use Arrow Keys (or WASD) to catch the golden stars! Press Esc to exit.", 20, SCREEN_HEIGHT - 28, 15, DARKGRAY);
+
+        EndDrawing();
     }
 
-    std::cout << "\\nFinal Game State Summary:\\n";
-    std::cout << "  - Simulation ticks completed: 10\\n";
-    std::cout << "  - Final Player Score: " << game.getScore() << " pts\\n";
-    std::cout << "\\nReady to hook up Raylib or Win32 graphics window!\\n";
+    CloseWindow();
     return 0;
 }
 `
             },
             {
                 path: 'README.md',
-                content: `# 2D Graphics & Game Starter
+                content: `# 🎮 2D Beginner Graphics & Game
 
-A pre-configured 2D Game Architecture featuring an isolated game loop, delta-time physics, vector mathematics, entity boundaries, and collision detection.
+A zero-setup hardware-native 2D game project pre-bundled with CarbonCode.
 
-## Architecture
-- \`include/game.h\`: Game engine declarations, Vector2D mathematics, and Player entity state.
-- \`src/game.cpp\`: Delta-time physics updates, boundary constraint logic, and collectible collisions.
-- \`src/main.cpp\`: 60 FPS update-render game loop.
+## Zero Setup Required
+- **No external DLLs**: Uses native Win32 GDI with smooth 60 FPS double-buffering.
+- **Raylib-compatible syntax**: \`InitWindow()\`, \`BeginDrawing()\`, \`DrawCircle()\`, \`DrawRectangle()\`, \`IsKeyDown()\`.
+- **Instant F5 Run**: Press F5 to immediately compile and pop up the game window.
+`
+            },
+            {
+                path: '.carboncode',
+                content: `{\n  "language": "cpp",\n  "cppStandard": "c++17"\n}\n`
+            }
+        ]
+    },
+    {
+        id: 'cpp-turtle',
+        name: '🐢 Turtle Graphics Art',
+        category: 'Game Dev',
+        language: 'cpp',
+        icon: '🐢',
+        description: 'Python-style Turtle Graphics in C++. Draw mesmerizing geometric mandalas and colorful algorithmic art with forward() and left() commands.',
+        defaultProjectName: 'TurtleArt',
+        primaryFile: 'src/main.cpp',
+        files: [
+            {
+                path: 'include/graphics.h',
+                content: GRAPHICS_H_CONTENT
+            },
+            {
+                path: 'src/main.cpp',
+                content: `#include "graphics.h"
 
-## Upgrading to Raylib:
-To render full graphical windows using Raylib on Windows:
-\`\`\`cpp
-#include "raylib.h"
-InitWindow(800, 600, "CarbonCode Game");
-SetTargetFPS(60);
-while (!WindowShouldClose()) {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-    DrawCircle(player.x, player.y, 20, MAROON);
-    EndDrawing();
+int main() {
+    // 1. Initialize Turtle Graphics window (800x600)
+    TurtleInit(800, 600, "CarbonCode Turtle Art - Algorithmic Mandala");
+
+    Color colors[] = { RED, ORANGE, GOLD, GREEN, SKYBLUE, PURPLE, MAGENTA };
+    int numColors = 7;
+
+    TurtleSpeed(9); // Drawing speed (1..10)
+    pensize(2);
+
+    // 2. Draw a geometric spiral mandala
+    for (int i = 0; i < 180; ++i) {
+        pencolor(colors[i % numColors]);
+        forward(i * 2.2);
+        left(59); // Algorithmic geometric turn angle
+    }
+
+    // 3. Keep art window displayed until closed by user
+    TurtleDone();
+    return 0;
 }
-CloseWindow();
-\`\`\`
+`
+            },
+            {
+                path: 'README.md',
+                content: `# 🐢 Turtle Graphics in C++
+
+Python-style Turtle Graphics brought to C++ with zero external libraries.
+
+## Available Functions
+- \`forward(distance)\`, \`backward(distance)\`
+- \`left(angle)\`, \`right(angle)\`
+- \`pencolor(RED)\`, \`pensize(pixels)\`
+- \`penup()\`, \`pendown()\`
+- \`circle(radius)\`
+- \`TurtleDone()\`
 `
             },
             {

@@ -13,6 +13,7 @@ import { NewProjectModal } from './components/NewProjectModal'
 import NavigationRail, { NavItem } from './components/NavigationRail'
 import CodingScreen from './components/CodingScreen'
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
+import CodeImageModal from './components/CodeImageModal'
 import UpdateNotificationToast from './components/UpdateNotificationToast'
 import { useFileManager } from './hooks/useFileManager'
 import { SupportedLanguage, getLanguageFromFileName } from './types/language'
@@ -119,6 +120,7 @@ function App() {
     // UI state
     const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard')
     const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false)
+    const [showCodeImageModal, setShowCodeImageModal] = useState<boolean>(false)
     const [showExplorer, setShowExplorer] = useState<boolean>(false)
     const [showFind, setShowFind] = useState<boolean>(false)
     const [showSearch, setShowSearch] = useState<boolean>(false)
@@ -997,6 +999,12 @@ function App() {
                 setShowShortcutsModal(true)
                 return
             }
+            // Ctrl+Alt+S / Cmd+Alt+S - Share / Export Code Snippet Card
+            if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault()
+                setShowCodeImageModal(true)
+                return
+            }
             // F5 - Run code (no modifiers)
             if (e.key === 'F5' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
                 e.preventDefault()
@@ -1179,6 +1187,7 @@ function App() {
                 hasCompiler={hasActiveRuntime}
                 onOpenSettings={() => setShowSettings(true)}
                 onOpenHelp={() => setShowShortcutsModal(true)}
+                onExportImage={() => setShowCodeImageModal(true)}
                 consoleMode={settings.consoleMode || 'integrated'}
                 onConsoleModeChange={(mode) => handleUpdateSetting('consoleMode', mode)}
             />
@@ -1383,6 +1392,24 @@ function App() {
             <KeyboardShortcutsModal
                 isOpen={showShortcutsModal}
                 onClose={() => setShowShortcutsModal(false)}
+            />
+
+            {/* 1-Click Carbon-Style Code Image Exporter */}
+            <CodeImageModal
+                isOpen={showCodeImageModal}
+                onClose={() => setShowCodeImageModal(false)}
+                initialCode={(() => {
+                    if (editorInstance) {
+                        const selection = editorInstance.getSelection()
+                        if (selection && !selection.isEmpty()) {
+                            const selected = editorInstance.getModel()?.getValueInRange(selection)
+                            if (selected && selected.trim().length > 0) return selected
+                        }
+                    }
+                    return activeTab?.content || '// No code to export'
+                })()}
+                fileName={activeTab?.fileName || 'Untitled.cpp'}
+                language={activeTab?.language || 'cpp'}
             />
 
             {/* In-App Background Update Notification */}

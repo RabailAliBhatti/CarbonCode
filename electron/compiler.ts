@@ -672,11 +672,19 @@ export async function compileCode(code: string, cppStandard: string, filePath?: 
             for (const inc of includeDirs) {
                 compileArgs.push(`-I${inc}`)
             }
+            if (code.includes('graphics.h') || code.includes('windows.h') || code.includes('wingdi.h') || code.includes('raylib.h')) {
+                if (!compileArgs.includes('-lgdi32')) compileArgs.push('-lgdi32')
+                if (!compileArgs.includes('-luser32')) compileArgs.push('-luser32')
+            }
             for (const extra of extraCppFiles) {
                 compileArgs.push(extra)
             }
             if (code.includes('raylib.h')) {
                 compileArgs.push('-lraylib', '-lopengl32', '-lgdi32', '-lwinmm')
+            }
+            if (code.includes('graphics.h') || code.includes('windows.h') || code.includes('wingdi.h')) {
+                if (!compileArgs.includes('-lgdi32')) compileArgs.push('-lgdi32')
+                if (!compileArgs.includes('-luser32')) compileArgs.push('-luser32')
             }
             compileCmd = compilerPath
         }
@@ -789,6 +797,10 @@ export async function compileCCode(code: string, cStandard: string, filePath?: s
             ]
             for (const inc of includeDirs) {
                 compileArgs.push(`-I${inc}`)
+            }
+            if (code.includes('graphics.h') || code.includes('windows.h') || code.includes('wingdi.h') || code.includes('raylib.h')) {
+                if (!compileArgs.includes('-lgdi32')) compileArgs.push('-lgdi32')
+                if (!compileArgs.includes('-luser32')) compileArgs.push('-luser32')
             }
             compileCmd = compilerPath
         }

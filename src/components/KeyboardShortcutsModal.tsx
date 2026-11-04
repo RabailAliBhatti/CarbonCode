@@ -48,6 +48,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
             { description: 'Open File', keys: ['Ctrl', 'O'] },
             { description: 'Save Current File', keys: ['Ctrl', 'S'] },
             { description: 'Save As...', keys: ['Ctrl', 'Shift', 'S'] },
+            { description: 'Export Code Image (Share Snippet)', keys: ['Ctrl', 'Alt', 'S'] },
             { description: 'Close Current Tab', keys: ['Ctrl', 'W'] }
         ]
     },

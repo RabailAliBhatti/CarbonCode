@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { PROJECT_TEMPLATES } from '../templates/projectTemplates'
 
 describe('Project Starter Templates', () => {
-    it('should define all 4 required starter templates', () => {
-        expect(PROJECT_TEMPLATES).toHaveLength(4)
+    it('should define all starter templates', () => {
+        expect(PROJECT_TEMPLATES).toHaveLength(5)
         const templateIds = PROJECT_TEMPLATES.map(t => t.id)
         expect(templateIds).toContain('cpp-oop')
         expect(templateIds).toContain('cpp-game')
+        expect(templateIds).toContain('cpp-turtle')
         expect(templateIds).toContain('python-modular')
         expect(templateIds).toContain('java-standard')
     })
