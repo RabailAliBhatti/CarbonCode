@@ -53,7 +53,7 @@ const DEFAULT_SETTINGS: Settings = {
     outputHeight: 240,
     outputWidth: 400,
     explorerWidth: 250,
-    analyticsConsent: null
+    analyticsConsent: true
 }
 
 export function useSettings() {

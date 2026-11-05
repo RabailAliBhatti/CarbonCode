@@ -226,7 +226,10 @@ function DebugPanel({
                             <span>Variables & Watches</span>
                         </button>
                         <button
-                            onClick={() => setActiveView('memory')}
+                            onClick={() => {
+                                setActiveView('memory')
+                                window.electronAPI?.trackEvent?.('feature_memory_grid_viewed')
+                            }}
                             className={`px-2.5 py-1 rounded font-medium transition-colors flex items-center gap-1.5 ${
                                 activeView === 'memory'
                                     ? 'bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/40'

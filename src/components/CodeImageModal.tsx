@@ -376,6 +376,7 @@ export const CodeImageModal: React.FC<CodeImageModalProps> = ({
                     ])
                     setCopied(true)
                     setTimeout(() => setCopied(false), 2200)
+                    window.electronAPI?.trackEvent?.('code_image_exported', { language, action: 'clipboard', theme: theme.id })
                 }
             }, 'image/png')
         } catch (err) {
@@ -392,6 +393,7 @@ export const CodeImageModal: React.FC<CodeImageModalProps> = ({
         link.download = `${cleanName}-carboncode.png`
         link.href = url
         link.click()
+        window.electronAPI?.trackEvent?.('code_image_exported', { language, action: 'png', theme: theme.id })
     }
 
     return (
@@ -605,3 +607,4 @@ export const CodeImageModal: React.FC<CodeImageModalProps> = ({
 }
 
 export default CodeImageModal
+

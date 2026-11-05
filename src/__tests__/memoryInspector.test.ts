@@ -45,3 +45,4 @@ describe('Visual Memory & Pointer Inspector Logic', () => {
         expect(checkBounds(-1)).toBe(true) // Out of bounds!
     })
 })
+

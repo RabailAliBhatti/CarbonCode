@@ -591,6 +591,8 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
     }
 
     const targetFileName = request.filePath ? basename(request.filePath) : (request.language === 'python' ? 'main.py' : request.language === 'java' ? 'Main.java' : request.language === 'c' ? 'main.c' : 'main.cpp')
+    const lineCount = (request.code || '').split('\n').length
+    analytics.trackCodeRun(request.language, lineCount, request.runInExternalConsole ? 'cmd' : 'integrated')
 
     if (request.language === 'java') {
         // Static analysis: warn if Scanner is created but never read from
@@ -603,6 +605,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
         }
 
         const compileResult = await compileJavaCode(request.code, request.filePath, request.rootPath)
+        analytics.trackCodeCompiled('java', lineCount)
 
         if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir || !compileResult.mainClass) {
             return {
@@ -756,6 +759,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
 
     if (request.language === 'c') {
         const compileResult = await compileCCode(request.code, request.cStandard || 'c17', request.filePath, request.rootPath)
+        analytics.trackCodeCompiled('c', lineCount)
 
         if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
             return {
@@ -809,6 +813,7 @@ ipcMain.handle('process:start', async (_, requestOrCode: RunRequest | string, le
 
     // C++ path
     const compileResult = await compileCode(request.code, request.cppStandard || 'c++17', request.filePath, request.rootPath)
+    analytics.trackCodeCompiled('cpp', lineCount)
 
     if (!compileResult.success || !compileResult.executablePath || !compileResult.tempDir) {
         return {
@@ -1002,6 +1007,7 @@ ipcMain.handle('project:create-template', async (_, payload: {
 }) => {
     try {
         const { projectName, parentDir, files, primaryFile } = payload
+        analytics.trackProjectCreated(payload.templateId, projectName)
         if (!projectName || !parentDir) {
             return { success: false, error: 'Project name and destination directory are required.' }
         }
@@ -1081,6 +1087,7 @@ debugService.on('stderr', (data: string) => {
 })
 
 ipcMain.handle('debugger:start', async (_, code: string, breakpoints: { line: number }[], language?: 'c' | 'cpp', filePath?: string, rootPath?: string) => {
+    analytics.trackDebugStarted(language || 'cpp')
     return await debugService.start(code, breakpoints, language, filePath, rootPath)
 })
 
@@ -1140,6 +1147,12 @@ ipcMain.handle('analytics:track', (_, eventName: string, params?: Record<string,
             break
         case 'debug_started':
             analytics.trackDebugStarted(params?.language as string || 'unknown')
+            break
+        case 'code_image_exported':
+            analytics.trackCodeImageExported(params?.language as string || 'unknown', params?.action as string || 'unknown', params?.theme as string || 'unknown')
+            break
+        case 'project_created':
+            analytics.trackProjectCreated(params?.templateId as string || 'unknown', params?.projectName as string)
             break
         default:
             analytics.trackGeneric(eventName, params)
@@ -1336,6 +1349,7 @@ app.whenReady().then(() => {
 
     // Track app launch (only if user has consented)
     analytics.trackAppLaunch()
+    analytics.startHeartbeat()
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

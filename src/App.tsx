@@ -611,6 +611,7 @@ function App() {
             if (result && result.success) {
                 markTabSaved(target.id, target.filePath)
                 addRecentFile(target.filePath, target.filePath.split(/[/\\]/).pop() || target.fileName, target.language)
+                window.electronAPI?.trackEvent?.('file_saved', { language: target.language })
             }
         }
     }, [activeTab, activeTabId, tabs, markTabSaved, settings.formatOnSave, settings.tabSize, updateTabContent, isCompiling, isRunning])

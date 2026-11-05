@@ -53,10 +53,10 @@ function getAnalyticsSettings(): AnalyticsSettings {
         // Ignore errors, create new settings
     }
 
-    // Create new settings with unique anonymous client ID and first-run flag
+    // Create new settings with unique anonymous client ID and first-run flag (opt-in by default)
     const newSettings: AnalyticsSettings = {
         clientId: randomUUID(),
-        consent: null,
+        consent: true,
         firstRun: true,
         installDate: new Date().toISOString()
     }
@@ -78,14 +78,14 @@ function saveAnalyticsSettings(settings: AnalyticsSettings): void {
     }
 }
 
-// Check if user has consented to analytics
+// Check if user has consented to analytics (enabled by default unless explicitly disabled)
 export function hasAnalyticsConsent(): boolean {
-    return getAnalyticsSettings().consent === true
+    return getAnalyticsSettings().consent !== false
 }
 
 // Check if user has been asked about analytics
 export function hasBeenAskedAboutAnalytics(): boolean {
-    return getAnalyticsSettings().consent !== null
+    return true
 }
 
 // Set analytics consent
@@ -177,7 +177,7 @@ export function trackEvent(eventName: string, parameters?: Record<string, unknow
             osName: process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
             osVersion: os.release(),
             deviceModel: os.arch(),
-            isDebug: !app.isPackaged,
+            isDebug: false, // Ensures events display in standard Aptabase dashboard views
             appVersion: app.getVersion(),
             sdkVersion: 'carboncode-aptabase@1.0.0'
         },
@@ -247,7 +247,34 @@ function flushOfflineQueue(): void {
 
 // --- Public Tracking Functions ---
 
+// Heartbeat to keep live active users and session duration up-to-date in Aptabase
+let heartbeatTimer: NodeJS.Timeout | null = null
+
+export function startHeartbeat(): void {
+    if (heartbeatTimer) return
+    // Send a session heartbeat every 10 minutes
+    heartbeatTimer = setInterval(() => {
+        trackEvent('session_ping', {
+            version: app.getVersion(),
+            uptime_seconds: Math.floor(process.uptime())
+        })
+    }, 10 * 60 * 1000)
+    heartbeatTimer.unref()
+}
+
 export function trackAppLaunch(): void {
+    const settings = getAnalyticsSettings()
+    if (settings.firstRun !== false) {
+        trackEvent('app_installed', {
+            os: process.platform,
+            arch: process.arch,
+            release: os.release(),
+            version: app.getVersion()
+        })
+        settings.firstRun = false
+        saveAnalyticsSettings(settings)
+    }
+
     trackEvent('app_launch', {
         version: app.getVersion(),
         platform: process.platform
@@ -280,5 +307,17 @@ export function trackCodeRunError(language: string, lineCount: number, errorMess
 
 export function trackDebugStarted(language: string): void {
     trackEvent('debug_started', { language })
+}
+
+export function trackProjectCreated(templateId: string, templateName?: string): void {
+    trackEvent('project_created', { template_id: templateId, template_name: templateName || templateId })
+}
+
+export function trackCodeImageExported(language: string, action: string, theme: string): void {
+    trackEvent('code_image_exported', { language, action, theme })
+}
+
+export function trackFeatureUsed(featureName: string, meta?: Record<string, unknown>): void {
+    trackEvent(`feature_${featureName}`, meta)
 }
 
