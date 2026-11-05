@@ -1365,6 +1365,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+    analytics.flushAndSaveOnQuit()
     debugService.stop()
     // Close all file watchers
     for (const [, entry] of fileWatchers) {

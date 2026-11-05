@@ -12,6 +12,8 @@ src/shims/
 .agent/
 .agents/
 .commandcode/
+graphify-out/
+.graphifyignore
 
 # Internal plans & development notes
 JAVA_SUPPORT_IMPLEMENTATION_PLAN.md
