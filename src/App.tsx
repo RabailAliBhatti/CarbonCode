@@ -535,6 +535,7 @@ function App() {
         const debugLang = (activeTab.language === 'c' ? 'c' : 'cpp') as 'c' | 'cpp'
         const result = await window.electronAPI.debugStart(code, bpArray, debugLang, activeTab.filePath, rootPath)
         if (result.success) {
+            setCompilationResult(null)
             window.electronAPI?.trackEvent?.('debug_started', { language: activeLanguage })
         } else {
             setCompilationResult({

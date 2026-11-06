@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, execSync, ChildProcess } from 'child_process'
 import { EventEmitter } from 'events'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -49,11 +49,35 @@ export class DebuggerService extends EventEmitter {
     }
 
     async start(code: string, breakpoints: { line: number }[], language: 'c' | 'cpp' = 'cpp', filePath?: string, rootPath?: string): Promise<{ success: boolean; error?: string }> {
+        // Stop any currently running debug session cleanly first
+        if (this.gdbProcess) {
+            await this.stop()
+        }
+
+        // Always guarantee the debug temp folder exists
+        if (!fs.existsSync(this.tempDir)) {
+            fs.mkdirSync(this.tempDir, { recursive: true })
+        }
+
         try {
             const isC = language === 'c'
             const sourceFileName = isC ? 'debug_main.c' : 'debug_main.cpp'
             const sourcePath = path.join(this.tempDir, sourceFileName)
-            this.executablePath = path.join(this.tempDir, 'debug_main.exe')
+
+            // Use unique timestamped executable name to completely prevent Windows file locking "Permission denied"
+            const uniqueId = `${Date.now()}_${Math.floor(Math.random() * 10000)}`
+            this.executablePath = path.join(this.tempDir, `debug_${uniqueId}.exe`)
+
+            // Clean up any stale unlocked files from previous runs
+            try {
+                const existing = fs.readdirSync(this.tempDir)
+                for (const file of existing) {
+                    if (file.endsWith('.exe') && file !== path.basename(this.executablePath)) {
+                        try { fs.unlinkSync(path.join(this.tempDir, file)) } catch {}
+                    }
+                }
+            } catch {}
+
             fs.writeFileSync(sourcePath, code)
 
             // Find GDB
@@ -127,15 +151,39 @@ export class DebuggerService extends EventEmitter {
 
     async stop(): Promise<void> {
         if (this.gdbProcess) {
-            await this.sendCommand('-gdb-exit')
-            this.gdbProcess.kill()
+            const proc = this.gdbProcess
             this.gdbProcess = null
+            try {
+                this.sendCommand('-gdb-exit').catch(() => {})
+            } catch {}
+
+            // Force kill process tree on Windows to free any file locks on .exe
+            if (process.platform === 'win32' && proc.pid) {
+                try {
+                    execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: 'ignore' })
+                } catch {}
+            }
+            try {
+                proc.kill('SIGKILL')
+            } catch {}
         }
+
+        // Clean up temporary files inside tempDir without deleting the folder itself
         try {
-            fs.rmSync(this.tempDir, { recursive: true, force: true })
+            if (fs.existsSync(this.tempDir)) {
+                const files = fs.readdirSync(this.tempDir)
+                for (const f of files) {
+                    try {
+                        fs.unlinkSync(path.join(this.tempDir, f))
+                    } catch {}
+                }
+            } else {
+                fs.mkdirSync(this.tempDir, { recursive: true })
+            }
         } catch {
             // Ignore cleanup errors
         }
+
         this.state = {
             status: 'idle',
             breakpoints: [],
@@ -274,6 +322,15 @@ export class DebuggerService extends EventEmitter {
         if (data.includes('exited')) {
             this.state.status = 'exited'
             this.emit('stateChanged', this.getState())
+            // When debug target finishes, send -gdb-exit to release executable file locks
+            if (this.gdbProcess) {
+                this.sendCommand('-gdb-exit').then(() => {
+                    if (this.gdbProcess) {
+                        this.gdbProcess.kill()
+                        this.gdbProcess = null
+                    }
+                }).catch(() => {})
+            }
         }
     }
 

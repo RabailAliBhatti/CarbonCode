@@ -52,6 +52,7 @@ declare global {
             }) => Promise<{ success: boolean; error?: string; compileTime?: number }>
             writeProcess: (data: string) => Promise<void>
             stopProcess: () => Promise<void>
+            getDefaultProjectsDir?: () => Promise<string>
             getRecentFolders: () => Promise<string[]>
             addRecentFolder: (folderPath: string) => Promise<string[]>
             removeRecentFolder: (folderPath: string) => Promise<string[]>

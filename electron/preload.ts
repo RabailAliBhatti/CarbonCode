@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stopProcess: () => ipcRenderer.invoke('process:stop'),
 
     // Recent folders
+    getDefaultProjectsDir: () => ipcRenderer.invoke('path:get-default-projects-dir'),
     getRecentFolders: () => ipcRenderer.invoke('recent-folders:get'),
     addRecentFolder: (folderPath: string) => ipcRenderer.invoke('recent-folders:add', folderPath),
     removeRecentFolder: (folderPath: string) => ipcRenderer.invoke('recent-folders:remove', folderPath),

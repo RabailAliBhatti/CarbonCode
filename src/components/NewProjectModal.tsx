@@ -30,18 +30,34 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         }
     }, [isOpen, initialTemplateId])
 
-    // Load initial default parent directory from recent folders or user directory
+    // Load initial default parent directory from recent folders or default Projects folder
     useEffect(() => {
         if (!isOpen) return
 
         setErrorMessage(null)
-        if (window.electronAPI?.getRecentFolders) {
-            window.electronAPI.getRecentFolders().then((folders) => {
-                if (folders && folders.length > 0) {
-                    setDestinationDir(folders[0])
-                }
-            })
+        const loadDefaultDir = async () => {
+            if (window.electronAPI?.getRecentFolders) {
+                try {
+                    const folders = await window.electronAPI.getRecentFolders()
+                    if (folders && folders.length > 0 && folders[0]) {
+                        setDestinationDir(folders[0])
+                        return
+                    }
+                } catch {}
+            }
+            if (window.electronAPI?.getDefaultProjectsDir) {
+                try {
+                    const defaultDir = await window.electronAPI.getDefaultProjectsDir()
+                    if (defaultDir) {
+                        setDestinationDir(defaultDir)
+                        return
+                    }
+                } catch {}
+            }
+            // Fallback default
+            setDestinationDir('C:\\CarbonCode Projects')
         }
+        loadDefaultDir()
     }, [isOpen])
 
     // Update project name when template changes if user hasn't heavily modified it
@@ -72,6 +88,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         }
         if (!destinationDir) {
             setErrorMessage('Please choose a destination directory for the project.')
+            handleBrowseFolder()
             return
         }
 
@@ -165,34 +182,34 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                 </div>
 
                 {/* Body Content */}
-                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                <div className="px-6 py-4 overflow-y-auto space-y-4 flex-1">
                     {/* Template Selection Grid */}
                     <div>
-                        <label className="text-xs font-semibold uppercase tracking-wider text-carbon-text-muted block mb-3">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-carbon-text-muted block mb-2">
                             1. Select Project Template
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             {PROJECT_TEMPLATES.map((tpl) => {
                                 const isSelected = selectedTemplate.id === tpl.id
                                 return (
                                     <div
                                         key={tpl.id}
                                         onClick={() => handleSelectTemplate(tpl)}
-                                        className={`p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 relative group flex flex-col justify-between ${
+                                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-200 relative group flex flex-col justify-between ${
                                             isSelected
                                                 ? 'bg-carbon-elevated border-carbon-accent shadow-glow'
                                                 : 'bg-carbon-bg/80 border-carbon-border hover:border-carbon-border-hover hover:bg-carbon-elevated/50'
                                         }`}
                                     >
                                         <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2.5">
-                                                    <span className="text-2xl">{tpl.icon}</span>
+                                            <div className="flex items-center justify-between mb-1.5 pr-5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl">{tpl.icon}</span>
                                                     <span className="font-semibold text-sm text-carbon-text-primary">
                                                         {tpl.name}
                                                     </span>
                                                 </div>
-                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                                                <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${
                                                     tpl.language === 'cpp'
                                                         ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
                                                         : tpl.language === 'python'
@@ -202,24 +219,24 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                                                     {tpl.category}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-carbon-text-secondary leading-relaxed mb-3">
+                                            <p className="text-xs text-carbon-text-secondary leading-relaxed mb-2 line-clamp-2">
                                                 {tpl.description}
                                             </p>
                                         </div>
 
                                         {/* Included files preview tags */}
-                                        <div className="flex flex-wrap gap-1.5 pt-2 border-t border-carbon-border/40">
-                                            {tpl.files.slice(0, 4).map((f) => (
+                                        <div className="flex flex-wrap gap-1 pt-1.5 border-t border-carbon-border/40">
+                                            {tpl.files.slice(0, 3).map((f) => (
                                                 <span
                                                     key={f.path}
-                                                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-carbon-bg text-carbon-text-muted border border-carbon-border/50"
+                                                    className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-carbon-bg text-carbon-text-muted border border-carbon-border/50"
                                                 >
                                                     {f.path}
                                                 </span>
                                             ))}
-                                            {tpl.files.length > 4 && (
-                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-carbon-bg text-carbon-text-muted">
-                                                    +{tpl.files.length - 4} more
+                                            {tpl.files.length > 3 && (
+                                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-carbon-bg text-carbon-text-muted">
+                                                    +{tpl.files.length - 3} more
                                                 </span>
                                             )}
                                         </div>
@@ -328,7 +345,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
                         <button
                             type="button"
                             onClick={handleCreate}
-                            disabled={isCreating || !destinationDir || !projectName.trim()}
+                            disabled={isCreating}
                             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-carbon-accent hover:bg-carbon-accent-highlight disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all shadow-glow active:scale-95"
                         >
                             {isCreating ? (

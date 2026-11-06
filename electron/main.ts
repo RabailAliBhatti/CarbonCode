@@ -1050,6 +1050,19 @@ ipcMain.handle('project:create-template', async (_, payload: {
     }
 })
 
+ipcMain.handle('path:get-default-projects-dir', () => {
+    try {
+        const docs = app.getPath('documents')
+        const carbonProjects = join(docs, 'CarbonCode Projects')
+        if (!existsSync(carbonProjects)) {
+            mkdirSync(carbonProjects, { recursive: true })
+        }
+        return carbonProjects
+    } catch {
+        return app.getPath('home')
+    }
+})
+
 ipcMain.handle('recent-folders:get', () => {
     return loadRecentFolders()
 })
