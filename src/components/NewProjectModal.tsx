@@ -5,18 +5,30 @@ interface NewProjectModalProps {
     isOpen: boolean
     onClose: () => void
     onProjectCreated: (projectPath: string, primaryFile: string | null) => void
+    initialTemplateId?: string | null
 }
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({
     isOpen,
     onClose,
-    onProjectCreated
+    onProjectCreated,
+    initialTemplateId
 }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate>(PROJECT_TEMPLATES[0])
     const [projectName, setProjectName] = useState<string>(PROJECT_TEMPLATES[0].defaultProjectName)
     const [destinationDir, setDestinationDir] = useState<string>('')
     const [isCreating, setIsCreating] = useState<boolean>(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+    // Preselect the template chosen from a dashboard card
+    useEffect(() => {
+        if (!isOpen || !initialTemplateId) return
+        const tpl = PROJECT_TEMPLATES.find(t => t.id === initialTemplateId)
+        if (tpl) {
+            setSelectedTemplate(tpl)
+            setProjectName(tpl.defaultProjectName)
+        }
+    }, [isOpen, initialTemplateId])
 
     // Load initial default parent directory from recent folders or user directory
     useEffect(() => {

@@ -77,6 +77,7 @@ function createWindow() {
     const showMainAndCloseSplash = () => {
         if (splashClosed) return
         splashClosed = true
+        mainWindow?.maximize()
         mainWindow?.show()
         if (splash && !splash.isDestroyed()) {
             splash.close()

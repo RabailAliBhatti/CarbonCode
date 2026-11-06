@@ -51,6 +51,9 @@ interface CodingScreenProps {
     onFileSelect: (filePath: string) => void
     onToggleTheme?: () => void
     debugState: DebugState
+    showDebugPanel?: boolean
+    onCloseDebugPanel?: () => void
+    breakpointCount?: number
     javaDebugUnsupported: boolean
     onDebugStart: () => void
     onDebugStop: () => void
@@ -103,6 +106,9 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
     onFileSelect,
     onToggleTheme,
     debugState,
+    showDebugPanel = false,
+    onCloseDebugPanel,
+    breakpointCount = 0,
     javaDebugUnsupported,
     onDebugStart,
     onDebugStop,
@@ -281,12 +287,14 @@ export const CodingScreen: React.FC<CodingScreenProps> = ({
                 />
             </div>
 
-            {/* Docked Debug Panel (when debugger is active) */}
-            {debugState.status !== 'idle' && (
+            {/* Docked Debug Panel (opened from the rail, or whenever a session is active) */}
+            {(showDebugPanel || debugState.status !== 'idle') && (
                 <DebugPanel
                     debugState={debugState}
                     javaDebugUnsupported={javaDebugUnsupported}
                     language={activeTab?.language}
+                    breakpointCount={breakpointCount}
+                    onClose={onCloseDebugPanel}
                     onStart={onDebugStart}
                     onStop={onDebugStop}
                     onStepOver={onDebugStepOver}

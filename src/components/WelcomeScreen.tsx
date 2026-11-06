@@ -13,7 +13,7 @@ interface WelcomeScreenProps {
     onNewFile: () => void
     onOpenFile: () => void
     onOpenFolder: () => void
-    onNewProject?: () => void
+    onNewProject?: (templateId?: string) => void
     onStartCoding: () => void
     onOpenRecentFolder?: (path: string) => void
     onOpenFileByPath?: (path: string) => void
@@ -232,7 +232,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                         {/* New Project (Starter Templates) */}
                         {onNewProject && (
                             <button
-                                onClick={onNewProject}
+                                onClick={() => onNewProject?.()}
                                 className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-carbon-surface border border-carbon-accent/50 text-carbon-accent text-sm font-semibold transition-all hover:bg-carbon-accent/10 hover:border-carbon-accent shadow-sm active:scale-95"
                             >
                                 <span className="text-base">🚀</span>
@@ -343,7 +343,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             </h3>
                             {onNewProject && (
                                 <button
-                                    onClick={onNewProject}
+                                    onClick={() => onNewProject?.()}
                                     className="text-xs text-carbon-accent hover:text-carbon-accent-highlight font-medium transition-colors"
                                 >
                                     Wizard →
@@ -355,7 +355,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                         </p>
                         <div className="flex flex-col gap-2">
                             <button
-                                onClick={onNewProject}
+                                onClick={() => onNewProject?.('cpp-oop')}
                                 className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
                             >
                                 <div className="flex items-center gap-2.5">
@@ -368,7 +368,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                 <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
                             </button>
                             <button
-                                onClick={onNewProject}
+                                onClick={() => onNewProject?.('cpp-game')}
                                 className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
                             >
                                 <div className="flex items-center gap-2.5">
@@ -381,7 +381,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                 <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
                             </button>
                             <button
-                                onClick={onNewProject}
+                                onClick={() => onNewProject?.('python-modular')}
                                 className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
                             >
                                 <div className="flex items-center gap-2.5">
@@ -394,7 +394,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                                 <span className="text-xs text-carbon-text-muted group-hover:translate-x-0.5 transition-transform">→</span>
                             </button>
                             <button
-                                onClick={onNewProject}
+                                onClick={() => onNewProject?.('java-standard')}
                                 className="flex items-center justify-between p-2.5 rounded-xl bg-carbon-bg border border-carbon-border/60 hover:border-carbon-accent/50 hover:bg-carbon-elevated transition-all text-left group"
                             >
                                 <div className="flex items-center gap-2.5">

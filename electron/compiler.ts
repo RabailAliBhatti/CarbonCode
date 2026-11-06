@@ -1,5 +1,5 @@
 import { execSync, spawn, ChildProcess, SpawnOptions } from 'child_process'
-import { writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
+import { writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from 'fs'
 import { basename, extname, join, dirname } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'

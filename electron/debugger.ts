@@ -105,6 +105,10 @@ export class DebuggerService extends EventEmitter {
             await this.waitForPrompt()
 
             // Set breakpoints
+            // With no breakpoints, pause at main() so the session is visible instead of running straight to exit
+            if (breakpoints.length === 0) {
+                await this.sendCommand('-break-insert main')
+            }
             for (const bp of breakpoints) {
                 await this.setBreakpoint(sourceFileName, bp.line)
             }

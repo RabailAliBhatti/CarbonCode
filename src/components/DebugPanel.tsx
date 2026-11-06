@@ -32,6 +32,8 @@ interface DebugPanelProps {
     onStepInto: () => void
     onStepOut: () => void
     onContinue: () => void
+    breakpointCount?: number
+    onClose?: () => void
 }
 
 function DebugPanel({
@@ -43,7 +45,9 @@ function DebugPanel({
     onStepOver,
     onStepInto,
     onStepOut,
-    onContinue
+    onContinue,
+    breakpointCount = 0,
+    onClose
 }: DebugPanelProps) {
     const isDebugging = debugState.status !== 'idle' && debugState.status !== 'exited'
     const isStopped = debugState.status === 'stopped'
@@ -206,8 +210,36 @@ function DebugPanel({
                             Line {debugState.currentLine}
                         </span>
                     )}
+                    {onClose && !isDebugging && (
+                        <button
+                            onClick={onClose}
+                            className="ml-1 p-1 rounded hover:bg-editor-highlight text-text-secondary transition-colors"
+                            title="Close debug panel"
+                            aria-label="Close debug panel"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Idle / finished hint so beginners know what to do next */}
+            {!isDebugging && (
+                <div className="px-4 py-3 text-xs text-text-secondary leading-relaxed">
+                    {debugState.status === 'exited' ? (
+                        <p>Program finished. Press <span className="text-green-400 font-semibold">▶ Start</span> to debug again.</p>
+                    ) : breakpointCount > 0 ? (
+                        <p>{breakpointCount} breakpoint{breakpointCount > 1 ? 's' : ''} set. Press <span className="text-green-400 font-semibold">▶ Start</span> (Ctrl+F5) to run until the first one.</p>
+                    ) : (
+                        <p>
+                            Click the gutter next to a line number (or press <kbd className="px-1 rounded bg-editor-highlight">F9</kbd>) to add a breakpoint,
+                            then press <span className="text-green-400 font-semibold">▶ Start</span>. With no breakpoints, the debugger pauses at the start of <code className="text-accent">main()</code>.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* Variables and Watch Panel */}
             {isDebugging && (

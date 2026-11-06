@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
     app: {
         getPath: vi.fn(() => mockUserDataDir),
         getLocale: vi.fn(() => 'en-US'),
-        getVersion: vi.fn(() => '4.2.2'),
+        getVersion: vi.fn(() => '4.3.0'),
         isPackaged: true
     },
     BrowserWindow: {

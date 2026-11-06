@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, MouseEvent } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, MouseEvent } from 'react'
 import type { editor } from 'monaco-editor'
 import Toolbar from './components/Toolbar'
 import StatusBar from './components/StatusBar'
@@ -60,6 +60,7 @@ function App() {
     const [showAnalyticsConsent, setShowAnalyticsConsent] = useState(false)
     const [showNewFileDialog, setShowNewFileDialog] = useState(false)
     const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+    const [newProjectTemplateId, setNewProjectTemplateId] = useState<string | null>(null)
 
     // Check if we need to show analytics consent on first launch
     useEffect(() => {
@@ -180,7 +181,12 @@ function App() {
         breakpoints: [],
         locals: []
     })
-    const [breakpoints, setBreakpoints] = useState<number[]>([])
+    const [breakpointsByTab, setBreakpointsByTab] = useState<Record<string, number[]>>({})
+    const breakpoints = useMemo(
+        () => (activeTabId ? breakpointsByTab[activeTabId] || [] : []),
+        [breakpointsByTab, activeTabId]
+    )
+    const [showDebugPanel, setShowDebugPanel] = useState(false)
 
     // Track execution start time
     const executionStartRef = useRef<number>(0)
@@ -441,7 +447,8 @@ function App() {
     }, [openFile, rootPath])
 
     // New project wizard handlers
-    const handleNewProject = useCallback(() => {
+    const handleNewProject = useCallback((templateId?: string) => {
+        setNewProjectTemplateId(templateId || null)
         setShowNewProjectModal(true)
     }, [])
 
@@ -517,6 +524,7 @@ function App() {
     // Debug handlers — ponytail: 5 identical wrappers → one-liners
     const handleDebugStart = useCallback(async () => {
         if (!activeTab) return
+        setShowDebugPanel(true)
         if (activeTab.language === 'java' || activeTab.language === 'python' || activeTab.language === 'plaintext') {
             setJavaDebugUnsupported(true)
             return
@@ -542,18 +550,57 @@ function App() {
     const handleDebugStepOut = useCallback(async () => { await window.electronAPI.debugStepOut() }, [])
     const handleDebugContinue = useCallback(async () => { await window.electronAPI.debugContinue() }, [])
 
-    const handleToggleBreakpoint = useCallback(() => {
-        if (!editorRef.current) return
-        const position = editorRef.current.getPosition()
-        if (!position) return
-        const line = position.lineNumber
-        setBreakpoints(prev => {
-            if (prev.includes(line)) {
-                return prev.filter(l => l !== line)
-            }
-            return [...prev, line]
+    const toggleBreakpointAt = useCallback((line: number) => {
+        if (!activeTabId) return
+        setBreakpointsByTab(prev => {
+            const current = prev[activeTabId] || []
+            const next = current.includes(line) ? current.filter(l => l !== line) : [...current, line]
+            return { ...prev, [activeTabId]: next }
         })
-    }, [])
+    }, [activeTabId])
+
+    const handleToggleBreakpoint = useCallback(() => {
+        const position = editorRef.current?.getPosition()
+        if (position) toggleBreakpointAt(position.lineNumber)
+    }, [toggleBreakpointAt])
+
+    // Gutter click toggles a breakpoint (like Dev-C++ / VS Code)
+    const toggleBreakpointAtRef = useRef(toggleBreakpointAt)
+    toggleBreakpointAtRef.current = toggleBreakpointAt
+    useEffect(() => {
+        if (!editorInstance) return
+        editorInstance.updateOptions({ glyphMargin: true })
+        const sub = editorInstance.onMouseDown((e: any) => {
+            // 2 = GUTTER_GLYPH_MARGIN, 3 = GUTTER_LINE_NUMBERS
+            const t = e.target?.type
+            if ((t === 2 || t === 3) && e.target.position) {
+                toggleBreakpointAtRef.current(e.target.position.lineNumber)
+            }
+        })
+        return () => sub?.dispose()
+    }, [editorInstance])
+
+    // Render breakpoint dots and the current paused line
+    const debugDecorationsRef = useRef<any>(null)
+    useEffect(() => {
+        if (!editorInstance) return
+        const monacoRange = (line: number) => ({ startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 })
+        const decorations: any[] = breakpoints.map(line => ({
+            range: monacoRange(line),
+            options: { glyphMarginClassName: 'cc-breakpoint-glyph', glyphMarginHoverMessage: { value: 'Breakpoint (click to remove)' } }
+        }))
+        if (debugState.status === 'stopped' && debugState.currentLine && debugState.currentFile?.includes('debug_main')) {
+            decorations.push({
+                range: monacoRange(debugState.currentLine),
+                options: { isWholeLine: true, className: 'cc-debug-current-line', glyphMarginClassName: 'cc-debug-current-glyph' }
+            })
+        }
+        if (!debugDecorationsRef.current) {
+            debugDecorationsRef.current = editorInstance.createDecorationsCollection(decorations)
+        } else {
+            debugDecorationsRef.current.set(decorations)
+        }
+    }, [editorInstance, breakpoints, debugState.status, debugState.currentLine, debugState.currentFile])
 
     // Reset java debug unsupported when switching tabs/languages
     useEffect(() => {
@@ -1153,17 +1200,20 @@ function App() {
             }
             setShowSearch(prev => !prev)
         } else if (item === 'debug') {
+            // Toggle the debug panel instead of silently launching GDB
             if (currentView === 'dashboard') {
                 if (tabs.length === 0) {
                     createNewTab('cpp', authorName || undefined)
                 }
                 setCurrentView('editor')
+                setShowDebugPanel(true)
+            } else {
+                setShowDebugPanel(prev => !prev)
             }
-            handleDebugStart()
         } else if (item === 'settings') {
             setShowSettings(true)
         }
-    }, [currentView, tabs.length, createNewTab, authorName, handleDebugStart])
+    }, [currentView, tabs.length, createNewTab, authorName])
 
     return (
         <div className="h-screen w-screen flex flex-col bg-carbon-bg text-carbon-text-primary overflow-hidden select-none">
@@ -1198,7 +1248,7 @@ function App() {
                 {/* Left Navigation Rail (expanded in Dashboard, compact in Editor) */}
                 <NavigationRail
                     mode={currentView === 'dashboard' ? 'expanded' : 'compact'}
-                    activeItem={currentView === 'dashboard' ? 'home' : (showExplorer ? 'files' : (showSearch ? 'search' : 'editor'))}
+                    activeItem={currentView === 'dashboard' ? 'home' : (showExplorer ? 'files' : (showSearch ? 'search' : (showDebugPanel ? 'debug' : 'editor')))}
                     onSelect={handleNavSelect}
                     theme={settings.theme}
                     onToggleTheme={() => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark')}
@@ -1241,6 +1291,7 @@ function App() {
                             onOpenRecentFolder={handleOpenRecentFolder}
                             onOpenFileByPath={handleOpenFileByPath}
                             onOpenShortcutsModal={() => setShowShortcutsModal(true)}
+                            onNewProject={handleNewProject}
                         />
                     ) : (
                         <CodingScreen
@@ -1280,6 +1331,9 @@ function App() {
                             onFileSelect={handleOpenFileByPath}
                             onToggleTheme={() => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark')}
                             debugState={debugState}
+                            showDebugPanel={showDebugPanel}
+                            onCloseDebugPanel={() => setShowDebugPanel(false)}
+                            breakpointCount={breakpoints.length}
                             javaDebugUnsupported={javaDebugUnsupported}
                             onDebugStart={handleDebugStart}
                             onDebugStop={handleDebugStop}
@@ -1380,6 +1434,7 @@ function App() {
                 isOpen={showNewProjectModal}
                 onClose={() => setShowNewProjectModal(false)}
                 onProjectCreated={handleProjectCreated}
+                initialTemplateId={newProjectTemplateId}
             />
 
             {/* New File Dialog */}
